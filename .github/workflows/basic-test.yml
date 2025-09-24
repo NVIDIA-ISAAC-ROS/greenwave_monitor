@@ -1,0 +1,33 @@
+name: Basic Test
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  basic-test:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Echo basic info
+      run: |
+        echo "🎉 GitHub Actions runner is working!"
+        echo "Current directory: $(pwd)"
+        echo "Repository: ${{ github.repository }}"
+        echo "Branch: ${{ github.ref_name }}"
+        echo "Event: ${{ github.event_name }}"
+        
+    - name: List workspace contents
+      run: |
+        echo "Workspace contents:"
+        ls -la
+        
+    - name: Check for ROS packages
+      run: |
+        echo "Looking for ROS packages..."
+        find . -name "package.xml" | head -10
