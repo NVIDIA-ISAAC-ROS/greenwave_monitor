@@ -56,10 +56,9 @@ jobs:
 
   generate-debian:
     name: Generate Debian packages for ROS2 ${{ matrix.ros_distro }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-${{ matrix.ubuntu_distro }}
     needs: [determine-distros]
     if: always() && (needs.check-tests.result == 'success' || needs.check-tests.result == 'skipped')
-    container: ros:${{ matrix.ros_distro }}-ros-base-${{ matrix.ubuntu_distro }}
     
     strategy:
       fail-fast: false
@@ -84,10 +83,14 @@ jobs:
         submodules: recursive
         token: ${{ secrets.GITHUB_TOKEN }}
         
+    - name: Setup ROS2 ${{ matrix.ros_distro }}
+      uses: ros-tooling/setup-ros@v0.7
+      with:
+        required-ros-distributions: ${{ matrix.ros_distro }}
+        
     - name: Setup build environment
       run: |
-        source /opt/ros/${{ matrix.ros_distro }}/setup.bash
-        apt-get update -qq && apt-get install -y build-essential python3-pip python3-bloom python3-rosdep git lsb-release devscripts debhelper fakeroot
+        sudo apt-get update -qq && sudo apt-get install -y build-essential python3-pip python3-bloom python3-rosdep git lsb-release devscripts debhelper fakeroot
         
     - name: Install Python dependencies
       run: |
@@ -110,8 +113,8 @@ jobs:
     - name: Setup rosdep mappings
       run: |
         echo "Adding local rosdep mappings..."
-        mkdir -p /root/.ros/rosdep
-        cat >/root/.ros/rosdep/local.yaml <<EOF
+        sudo mkdir -p /root/.ros/rosdep
+        sudo tee /root/.ros/rosdep/local.yaml > /dev/null <<EOF
         greenwave_monitor_interfaces:
           ubuntu:
             jammy: [ros-${{ matrix.ros_distro }}-greenwave-monitor-interfaces]
@@ -121,9 +124,9 @@ jobs:
             jammy: [ros-${{ matrix.ros_distro }}-greenwave-monitor]
             noble: [ros-${{ matrix.ros_distro }}-greenwave-monitor]
         EOF
-        mkdir -p /etc/ros/rosdep/sources.list.d
-        echo "yaml file:///root/.ros/rosdep/local.yaml" > /etc/ros/rosdep/sources.list.d/99-local.list
-        rosdep init || true
+        sudo mkdir -p /etc/ros/rosdep/sources.list.d
+        echo "yaml file:///root/.ros/rosdep/local.yaml" | sudo tee /etc/ros/rosdep/sources.list.d/99-local.list > /dev/null
+        sudo rosdep init || true
         rosdep update --include-eol-distros
         
     - name: Generate Debian packages
@@ -134,26 +137,26 @@ jobs:
         # Generate debian packages for greenwave_monitor_interfaces
         echo "Generating debian for greenwave_monitor_interfaces..."
         cd greenwave_monitor_interfaces
-        bloom-generate rosdebian --ros-distro ${{ matrix.ros_distro }} && apt-get build-dep . -y && fakeroot debian/rules binary
+        bloom-generate rosdebian --ros-distro ${{ matrix.ros_distro }} && sudo apt-get build-dep . -y && fakeroot debian/rules binary
         cp ../ros-${{ matrix.ros_distro }}-greenwave-monitor-interfaces_*.deb ../debian_packages/${{ matrix.ros_distro }}/
         cd ..
         
         # Install interfaces package
         echo "Installing greenwave_monitor_interfaces..."
-        apt-get update && apt-get install -y ./debian_packages/${{ matrix.ros_distro }}/ros-${{ matrix.ros_distro }}-greenwave-monitor-interfaces_*.deb
+        sudo apt-get update && sudo apt-get install -y ./debian_packages/${{ matrix.ros_distro }}/ros-${{ matrix.ros_distro }}-greenwave-monitor-interfaces_*.deb
         
         # Generate debian packages for greenwave_monitor
         echo "Generating debian for greenwave_monitor..."
         cd greenwave_monitor
-        bloom-generate rosdebian --ros-distro ${{ matrix.ros_distro }} && apt-get build-dep . -y && fakeroot debian/rules binary
+        bloom-generate rosdebian --ros-distro ${{ matrix.ros_distro }} && sudo apt-get build-dep . -y && fakeroot debian/rules binary
         cp ../ros-${{ matrix.ros_distro }}-greenwave-monitor_*.deb ../debian_packages/${{ matrix.ros_distro }}/
         cd ..
-        apt-get update && apt-get install -y ./debian_packages/${{ matrix.ros_distro }}/ros-${{ matrix.ros_distro }}-greenwave-monitor*.deb
+        sudo apt-get update && sudo apt-get install -y ./debian_packages/${{ matrix.ros_distro }}/ros-${{ matrix.ros_distro }}-greenwave-monitor*.deb
         
         # Generate debian packages for r2s_gw
         echo "Generating debian for r2s_gw..."
         cd r2s_gw
-        bloom-generate rosdebian --ros-distro ${{ matrix.ros_distro }} && apt-get build-dep . -y && fakeroot debian/rules binary
+        bloom-generate rosdebian --ros-distro ${{ matrix.ros_distro }} && sudo apt-get build-dep . -y && fakeroot debian/rules binary
         cp ../ros-${{ matrix.ros_distro }}-r2s-gw_*.deb ../debian_packages/${{ matrix.ros_distro }}/
         cd ..
         

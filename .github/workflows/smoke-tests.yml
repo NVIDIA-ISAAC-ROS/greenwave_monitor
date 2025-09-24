@@ -38,9 +38,8 @@ jobs:
 
   smoke-test:
     name: Smoke test ROS2 ${{ matrix.ros_distro }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-${{ matrix.ubuntu_distro }}
     needs: [determine-distros]
-    container: ros:${{ matrix.ros_distro }}-ros-base-${{ matrix.ubuntu_distro }}
     
     strategy:
       fail-fast: false
@@ -59,9 +58,14 @@ jobs:
             ubuntu_distro: noble
     
     steps:
+    - name: Setup ROS2 ${{ matrix.ros_distro }}
+      uses: ros-tooling/setup-ros@v0.7
+      with:
+        required-ros-distributions: ${{ matrix.ros_distro }}
+        
     - name: Setup environment
       run: |
-        apt-get update -qq
+        sudo apt-get update -qq
         
     - name: Download Debian packages
       uses: actions/download-artifact@v4
@@ -76,13 +80,13 @@ jobs:
         ls -la debian_packages/${{ matrix.ros_distro }}/
         
         # Install the debian packages
-        apt-get install -y ./debian_packages/${{ matrix.ros_distro }}/ros-${{ matrix.ros_distro }}-greenwave-monitor-interfaces_*.deb ./debian_packages/${{ matrix.ros_distro }}/ros-${{ matrix.ros_distro }}-greenwave-monitor_*.deb ./debian_packages/${{ matrix.ros_distro }}/ros-${{ matrix.ros_distro }}-r2s-gw_*.deb
+        sudo apt-get install -y ./debian_packages/${{ matrix.ros_distro }}/ros-${{ matrix.ros_distro }}-greenwave-monitor-interfaces_*.deb ./debian_packages/${{ matrix.ros_distro }}/ros-${{ matrix.ros_distro }}-greenwave-monitor_*.deb ./debian_packages/${{ matrix.ros_distro }}/ros-${{ matrix.ros_distro }}-r2s-gw_*.deb
         
         # Verify packages are installed
         dpkg -s ros-${{ matrix.ros_distro }}-r2s-gw ros-${{ matrix.ros_distro }}-greenwave-monitor ros-${{ matrix.ros_distro }}-greenwave-monitor-interfaces
         
         # Install Python dependencies
-        apt-get install -y python3-pip || true
+        sudo apt-get install -y python3-pip || true
         if [[ "${{ matrix.ros_distro }}" == "jazzy" || \
               "${{ matrix.ros_distro }}" == "kilted" || \
               "${{ matrix.ros_distro }}" == "rolling" ]]; then
