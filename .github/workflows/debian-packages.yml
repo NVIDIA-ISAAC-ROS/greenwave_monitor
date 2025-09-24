@@ -59,7 +59,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: [determine-distros]
     if: always() && (needs.check-tests.result == 'success' || needs.check-tests.result == 'skipped')
-    container: ros:${{ matrix.ros_distro }}-ros-base-${{ matrix.ubuntu_distro }}
+    container: dockerhub.nvidia.com/ros:${{ matrix.ros_distro }}-ros-base-${{ matrix.ubuntu_distro }}
     
     strategy:
       fail-fast: false

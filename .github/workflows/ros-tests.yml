@@ -14,7 +14,7 @@ jobs:
   test:
     name: Test ROS2 ${{ matrix.ros_distro }}
     runs-on: ubuntu-latest
-    container: ros:${{ matrix.ros_distro }}-ros-base-${{ matrix.ubuntu_distro }}
+    container: dockerhub.nvidia.com/ros:${{ matrix.ros_distro }}-ros-base-${{ matrix.ubuntu_distro }}
     
     strategy:
       fail-fast: false
