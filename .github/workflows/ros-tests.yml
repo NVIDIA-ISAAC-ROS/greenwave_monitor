@@ -1,0 +1,82 @@
+name: ROS2 Tests
+
+on:
+  push:
+    branches: [ "**" ]  # Run on all branches
+  pull_request:
+    branches: [ main ]
+
+env:
+  ROS_LOCALHOST_ONLY: 1
+  ROS_AUTOMATIC_DISCOVERY_RANGE: LOCALHOST
+
+jobs:
+  test:
+    name: Test ROS2 ${{ matrix.ros_distro }}
+    runs-on: ubuntu-latest
+    container: ros:${{ matrix.ros_distro }}-ros-base-${{ matrix.ubuntu_distro }}
+    
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - ros_distro: humble
+            ubuntu_distro: jammy
+          - ros_distro: iron
+            ubuntu_distro: jammy
+          - ros_distro: jazzy
+            ubuntu_distro: noble
+          - ros_distro: kilted
+            ubuntu_distro: noble
+          - ros_distro: rolling
+            ubuntu_distro: noble
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        submodules: recursive
+        
+    - name: Setup ROS environment
+      run: |
+        source /opt/ros/${{ matrix.ros_distro }}/setup.bash
+        apt-get update -qq && apt-get install -y build-essential python3-pip
+        
+    - name: Install Python dependencies
+      run: |
+        if [[ "${{ matrix.ros_distro }}" == "jazzy" || \
+              "${{ matrix.ros_distro }}" == "kilted" || \
+              "${{ matrix.ros_distro }}" == "rolling" ]]; then
+          pip3 install --break-system-packages -I pygments -r requirements.txt
+        else
+          pip3 install -r requirements.txt
+        fi
+        
+    - name: Build packages
+      run: |
+        source /opt/ros/${{ matrix.ros_distro }}/setup.bash
+        echo "Building and testing on ROS2 ${{ matrix.ros_distro }}"
+        colcon build --packages-up-to r2s_gw
+        
+    - name: Run tests
+      run: |
+        source /opt/ros/${{ matrix.ros_distro }}/setup.bash
+        colcon test --event-handlers console_direct+ --return-code-on-test-failure --packages-up-to r2s_gw
+        
+    - name: Upload test results
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: test-results-${{ matrix.ros_distro }}
+        path: |
+          build/
+          install/
+          log/
+        retention-days: 7
+        
+    - name: Publish test results
+      uses: EnricoMi/publish-unit-test-result-action@v2
+      if: always()
+      with:
+        files: log/test_results/*/junit.xml
+        check_name: "Test Results (${{ matrix.ros_distro }})"
