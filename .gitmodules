@@ -1,4 +1,4 @@
 [submodule "r2s_gw"]
 	path = r2s_gw
-	url = ../r2s.git
+	url = ../r2s_gw.git
 	branch = sgillen/monitor
