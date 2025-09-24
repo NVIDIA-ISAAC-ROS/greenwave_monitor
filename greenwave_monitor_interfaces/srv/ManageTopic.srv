@@ -1,0 +1,7 @@
+# Request
+string topic_name
+bool add_topic  # true to add, false to remove
+---
+# Response
+bool success
+string message

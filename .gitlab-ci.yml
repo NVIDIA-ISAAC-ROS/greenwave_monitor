@@ -1,0 +1,288 @@
+# GitLab CI configuration for ros2_monitor_node
+# Tests compatibility across multiple ROS 2 distributions
+
+stages:
+  - test
+  - debian
+  - smoke
+
+variables:
+  ROS_LOCALHOST_ONLY: 1
+  ROS_AUTOMATIC_DISCOVERY_RANGE: LOCALHOST
+  GIT_SUBMODULE_STRATEGY: recursive
+
+# Template for all ROS2 distribution tests
+.ros2_template: &ros2_template
+  before_script:
+    - source /opt/ros/${ROS_DISTRO}/setup.bash
+    - apt-get update -qq && apt-get install -y build-essential python3-pip
+    - |
+      if [[ "${ROS_DISTRO}" == "jazzy" || \
+            "${ROS_DISTRO}" == "kilted" || \
+            "${ROS_DISTRO}" == "rolling" ]]; then
+        pip3 install --break-system-packages -I pygments -r requirements.txt
+      else
+        pip3 install -r requirements.txt
+      fi
+  script:
+    - echo "Building and testing on ROS2 ${ROS_DISTRO}"
+    - colcon build --packages-up-to r2s_gw
+    - colcon test --event-handlers console_direct+ --return-code-on-test-failure --packages-up-to r2s_gw
+  artifacts:
+    when: always
+    paths:
+      - build/
+      - install/
+      - log/
+    expire_in: 1 week
+    reports:
+      junit: log/test_results/*/junit.xml
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    - if: $CI_PIPELINE_SOURCE == "push"
+
+# Template for Debian package generation
+.debian_template: &debian_template
+  before_script:
+    - source /opt/ros/${ROS_DISTRO}/setup.bash
+    - apt-get update -qq && apt-get install -y build-essential python3-pip python3-bloom python3-rosdep git lsb-release devscripts debhelper fakeroot
+    - |
+      if [[ "${ROS_DISTRO}" == "jazzy" || \
+            "${ROS_DISTRO}" == "kilted" || \
+            "${ROS_DISTRO}" == "rolling" ]]; then
+        pip3 install --break-system-packages -I pygments -r requirements.txt
+      else
+        pip3 install -r requirements.txt
+      fi
+    - |
+      if [[ "${ROS_DISTRO}" == "jazzy" || \
+            "${ROS_DISTRO}" == "kilted" || \
+            "${ROS_DISTRO}" == "rolling" ]]; then
+        python3 -m pip install -U --break-system-packages bloom
+      else
+        python3 -m pip install -U bloom
+      fi
+
+  script:
+    - set -eo pipefail
+    - echo "Generating Debian packages for ROS2 ${ROS_DISTRO}"
+    - mkdir -p debian_packages/${ROS_DISTRO}
+    # First build the workspace to ensure dependencies are resolved
+    - colcon build --packages-up-to r2s_gw
+    - source install/setup.bash
+    # Add local rosdep rules so bloom can resolve keys to apt names
+    - echo "Adding local rosdep mappings..."
+    - mkdir -p /root/.ros/rosdep
+    - |
+      cat >/root/.ros/rosdep/local.yaml <<EOF
+      greenwave_monitor_interfaces:
+        ubuntu:
+          jammy: [ros-${ROS_DISTRO}-greenwave-monitor-interfaces]
+          noble: [ros-${ROS_DISTRO}-greenwave-monitor-interfaces]
+      greenwave_monitor:
+        ubuntu:
+          jammy: [ros-${ROS_DISTRO}-greenwave-monitor]
+          noble: [ros-${ROS_DISTRO}-greenwave-monitor]
+      EOF
+    - mkdir -p /etc/ros/rosdep/sources.list.d
+    - echo "yaml file:///root/.ros/rosdep/local.yaml" > /etc/ros/rosdep/sources.list.d/99-local.list
+    - rosdep init || true
+    - rosdep update --include-eol-distros
+    # Generate debian packages for greenwave_monitor_interfaces
+    - echo "Generating debian for greenwave_monitor_interfaces..."
+    - cd greenwave_monitor_interfaces
+    - bloom-generate rosdebian --ros-distro ${ROS_DISTRO} && sudo apt-get build-dep . -y && fakeroot debian/rules binary
+    - cp ../ros-${ROS_DISTRO}-greenwave-monitor-interfaces_*.deb ../debian_packages/${ROS_DISTRO}/
+    - cd ..
+    # Make the locally built interfaces package available to satisfy downstream deps
+    - echo "Installing greenwave_monitor_interfaces to satisfy deps..."
+    - apt-get update && apt-get install -y ros-${ROS_DISTRO}-greenwave-monitor-interfaces || apt-get install -y ./debian_packages/${ROS_DISTRO}/ros-${ROS_DISTRO}-greenwave-monitor-interfaces_*.deb
+    # Generate debian packages for greenwave_monitor
+    - echo "Generating debian for greenwave_monitor..."
+    - cd greenwave_monitor
+    - bloom-generate rosdebian --ros-distro ${ROS_DISTRO} && sudo apt-get build-dep . -y && fakeroot debian/rules binary
+    - cp ../ros-${ROS_DISTRO}-greenwave-monitor_*.deb ../debian_packages/${ROS_DISTRO}/
+    - cd ..
+    - apt-get update && apt-get install -y ./debian_packages/${ROS_DISTRO}/ros-${ROS_DISTRO}-greenwave-monitor*.deb
+    # Generate debian packages for r2s
+    - echo "Generating debian for r2s..."
+    - cd r2s_gw
+    - bloom-generate rosdebian --ros-distro ${ROS_DISTRO} && sudo apt-get build-dep . -y && fakeroot debian/rules binary
+    - cp ../ros-${ROS_DISTRO}-r2s-gw_*.deb ../debian_packages/${ROS_DISTRO}/
+    - cd ..
+    # List what we generated
+    - echo "Generated debian packages:"
+    - ls -la debian_packages/${ROS_DISTRO}/
+  artifacts:
+    when: always
+    paths:
+      - debian_packages/
+    expire_in: 1 week
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+
+# Template for smoke tests that install generated debs in a clean container
+.smoke_template: &smoke_template
+  before_script:
+    - apt-get update -qq
+  script:
+    - set -eo pipefail
+    - echo "Smoke testing install on ROS2 ${ROS_DISTRO}"
+    - ls -la debian_packages/${ROS_DISTRO}/
+    - apt-get install -y ./debian_packages/${ROS_DISTRO}/ros-${ROS_DISTRO}-greenwave-monitor-interfaces_*.deb ./debian_packages/${ROS_DISTRO}/ros-${ROS_DISTRO}-greenwave-monitor_*.deb ./debian_packages/${ROS_DISTRO}/ros-${ROS_DISTRO}-r2s-gw_*.deb
+    - dpkg -s ros-${ROS_DISTRO}-r2s-gw ros-${ROS_DISTRO}-greenwave-monitor ros-${ROS_DISTRO}-greenwave-monitor-interfaces
+    - apt-get install -y python3-pip || true
+    - |
+      if [[ "${ROS_DISTRO}" == "jazzy" || \
+            "${ROS_DISTRO}" == "kilted" || \
+            "${ROS_DISTRO}" == "rolling" ]]; then
+        python3 -m pip install -I pygments -r r2s_gw/requirements.txt --break-system-packages
+      else
+        python3 -m pip install -r r2s_gw/requirements.txt
+      fi
+    - source /opt/ros/${ROS_DISTRO}/setup.bash
+    - timeout 10s bash -lc "script -qfec 'ros2 run r2s_gw r2s_gw' /dev/null <<< \$'q'"
+    - ros2 run greenwave_monitor greenwave_monitor & echo $! > /tmp/gwm.pid
+    - sleep 3
+    - ros2 node list | tee /tmp/nodes.txt
+    - grep -q greenwave_monitor /tmp/nodes.txt
+    - kill -TERM "$(cat /tmp/gwm.pid)" || true
+    - wait "$(cat /tmp/gwm.pid)" || true
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+
+# Test on ROS2 Humble
+test-humble:
+  <<: *ros2_template
+  stage: test
+  image: ros:humble-ros-base-jammy
+  variables:
+    ROS_DISTRO: humble
+
+# Test on ROS2 Iron
+test-iron:
+  <<: *ros2_template
+  stage: test
+  image: ros:iron-ros-base-jammy
+  variables:
+    ROS_DISTRO: iron
+
+# Test on ROS2 Jazzy
+test-jazzy:
+  <<: *ros2_template
+  stage: test
+  image: ros:jazzy-ros-base-noble
+  variables:
+    ROS_DISTRO: jazzy
+
+# Test on ROS2 Kilted
+test-kilted:
+  <<: *ros2_template
+  stage: test
+  image: ros:kilted-ros-base-noble
+  variables:
+    ROS_DISTRO: kilted
+
+# Test on ROS2 Rolling (development)
+test-rolling:
+  <<: *ros2_template
+  stage: test
+  image: ros:rolling-ros-base-noble
+  variables:
+    ROS_DISTRO: rolling
+  allow_failure: true  # Rolling can be unstable
+
+# Debian package generation for ROS2 Humble
+debian-humble:
+  <<: *debian_template
+  stage: debian
+  image: ros:humble-ros-base-jammy
+  variables:
+    ROS_DISTRO: humble
+  needs: ["test-humble"]
+
+# Debian package generation for ROS2 Iron
+debian-iron:
+  <<: *debian_template
+  stage: debian
+  image: ros:iron-ros-base-jammy
+  variables:
+    ROS_DISTRO: iron
+  needs: ["test-iron"]
+
+# Debian package generation for ROS2 Jazzy
+debian-jazzy:
+  <<: *debian_template
+  stage: debian
+  image: ros:jazzy-ros-base-noble
+  variables:
+    ROS_DISTRO: jazzy
+  needs: ["test-jazzy"]
+
+# Debian package generation for ROS2 Kilted
+debian-kilted:
+  <<: *debian_template
+  stage: debian
+  image: ros:kilted-ros-base-noble
+  variables:
+    ROS_DISTRO: kilted
+  needs: ["test-kilted"]
+
+# Debian package generation for ROS2 Rolling
+debian-rolling:
+  <<: *debian_template
+  stage: debian
+  image: ros:rolling-ros-base-noble
+  variables:
+    ROS_DISTRO: rolling
+  needs: ["test-rolling"]
+  allow_failure: true  # Rolling can be unstable
+
+# Smoke test on ROS2 Humble
+smoke-humble:
+  <<: *smoke_template
+  stage: smoke
+  image: ros:humble-ros-base-jammy
+  variables:
+    ROS_DISTRO: humble
+  needs: ["debian-humble"]
+
+# Smoke test on ROS2 Iron
+smoke-iron:
+  <<: *smoke_template
+  stage: smoke
+  image: ros:iron-ros-base-jammy
+  variables:
+    ROS_DISTRO: iron
+  needs: ["debian-iron"]
+
+# Smoke test on ROS2 Jazzy
+smoke-jazzy:
+  <<: *smoke_template
+  stage: smoke
+  image: ros:jazzy-ros-base-noble
+  variables:
+    ROS_DISTRO: jazzy
+  needs: ["debian-jazzy"]
+
+# Smoke test on ROS2 Kilted
+smoke-kilted:
+  <<: *smoke_template
+  stage: smoke
+  image: ros:kilted-ros-base-noble
+  variables:
+    ROS_DISTRO: kilted
+  needs: ["debian-kilted"]
+
+# Smoke test on ROS2 Rolling
+smoke-rolling:
+  <<: *smoke_template
+  stage: smoke
+  image: ros:rolling-ros-base-noble
+  variables:
+    ROS_DISTRO: rolling
+  needs: ["debian-rolling"]
+  allow_failure: true  # Rolling can be unstable

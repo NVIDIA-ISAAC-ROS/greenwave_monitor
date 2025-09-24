@@ -1,0 +1,10 @@
+# Request
+string topic_name
+float64 expected_hz
+float64 tolerance_percent  # i.e. 5 = 5% of expected_hz
+bool clear_expected
+bool add_topic_if_missing  # add topic to monitoring if not already
+---
+# Response
+bool success
+string message 
