@@ -43,6 +43,7 @@ jobs:
       run: |
         source /opt/ros/${{ matrix.ros_distro }}/setup.bash
         apt-get update -qq && apt-get install -y build-essential python3-pip
+      shell: bash
         
     - name: Install Python dependencies
       run: |
@@ -59,11 +60,13 @@ jobs:
         source /opt/ros/${{ matrix.ros_distro }}/setup.bash
         echo "Building and testing on ROS2 ${{ matrix.ros_distro }}"
         colcon build --packages-up-to r2s_gw
+      shell: bash
         
     - name: Run tests
       run: |
         source /opt/ros/${{ matrix.ros_distro }}/setup.bash
         colcon test --event-handlers console_direct+ --return-code-on-test-failure --packages-up-to r2s_gw
+      shell: bash
         
     - name: Upload test results
       uses: actions/upload-artifact@v4

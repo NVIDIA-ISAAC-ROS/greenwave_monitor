@@ -89,6 +89,7 @@ jobs:
       run: |
         source /opt/ros/${{ matrix.ros_distro }}/setup.bash
         apt-get update -qq && apt-get install -y build-essential python3-pip python3-bloom python3-rosdep git lsb-release devscripts debhelper fakeroot
+      shell: bash
         
     - name: Install Python dependencies
       run: |
@@ -107,6 +108,7 @@ jobs:
         source /opt/ros/${{ matrix.ros_distro }}/setup.bash
         colcon build --packages-up-to r2s_gw
         source install/setup.bash
+      shell: bash
         
     - name: Setup rosdep mappings
       run: |
