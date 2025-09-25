@@ -84,5 +84,7 @@ jobs:
       uses: EnricoMi/publish-unit-test-result-action@v2
       if: always()
       with:
-        files: log/test_results/*/junit.xml
+        files: |
+          build/*/test_results/*/*.xml
+          log/*/test_results/*/*.xml
         check_name: "Test Results (${{ matrix.ros_distro }})"
