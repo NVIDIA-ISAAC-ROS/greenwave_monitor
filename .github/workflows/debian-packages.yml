@@ -84,85 +84,12 @@ jobs:
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
-        
-    - name: Setup build environment
+
+    - name: Build Debian packages
       run: |
-        source /opt/ros/${{ matrix.ros_distro }}/setup.bash
-        apt-get update -qq && apt-get install -y build-essential python3-pip python3-bloom python3-rosdep git lsb-release devscripts debhelper fakeroot
+        chmod +x scripts/build_debian_packages.sh
+        ./scripts/build_debian_packages.sh ${{ matrix.ros_distro }} ${{ matrix.ubuntu_distro }}
       shell: bash
-        
-    - name: Install Python dependencies
-      run: |
-        if [[ "${{ matrix.ros_distro }}" == "jazzy" || \
-              "${{ matrix.ros_distro }}" == "kilted" || \
-              "${{ matrix.ros_distro }}" == "rolling" ]]; then
-          pip3 install --break-system-packages -I pygments -r requirements.txt
-          python3 -m pip install -U --break-system-packages bloom
-        else
-          pip3 install -r requirements.txt
-          python3 -m pip install -U bloom
-        fi
-      shell: bash
-        
-    - name: Build workspace
-      run: |
-        source /opt/ros/${{ matrix.ros_distro }}/setup.bash
-        colcon build --packages-up-to r2s_gw
-        source install/setup.bash
-      shell: bash
-        
-    - name: Setup rosdep mappings
-      run: |
-        echo "Adding local rosdep mappings..."
-        mkdir -p /root/.ros/rosdep
-        cat >/root/.ros/rosdep/local.yaml <<EOF
-        greenwave_monitor_interfaces:
-          ubuntu:
-            jammy: [ros-${{ matrix.ros_distro }}-greenwave-monitor-interfaces]
-            noble: [ros-${{ matrix.ros_distro }}-greenwave-monitor-interfaces]
-        greenwave_monitor:
-          ubuntu:
-            jammy: [ros-${{ matrix.ros_distro }}-greenwave-monitor]
-            noble: [ros-${{ matrix.ros_distro }}-greenwave-monitor]
-        EOF
-        mkdir -p /etc/ros/rosdep/sources.list.d
-        echo "yaml file:///root/.ros/rosdep/local.yaml" > /etc/ros/rosdep/sources.list.d/99-local.list
-        rosdep init || true
-        rosdep update --include-eol-distros
-        
-    - name: Generate Debian packages
-      run: |
-        set -eo pipefail
-        mkdir -p debian_packages/${{ matrix.ros_distro }}
-        
-        # Generate debian packages for greenwave_monitor_interfaces
-        echo "Generating debian for greenwave_monitor_interfaces..."
-        cd greenwave_monitor_interfaces
-        bloom-generate rosdebian --ros-distro ${{ matrix.ros_distro }} && apt-get build-dep . -y && fakeroot debian/rules binary
-        cp ../ros-${{ matrix.ros_distro }}-greenwave-monitor-interfaces_*.deb ../debian_packages/${{ matrix.ros_distro }}/
-        cd ..
-        
-        # Install interfaces package
-        echo "Installing greenwave_monitor_interfaces..."
-        apt-get update && apt-get install -y ./debian_packages/${{ matrix.ros_distro }}/ros-${{ matrix.ros_distro }}-greenwave-monitor-interfaces_*.deb
-        
-        # Generate debian packages for greenwave_monitor
-        echo "Generating debian for greenwave_monitor..."
-        cd greenwave_monitor
-        bloom-generate rosdebian --ros-distro ${{ matrix.ros_distro }} && apt-get build-dep . -y && fakeroot debian/rules binary
-        cp ../ros-${{ matrix.ros_distro }}-greenwave-monitor_*.deb ../debian_packages/${{ matrix.ros_distro }}/
-        cd ..
-        apt-get update && apt-get install -y ./debian_packages/${{ matrix.ros_distro }}/ros-${{ matrix.ros_distro }}-greenwave-monitor*.deb
-        
-        # Generate debian packages for r2s_gw
-        echo "Generating debian for r2s_gw..."
-        cd r2s_gw
-        bloom-generate rosdebian --ros-distro ${{ matrix.ros_distro }} && apt-get build-dep . -y && fakeroot debian/rules binary
-        cp ../ros-${{ matrix.ros_distro }}-r2s-gw_*.deb ../debian_packages/${{ matrix.ros_distro }}/
-        cd ..
-        
-        echo "Generated debian packages:"
-        ls -la debian_packages/${{ matrix.ros_distro }}/
         
     - name: Upload Debian packages
       uses: actions/upload-artifact@v4

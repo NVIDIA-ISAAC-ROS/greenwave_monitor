@@ -75,9 +75,9 @@ jobs:
       with:
         name: test-results-${{ matrix.ros_distro }}
         path: |
-          build/
-          install/
-          log/
+          build/*/test_results/**/*.xml
+          log/latest_test/**/*.xml
+          log/*/test_results/**/*.xml
         retention-days: 7
         
     - name: Publish test results
