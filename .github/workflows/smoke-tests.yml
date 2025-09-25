@@ -40,7 +40,7 @@ jobs:
     name: Smoke test ROS2 ${{ matrix.ros_distro }}
     runs-on: ubuntu-latest
     needs: [determine-distros]
-    container: ghcr.io/ros/ros:${{ matrix.ros_distro }}-ros-base-${{ matrix.ubuntu_distro }}
+    container: ros:${{ matrix.ros_distro }}-ros-base-${{ matrix.ubuntu_distro }}
     
     strategy:
       fail-fast: false
