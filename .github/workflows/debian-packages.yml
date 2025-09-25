@@ -102,6 +102,7 @@ jobs:
           pip3 install -r requirements.txt
           python3 -m pip install -U bloom
         fi
+      shell: bash
         
     - name: Build workspace
       run: |
