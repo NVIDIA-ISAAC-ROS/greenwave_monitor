@@ -1,0 +1,42 @@
+[tool.poetry]
+name = "r2s_gw"
+version = "0.1.0"
+description = "A TUI for ROS 2"
+authors = ["Michael Carroll <mjcarroll@intrinsic.ai>"]
+license = "Apache License 2.0"
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.10"
+textual = "^5.3.0"
+psutil = "^6.0.0"
+distro = "^1.9.0"
+colcon-common-extensions = {version = "^0.3.0", optional = true}
+numpy = {version = "^2.0.1"}
+lark-parser = "^0.12.0"
+
+[tool.poetry.extras]
+colcon = ["colcon-common-extensions"]
+ros = ["numpy"]
+
+[tool.poetry.group.dev.dependencies]
+black = "24.4.2"
+mypy = "^1.0.0"
+pre-commit = "^2.13.0"
+pytest = "^8.3.1"
+pytest-xdist = "^3.6.1"
+pytest-asyncio = "*"
+pytest-cov = "^5.0.0"
+textual-dev = "^1.2.0"
+types-setuptools = "^67.2.0.1"
+types-tree-sitter = "^0.20.1.4"
+types-tree-sitter-languages = "^1.7.0.1"
+isort = "^5.13.2"
+pytest-textual-snapshot = "^1.0.0"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry.scripts]
+r2s_gw = "r2s_gw.main:main"
