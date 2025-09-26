@@ -38,7 +38,7 @@ jobs:
         fi
         echo "Building for distributions: $DISTROS"
         # Convert to JSON array for matrix
-        JSON_ARRAY=$(echo $DISTROS | jq -R 'split(",") | map(select(length > 0))')
+        JSON_ARRAY=$(echo "$DISTROS" | jq -R -c 'split(",") | map(select(length > 0))')
         echo "distros=$JSON_ARRAY" >> $GITHUB_OUTPUT
 
   generate-debian:
