@@ -3,8 +3,6 @@ name: ROS2 Tests
 on:
   push:
     branches: [ "**" ]  # Run on all branches
-  pull_request:
-    branches: [ main ]
 
 env:
   ROS_LOCALHOST_ONLY: 1
