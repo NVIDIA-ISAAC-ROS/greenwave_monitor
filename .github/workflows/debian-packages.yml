@@ -135,12 +135,9 @@ jobs:
         if [[ "${{ matrix.ros_distro }}" == "jazzy" || \
               "${{ matrix.ros_distro }}" == "kilted" || \
               "${{ matrix.ros_distro }}" == "rolling" ]]; then
-          # Download requirements.txt from the repo since we don't have checkout
-          curl -sSL https://raw.githubusercontent.com/${{ github.repository }}/${{ github.sha }}/r2s_gw/requirements.txt > /tmp/requirements.txt
-          python3 -m pip install -I pygments -r /tmp/requirements.txt --break-system-packages
+          python3 -m pip install textual --break-system-packages
         else
-          curl -sSL https://raw.githubusercontent.com/${{ github.repository }}/${{ github.sha }}/r2s_gw/requirements.txt > /tmp/requirements.txt
-          python3 -m pip install -r /tmp/requirements.txt
+          python3 -m pip install textual
         fi
       shell: bash
 
