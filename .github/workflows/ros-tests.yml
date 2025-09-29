@@ -74,11 +74,3 @@ jobs:
         name: test-results-${{ matrix.ros_distro }}
         path: build/*/test_results/**/*.xml
         retention-days: 7
-
-    - name: Publish test results
-      uses: EnricoMi/publish-unit-test-result-action@v2
-      if: always()
-      with:
-        files: build/*/test_results/*/*.xml
-        check_name: "Test Results (${{ matrix.ros_distro }})"
-        report_individual_runs: true

@@ -142,11 +142,13 @@ jobs:
           curl -sSL https://raw.githubusercontent.com/${{ github.repository }}/${{ github.sha }}/r2s_gw/requirements.txt > /tmp/requirements.txt
           python3 -m pip install -r /tmp/requirements.txt
         fi
+      shell: bash
 
     - name: Test r2s_gw execution
       run: |
         source /opt/ros/${{ matrix.ros_distro }}/setup.bash
         timeout 10s bash -lc "script -qfec 'ros2 run r2s_gw r2s_gw' /dev/null <<< \$'q'" || true
+      shell: bash
 
     - name: Test greenwave_monitor execution
       run: |
@@ -157,3 +159,4 @@ jobs:
         grep -q greenwave_monitor /tmp/nodes.txt
         kill -TERM "$(cat /tmp/gwm.pid)" || true
         wait "$(cat /tmp/gwm.pid)" || true
+      shell: bash
