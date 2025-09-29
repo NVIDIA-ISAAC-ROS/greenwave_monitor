@@ -31,11 +31,11 @@ jobs:
         if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
           DISTROS="${{ github.event.inputs.ros_distros || 'humble,jazzy' }}"
         else
-          # Use same distributions as the completed workflow
+          # Use same distributions as the completed workflow or PR default
           DISTROS="humble,iron,jazzy,kilted,rolling"
         fi
         echo "Testing distributions: $DISTROS"
-        JSON_ARRAY=$(echo $DISTROS | jq -R 'split(",") | map(select(length > 0))')
+        JSON_ARRAY=$(echo "$DISTROS" | jq -R -c 'split(",") | map(select(length > 0))')
         echo "distros=$JSON_ARRAY" >> $GITHUB_OUTPUT
 
   smoke-test:
