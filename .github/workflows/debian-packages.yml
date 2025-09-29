@@ -28,12 +28,9 @@ jobs:
       run: |
         if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
           # Manual trigger - use input or default
-          DISTROS="${{ github.event.inputs.ros_distros || 'humble,jazzy' }}"
-        elif [[ "${{ github.event_name }}" == "pull_request" ]]; then
-          # PR - build key distributions
-          DISTROS="humble,jazzy"
+          DISTROS="${{ github.event.inputs.ros_distros || 'humble,iron,jazzy,kilted,rolling' }}"
         else
-          # Scheduled - build all distributions
+          # Always build all distributions
           DISTROS="humble,iron,jazzy,kilted,rolling"
         fi
         echo "Building for distributions: $DISTROS"

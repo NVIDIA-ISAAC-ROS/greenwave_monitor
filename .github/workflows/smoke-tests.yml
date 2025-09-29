@@ -4,7 +4,6 @@ on:
   workflow_run:
     workflows: ["Generate Debian Packages"]
     types: [completed]
-    branches: [main]
   workflow_dispatch:  # Manual trigger
     inputs:
       ros_distros:
