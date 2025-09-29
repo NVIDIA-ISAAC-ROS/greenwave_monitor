@@ -1,9 +1,6 @@
 name: Smoke Tests
 
 on:
-  pull_request:
-    branches: [ main ]
-    types: [ opened, synchronize, reopened, ready_for_review ]
   workflow_run:
     workflows: ["Generate Debian Packages"]
     types: [completed]
@@ -21,7 +18,7 @@ env:
 jobs:
   determine-distros:
     runs-on: ubuntu-latest
-    if: github.event.workflow_run.conclusion == 'success' || github.event_name == 'workflow_dispatch' || github.event_name == 'pull_request'
+    if: github.event.workflow_run.conclusion == 'success' || github.event_name == 'workflow_dispatch'
     outputs:
       distros: ${{ steps.set-distros.outputs.distros }}
     steps:
