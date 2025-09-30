@@ -151,9 +151,9 @@ jobs:
       run: |
         source /opt/ros/${{ matrix.ros_distro }}/setup.bash
         ros2 run greenwave_monitor greenwave_monitor & echo $! > /tmp/gwm.pid
-        sleep 3
+        sleep 5
         ros2 node list | tee /tmp/nodes.txt
         grep -q greenwave_monitor /tmp/nodes.txt
-        kill -TERM "$(cat /tmp/gwm.pid)" || true
+        kill -INT "$(cat /tmp/gwm.pid)" || true
         wait "$(cat /tmp/gwm.pid)" || true
       shell: bash
