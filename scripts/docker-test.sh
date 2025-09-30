@@ -8,7 +8,7 @@ set -e
 # Default to Humble if no distro specified
 DISTRO=${1:-humble}
 
-# Image mapping based on GitLab CI
+# Image mapping based on ROS distro
 case $DISTRO in
     humble)
         IMAGE="ros:humble-ros-base-jammy"
