@@ -135,7 +135,7 @@ jobs:
         if [[ "${{ matrix.ros_distro }}" == "jazzy" || \
               "${{ matrix.ros_distro }}" == "kilted" || \
               "${{ matrix.ros_distro }}" == "rolling" ]]; then
-          python3 -m pip install textual --break-system-packages
+          python3 -m pip install -I textual --break-system-packages
         else
           python3 -m pip install textual
         fi
