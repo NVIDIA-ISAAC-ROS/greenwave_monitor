@@ -150,10 +150,40 @@ jobs:
     - name: Test greenwave_monitor execution
       run: |
         source /opt/ros/${{ matrix.ros_distro }}/setup.bash
+
+        # Start node in background
         ros2 run greenwave_monitor greenwave_monitor > /dev/null 2>&1 & echo $! > /tmp/gwm.pid
+        echo "Started greenwave_monitor with PID: $(cat /tmp/gwm.pid)"
+
+        # Wait for node startup
         sleep 5
+
+        # Check if process is still running
+        if ps -p $(cat /tmp/gwm.pid) > /dev/null; then
+          echo "✓ Process is running"
+        else
+          echo "✗ Process died!"
+          exit 1
+        fi
+
+        # List nodes
+        echo "Running ros2 node list..."
         ros2 node list | tee /tmp/nodes.txt
-        grep -q greenwave_monitor /tmp/nodes.txt
+        echo "Nodes found:"
+        cat /tmp/nodes.txt
+
+        # Check if our node is in the list
+        if grep -q greenwave_monitor /tmp/nodes.txt; then
+          echo "✓ Node found in list"
+        else
+          echo "✗ Node NOT found in list"
+          echo "This is unexpected - failing test"
+          kill -9 $(cat /tmp/gwm.pid) 2>/dev/null || true
+          exit 1
+        fi
+
+        # Cleanup
         kill -INT "$(cat /tmp/gwm.pid)" || true
-        wait "$(cat /tmp/gwm.pid)" || true
+        sleep 2
+        kill -9 $(cat /tmp/gwm.pid) 2>/dev/null || true
       shell: bash
