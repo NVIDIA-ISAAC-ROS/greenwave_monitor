@@ -150,7 +150,7 @@ jobs:
     - name: Test greenwave_monitor execution
       run: |
         source /opt/ros/${{ matrix.ros_distro }}/setup.bash
-        ros2 run greenwave_monitor greenwave_monitor & echo $! > /tmp/gwm.pid
+        ros2 run greenwave_monitor greenwave_monitor > dev/null 2>&1 & echo $! > /tmp/gwm.pid
         sleep 5
         ros2 node list | tee /tmp/nodes.txt
         grep -q greenwave_monitor /tmp/nodes.txt
