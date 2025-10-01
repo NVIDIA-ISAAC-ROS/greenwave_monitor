@@ -1,35 +1,27 @@
 # Greenwave Monitor
 
-A high-performance diagnostic tool for ROS 2 that provides real-time monitoring of topic frame rates and latency metrics. The monitor node offers a significant performance improvement over the standard `ros2 topic hz` command. The dashboard is a terminal-based interface that provides a real-time view of the monitoring data, as well as displaying diagnostic data published by sensor drivers.
+A high-performance diagnostic tool for ROS 2 that provides real-time monitoring of topic frame rates and latency metrics. The monitor node is like a more performant `ros2 topic hz` with ROS2 Diagnostics output, and services to manage topics. The dashboard is a terminal-based interface that provides a real-time view of the monitoring data, as well as displaying diagnostic data published by sensor drivers.
+
+The diagnostics messages follow conventions from [Isaac ROS NITROS](https://github.com/NVIDIA-ISAAC-ROS/isaac_ros_nitros), that means configured NITROS nodes can be monitored with the same tool without additional subscriber overhead. For example the drivers from [Isaac ROS NOVA](https://github.com/NVIDIA-ISAAC-ROS/isaac_ros_nova) can be monitored with the same tool (also, did you know you can enable all NITROS nodes to publish diagnostics? see the bottom of [this](https://nvidia-isaac-ros.github.io/repositories_and_packages/isaac_ros_nitros/isaac_ros_nitros/index.html) page).
+
+Finally, we provide monitoring code as a standalone C++ header, which can be integrated into your own nodes.
 
 ## Dashboard Interface
 
-The Greenwave Monitor builds upon [r2s](https://github.com/mjcarroll/r2s) to provide an intuitive terminal interface that displays real-time statistics for all monitored topics:
+The Greenwave Monitor ships with a fork of [r2s](https://github.com/mjcarroll/r2s) to provide an intuitive terminal interface that displays real-time statistics for all monitored topics. Click around with your mouse and tab key, and see the bottom bar with keyboard shortcuts.
 
 ![r2s_gw + Greenwave Monitor Dashboard](docs/images/greenwave_r2s_dashboard.png)
 
-By integrating the r2s_gw TUI with the Greenwave Monitor, the dashboard retains all the information from r2s plus a list of:
-- Topic names
-- Message types
-- Message receive rates in Hz
-- Expected frequencies and acceptable tolerance
-- Topic statuses
-
-The dashboard also enables the following runtime features:
-- Interactive controls for adding/removing topics from monitoring
-- Interactive controls for setting/clearing expected topic frequencies and acceptable tolerances
-
 ## Key Features
 
-- **High Performance**: Up to 10.35x more efficient than the built-in `ros2 topic hz` command
-- **Superior Throughput**: Handles topics with rates up to 10 kHz (the standard tool caps around 4.7 kHz)
-- **Accurate Measurements**: Reports precise 30.0 fps values for image_raw NITROS topics without dropping frames
+- **High Performance**: Up to 10x more CPU efficient than the built-in `ros2 topic hz` command
 - **Interactive Dashboard**: Real-time visualization of monitoring data with an easy-to-use terminal interface
 - **Dynamic Topic Management**: Add or remove topics from monitoring without restarting
 - **Topic Status Indicators**: Color-coded topic status to easily catch topics that are not working as expected
 - **Universal Compatibility**: Displays diagnostics from any source that publishes a compatible `/diagnostics` topic, including NVIDIA Nova sensors and other hardware drivers
 
 ## Installation
+TODO
 
 ```bash
 cd ros_ws/src
@@ -67,7 +59,7 @@ ros2 run greenwave_monitor r2s_gw_dashboard --log-dir /path/to/logs
 
 ### Manual Launch (ros2 topic hz mode)
 
-Alternatively, you can monitor specific topics by using the launch file:
+If you want to use the tool as C++ based ros2 topic hz, you can do so with the following:
 
 ```bash
 ros2 launch greenwave_monitor hz.launch.py topics:='["/topic1", "/topic2"]'
