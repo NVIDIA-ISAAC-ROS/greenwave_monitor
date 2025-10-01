@@ -9,7 +9,6 @@ on:
       ros_distros:
         description: 'ROS distributions to build (comma-separated: humble,iron,jazzy,kilted,rolling)'
         required: false
-        default: 'humble,jazzy'
   schedule:
     - cron: '0 2 * * *'  # Nightly at 2 AM UTC
 
