@@ -46,7 +46,7 @@ jobs:
       credentials:
         username: ${{ secrets.DOCKERHUB_USERNAME }}
         password: ${{ secrets.DOCKERHUB_TOKEN }}
-    
+
     strategy:
       fail-fast: false
       matrix:
@@ -62,7 +62,7 @@ jobs:
             ubuntu_distro: noble
           - ros_distro: rolling
             ubuntu_distro: noble
-    
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
@@ -72,7 +72,7 @@ jobs:
         chmod +x scripts/build_debian_packages.sh
         ./scripts/build_debian_packages.sh ${{ matrix.ros_distro }} ${{ matrix.ubuntu_distro }}
       shell: bash
-        
+
     - name: Upload Debian packages
       uses: actions/upload-artifact@v4
       with:
