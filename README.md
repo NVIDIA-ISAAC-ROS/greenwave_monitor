@@ -18,17 +18,18 @@ The Greenwave Monitor ships with a fork of [r2s](https://github.com/mjcarroll/r2
 - **Interactive Dashboard**: Real-time visualization of monitoring data with an easy-to-use terminal interface
 - **Dynamic Topic Management**: Add or remove topics from monitoring without restarting
 - **Topic Status Indicators**: Color-coded topic status to easily catch topics that are not working as expected
-- **Universal Compatibility**: Displays diagnostics from any source that publishes a compatible `/diagnostics` topic, including NVIDIA Nova sensors and other hardware drivers
+- **Universal Compatibility**: Displays diagnostics from any source that publishes a compatible `/diagnostics` topic, including NVIDIA NITROS diagnostics, and NVIDIA NOVA sensor drivers.
 
 ## Installation
-TODO
+Source installation
 
 ```bash
 cd ros_ws/src
-git clone https://gitlab-master.nvidia.com/sgillen/ros2_monitor_node.git
+https://github.com/NVIDIA-ISAAC-ROS/greenwave_monitor.git
 cd ..
 colcon build --symlink-install --packages-up-to r2s_gw
-pip3 install -r requirements.txt --break-system-packages
+# Python requirements not all available as rosdeps yet, so install from pip for now
+pip3 install -r r2s_gw/requirements.txt -I pygments  # Add --break-system-packages if not using a virtual environment
 source install/setup.sh
 ```
 

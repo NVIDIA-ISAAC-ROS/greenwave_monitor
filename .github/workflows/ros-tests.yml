@@ -48,9 +48,9 @@ jobs:
         if [[ "${{ matrix.ros_distro }}" == "jazzy" || \
               "${{ matrix.ros_distro }}" == "kilted" || \
               "${{ matrix.ros_distro }}" == "rolling" ]]; then
-          pip3 install --break-system-packages -I pygments textual
+          pip3 install --break-system-packages -r r2s_gw/requirements.txt -I pygments
         else
-          pip3 install textual
+          pip3 install -r r2s_gw/requirements.txt -I pygments
         fi
       shell: bash
 
@@ -58,7 +58,7 @@ jobs:
       run: |
         source /opt/ros/${{ matrix.ros_distro }}/setup.bash
         echo "Building and testing on ROS2 ${{ matrix.ros_distro }}"
-        colcon build --packages-up-to r2s_gw
+        colcon build --symlink-install --packages-up-to r2s_gw
       shell: bash
 
     - name: Run tests
