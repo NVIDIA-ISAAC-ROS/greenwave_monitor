@@ -25,6 +25,7 @@ with real-time diagnostics including publication rates, latency, and status.
 """
 
 import curses
+import signal
 import threading
 from threading import Lock
 import time
@@ -42,7 +43,7 @@ class GreenwaveNcursesFrontend(Node):
     def __init__(self):
         super().__init__('greenwave_ncurses_frontend')
 
-        self.running = False
+        self.running = True
         self.selected_row = 0
         self.scroll_offset = 0
         self.ui_adaptor: Optional[GreenwaveUiAdaptor] = None
@@ -158,7 +159,7 @@ def curses_main(stdscr, node):
     curses.init_pair(COLOR_STATUS_MSG, curses.COLOR_BLUE, curses.COLOR_BLACK)
     curses.init_pair(COLOR_STALE, curses.COLOR_CYAN, curses.COLOR_BLACK)
 
-    while rclpy.ok():
+    while rclpy.ok() and node.running:
         current_time = time.time()
 
         # Always check for input
@@ -264,6 +265,7 @@ def curses_main(stdscr, node):
                                     start_idx + visible_height)
                     selected_row = min(len(node.visible_topics) - 1, selected_row + visible_height)
             elif key == ord('q') or key == ord('Q'):
+                node.running = False
                 break
             elif key == ord('\n') or key == ord(' '):
                 if 0 <= selected_row < len(node.visible_topics):
@@ -447,14 +449,26 @@ def curses_main(stdscr, node):
 def main(args=None):
     rclpy.init(args=args)
     node = GreenwaveNcursesFrontend()
+    thread = None
+
+    def signal_handler(signum, frame):
+        """Handle shutdown signals gracefully."""
+        node.running = False
+
+    # Register signal handlers
+    signal.signal(signal.SIGINT, signal_handler)
+    signal.signal(signal.SIGTERM, signal_handler)
 
     try:
-        thread = threading.Thread(target=rclpy.spin, args=(node,), daemon=True)
+        thread = threading.Thread(target=rclpy.spin, args=(node,), daemon=False)
         thread.start()
         curses.wrapper(curses_main, node)
     except KeyboardInterrupt:
-        pass
+        node.running = False
     finally:
+        node.running = False
+        if thread is not None and thread.is_alive():
+            thread.join(timeout=0.5)
         node.destroy_node()
         rclpy.shutdown()
 
