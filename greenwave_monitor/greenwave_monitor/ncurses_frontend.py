@@ -332,7 +332,7 @@ def curses_main(stdscr, node):
                     is_monitored = True
                     status_display = diag.status  # Use actual diagnostic status
                     frame_rate_node = (diag.pub_rate.ljust(FRAME_RATE_WIDTH)
-                                        if diag.pub_rate != '-' else 'N/A'.ljust(FRAME_RATE_WIDTH))
+                                       if diag.pub_rate != '-' else 'N/A'.ljust(FRAME_RATE_WIDTH))
                     current_delay_from_realtime_ms = (
                         diag.latency.ljust(REALTIME_DELAY_WIDTH)
                         if diag.latency != '-' else 'N/A'.ljust(REALTIME_DELAY_WIDTH))
