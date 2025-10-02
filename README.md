@@ -5,13 +5,15 @@ Greenwave monitor is a tool for runtime monitoring of ROS 2 topics.
 
 It provides the following features:
 
-1. A node similar to a C++ based ros2 topic hz. I.E. subscribes to topics to determine the frame rate and latency. compared to ros2 topic hz the greenwave node is more performant, publishes Diagnostics, and offers services to manage topics and expected frequencies.
+1. A node similar to a C++ based ros2 topic hz. i.e. subscribes to topics to determine the frame rate and latency. Compared to ros2 topic hz the greenwave node is more performant, publishes Diagnostics, and offers services to manage topics and expected frequencies.
 
 2. A terminal based dashboard that displays the topic rates, latency, and status, and allows you to add/remove topics and set expected frequencies.
 
 3. A header only C++ library so you can calculate and publish compatible diagnostics directly from your own nodes for reduced overhead.
 
-This diagram shows an overview of the ![architecture](docs/images/greenwave_diagram.png)
+This diagram shows an overview of the architecture:
+
+![architecture](docs/images/greenwave_diagram.png)
 
 ## Diagnostic messages
 
