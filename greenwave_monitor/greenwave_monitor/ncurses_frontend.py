@@ -130,6 +130,7 @@ class GreenwaveNcursesFrontend(Node):
         self.status_message = message
         self.status_timeout = time.time() + 3.0
 
+
 def curses_main(stdscr, node):
     stdscr.nodelay(True)
     curses.curs_set(0)
@@ -230,7 +231,8 @@ def curses_main(stdscr, node):
                         if len(parts) >= 1:
                             hz = float(parts[0])
                             tolerance = float(parts[1]) if len(parts) > 1 else 5.0
-                            success, msg = node.ui_adaptor.set_expected_frequency(topic_name, hz, tolerance)
+                            success, msg = node.ui_adaptor.set_expected_frequency(
+                                topic_name, hz, tolerance)
                             status_message = f"Set frequency for {topic_name}: {hz}Hz"
                             if not success:
                                 status_message = f"Error: {msg}"
@@ -265,7 +267,8 @@ def curses_main(stdscr, node):
             elif key == curses.KEY_NPAGE:  # Page Down
                 visible_height = height - 5
                 if len(node.visible_topics) > 0:
-                    start_idx = min(len(node.visible_topics) - visible_height, start_idx + visible_height)
+                    start_idx = min(len(node.visible_topics) - visible_height,
+                                    start_idx + visible_height)
                     selected_row = min(len(node.visible_topics) - 1, selected_row + visible_height)
             elif key == ord('q') or key == ord('Q'):
                 break
@@ -282,7 +285,8 @@ def curses_main(stdscr, node):
             elif key == ord('c') or key == ord('C'):
                 if 0 <= selected_row < len(node.visible_topics):
                     topic_name = node.visible_topics[selected_row]
-                    success, msg = node.ui_adaptor.set_expected_frequency(topic_name, clear=True)
+                    success, msg = node.ui_adaptor.set_expected_frequency(
+                        topic_name, clear=True)
                     status_message = f"Cleared frequency for {topic_name}"
                     if not success:
                         status_message = f"Error: {msg}"
@@ -327,8 +331,11 @@ def curses_main(stdscr, node):
                 if diag.status != '-':
                     is_monitored = True
                     status_display = diag.status  # Use actual diagnostic status
-                    frame_rate_node = diag.pub_rate.ljust(FRAME_RATE_WIDTH) if diag.pub_rate != '-' else 'N/A'.ljust(FRAME_RATE_WIDTH)
-                    current_delay_from_realtime_ms = diag.latency.ljust(REALTIME_DELAY_WIDTH) if diag.latency != '-' else 'N/A'.ljust(REALTIME_DELAY_WIDTH)
+                    frame_rate_node = (diag.pub_rate.ljust(FRAME_RATE_WIDTH)
+                                        if diag.pub_rate != '-' else 'N/A'.ljust(FRAME_RATE_WIDTH))
+                    current_delay_from_realtime_ms = (
+                        diag.latency.ljust(REALTIME_DELAY_WIDTH)
+                        if diag.latency != '-' else 'N/A'.ljust(REALTIME_DELAY_WIDTH))
 
                 # Get expected frequency
                 expected_hz, tolerance = node.ui_adaptor.get_expected_frequency(topic_name)
@@ -365,14 +372,16 @@ def curses_main(stdscr, node):
 
             try:
                 is_selected = (actual_idx == selected_row)
-                stdscr.addstr(idx + 2, 0, line, curses.A_REVERSE if is_selected else color_pair)
+                stdscr.addstr(idx + 2, 0, line,
+                              curses.A_REVERSE if is_selected else color_pair)
 
                 # Draw button
                 button_text = ' [Remove] ' if is_monitored else ' [Add] '
                 button_x = width - len(button_text) - 1
 
                 if is_selected:
-                    button_color = curses.color_pair(COLOR_ERROR) if is_monitored else curses.color_pair(COLOR_BUTTON_ADD)
+                    button_color = (curses.color_pair(COLOR_ERROR) if is_monitored
+                                    else curses.color_pair(COLOR_BUTTON_ADD))
                 else:
                     button_color = curses.color_pair(COLOR_WARN)
                 stdscr.addstr(idx + 2, button_x, button_text, button_color)
@@ -385,21 +394,24 @@ def curses_main(stdscr, node):
             if start_idx > 0:
                 stdscr.addstr(2, width - BUTTON_WIDTH - 3, '↑')
             if start_idx + visible_height < len(visible_topics):
-                stdscr.addstr(min(height - 3, 2 + visible_height), width - BUTTON_WIDTH - 3, '↓')
+                stdscr.addstr(min(height - 3, 2 + visible_height),
+                              width - BUTTON_WIDTH - 3, '↓')
         except curses.error:
             pass
 
         # Status message
         if current_time < status_timeout:
             try:
-                stdscr.addstr(height - 3, 0, status_message[:width-1], curses.color_pair(COLOR_STATUS_MSG))
+                stdscr.addstr(height - 3, 0, status_message[:width-1],
+                              curses.color_pair(COLOR_STATUS_MSG))
             except curses.error:
                 pass
 
         # Show node status message
         if current_time < node.status_timeout:
             try:
-                stdscr.addstr(height - 3, 0, node.status_message[:width-1], curses.color_pair(COLOR_STATUS_MSG))
+                stdscr.addstr(height - 3, 0, node.status_message[:width-1],
+                              curses.color_pair(COLOR_STATUS_MSG))
             except curses.error:
                 pass
 
@@ -407,7 +419,8 @@ def curses_main(stdscr, node):
         if input_mode:
             try:
                 prompt = f"Set frequency: {input_buffer}"
-                stdscr.addstr(height - 3, 0, prompt[:width-1], curses.color_pair(COLOR_STATUS_MSG))
+                stdscr.addstr(height - 3, 0, prompt[:width-1],
+                              curses.color_pair(COLOR_STATUS_MSG))
                 # Position cursor after the input
                 cursor_x = len(prompt)
                 if cursor_x < width - 1:
@@ -421,12 +434,14 @@ def curses_main(stdscr, node):
         # Footer
         num_shown = min(start_idx + len(visible_topics_slice), len(visible_topics))
         if input_mode:
-            status_line = "Format: Hz [tolerance%] - Examples: '30' (30Hz±5% default) or '30 10' (30Hz±10%) - ESC=cancel, Enter=confirm"
+            status_line = ("Format: Hz [tolerance%] - Examples: '30' (30Hz±5% default) "
+                           "or '30 10' (30Hz±10%) - ESC=cancel, Enter=confirm")
         else:
             mode_text = "monitored only" if node.show_only_monitored else "all topics"
             status_line = (
-                f'Showing {start_idx + 1} - {num_shown} of {len(visible_topics)} topics ({mode_text}). '
-                f'Enter=toggle, f=set freq, c=clear freq, h=hide unmonitored, q=quit')
+                f'Showing {start_idx + 1} - {num_shown} of {len(visible_topics)} '
+                f'topics ({mode_text}). Enter=toggle, f=set freq, c=clear freq, '
+                f'h=hide unmonitored, q=quit')
 
         try:
             stdscr.addstr(height - 2, 0, status_line[:width - 1])
