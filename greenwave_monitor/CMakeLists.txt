@@ -68,6 +68,7 @@ install(
 install(
   PROGRAMS
     scripts/r2s_gw_dashboard
+    scripts/ncurses_dashboard
   DESTINATION lib/${PROJECT_NAME}
 )
 

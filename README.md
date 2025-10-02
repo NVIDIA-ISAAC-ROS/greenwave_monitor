@@ -6,18 +6,24 @@ The diagnostics messages follow conventions from [Isaac ROS NITROS](https://gith
 
 Finally, we provide monitoring code as a standalone C++ header, which can be integrated into your own nodes.
 
-## Dashboard Interface
+## Dashboard Interfaces
 
-The Greenwave Monitor ships with a fork of [r2s](https://github.com/mjcarroll/r2s) to provide an intuitive terminal interface that displays real-time statistics for all monitored topics. Click around with your mouse and tab key, and see the bottom bar with keyboard shortcuts.
+The Greenwave Monitor provides two terminal-based dashboard options:
+
+### r2s_gw Dashboard (Rich TUI)
+Ships with a fork of [r2s](https://github.com/mjcarroll/r2s) to provide an intuitive terminal interface that displays real-time statistics for all monitored topics. Click around with your mouse and tab key, and see the bottom bar with keyboard shortcuts.
 
 ![r2s_gw + Greenwave Monitor Dashboard](docs/images/greenwave_r2s_dashboard.png)
+
+### ncurses Dashboard (Lightweight)
+A lightweight ncurses-based interface focused specifically on topic monitoring with keyboard navigation. Features color-coded status indicators, interactive frequency management, and filtering options.
 
 ## Key Features
 
 - **High Performance**: Up to 10x more CPU efficient than the built-in `ros2 topic hz` command
-- **Interactive Dashboard**: Real-time visualization of monitoring data with an easy-to-use terminal interface
-- **Dynamic Topic Management**: Add or remove topics from monitoring without restarting
-- **Topic Status Indicators**: Color-coded topic status to easily catch topics that are not working as expected
+- **Multiple Dashboard Options**: Choose between rich TUI (r2s_gw) or lightweight ncurses interface
+- **Real-time Monitoring**: Live visualization of topic rates, latency, and status with color-coded indicators
+- **Interactive Management**: Add/remove topics and set expected frequencies directly from the interface
 - **Universal Compatibility**: Displays diagnostics from any source that publishes a compatible `/diagnostics` topic, including NVIDIA Nova sensors and other hardware drivers
 
 ## Installation
@@ -34,27 +40,59 @@ source install/setup.sh
 
 ## Usage
 
-### Monitor Dashboard (Recommended)
+### Monitor Dashboards
 
-The easiest way to use Greenwave Monitor is with the all-in-one dashboard, which provides visibility into all diagnostics, including those from drivers that publish their own diagnostic data:
+The easiest way to use Greenwave Monitor is with one of the all-in-one dashboard commands, which provide visibility into all diagnostics, including those from drivers that publish their own diagnostic data.
+
+#### r2s_gw Dashboard (Rich TUI)
 
 ```bash
 ros2 run greenwave_monitor r2s_gw_dashboard
 ```
 
-This command:
-- Starts the greenwave monitor node in the background
-- Launches the r2s_gw TUI frontend in the foreground
-- Automatically handles cleanup when you exit
+Features:
+- Mouse and keyboard navigation
+- Tabbed interface (Topics, Nodes, Interfaces)
+- Rich text rendering and charts
+- Comprehensive ROS 2 system overview
+
+#### ncurses Dashboard (Lightweight)
+
+```bash
+ros2 run greenwave_monitor ncurses_dashboard
+```
+
+Features:
+- Keyboard-only navigation (↑/↓ arrows, Enter, etc.)
+- Real-time topic monitoring with color-coded status
+- Interactive frequency management (`f` to set, `c` to clear)
+- Topic filtering (`h` to hide unmonitored topics)
+- Minimal resource usage
+
+##### ncurses Dashboard Controls
+
+- **↑/↓ arrows**: Navigate topics
+- **Enter/Space**: Toggle monitoring for selected topic
+- **f**: Set expected frequency for selected topic
+- **c**: Clear expected frequency for selected topic
+- **h**: Toggle between showing all topics vs monitored only
+- **q**: Quit
+
+Both commands:
+- Start the greenwave monitor node in the background
+- Launch the respective frontend in the foreground
+- Automatically handle cleanup when you exit
 
 #### Dashboard Options
 
 ```bash
 # Launch with demo publisher nodes
 ros2 run greenwave_monitor r2s_gw_dashboard --demo
+ros2 run greenwave_monitor ncurses_dashboard --demo
 
 # Enable logging to a directory
 ros2 run greenwave_monitor r2s_gw_dashboard --log-dir /path/to/logs
+ros2 run greenwave_monitor ncurses_dashboard --log-dir /path/to/logs
 ```
 
 ### Manual Launch (ros2 topic hz mode)
