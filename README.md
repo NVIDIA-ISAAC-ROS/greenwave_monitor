@@ -40,7 +40,7 @@ Greenwave monitor provides two dashboard frontends, a lightweight ncurses interf
 
 We have found that the r2s dashboard gets sluggish when there are many topics, so we recommend using the ncurses dashboard for large deployments.
 
-#### ncurses Dashboard (Lightweight)
+### ncurses Dashboard (Lightweight)
 
 After installing, you can launch the ncurses dashboard with:
 
@@ -51,7 +51,7 @@ ros2 run greenwave_monitor ncurses_dashboard
 You can also launch the dashboard with some demo publishers to see everything in action:
 
 ```bash
-ros2 run greenwave_monitor ncurses_dashboard -- --demo
+ros2 run greenwave_monitor ncurses_dashboard --demo
 ```
 
 ### r2s_gw Dashboard (Rich TUI)
