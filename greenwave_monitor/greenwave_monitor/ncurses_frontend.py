@@ -136,7 +136,7 @@ def curses_main(stdscr, node):
     start_idx = 0
     key = -1
     selected_row = 0
-    redraw_interval = 0.5
+    redraw_interval = 0.1
     last_redraw = 0
     status_message = ''
     status_timeout = 0
