@@ -41,6 +41,7 @@ class GreenwaveNcursesFrontend(Node):
     """Ncurses frontend for Greenwave Monitor."""
 
     def __init__(self):
+        """Initialize the ncurses frontend node."""
         super().__init__('greenwave_ncurses_frontend')
 
         self.running = True
@@ -126,6 +127,7 @@ class GreenwaveNcursesFrontend(Node):
 
 
 def curses_main(stdscr, node):
+    """Run the main curses UI loop for displaying topics and diagnostics."""
     stdscr.nodelay(True)
     curses.curs_set(0)
     stdscr.keypad(True)
@@ -447,6 +449,7 @@ def curses_main(stdscr, node):
 
 
 def main(args=None):
+    """Entry point for the ncurses frontend application."""
     rclpy.init(args=args)
     node = GreenwaveNcursesFrontend()
     thread = None
