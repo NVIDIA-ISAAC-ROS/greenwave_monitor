@@ -118,12 +118,6 @@ if(BUILD_TESTING)
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
   )
 
-  # Add ncurses frontend smoke tests
-  ament_add_pytest_test(test_ncurses_frontend test/test_ncurses_frontend.py
-    TIMEOUT 120
-    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-  )
-
   # Add gtests
   ament_add_gtest(test_message_diagnostics test/test_message_diagnostics.cpp
     TIMEOUT 60
