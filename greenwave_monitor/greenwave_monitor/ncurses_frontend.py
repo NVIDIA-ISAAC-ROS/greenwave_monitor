@@ -26,8 +26,8 @@ similar to the old curses dashboard but using the GreenwaveUiAdaptor.
 
 import curses
 import threading
-import time
 from threading import Lock
+import time
 from typing import Optional
 
 import rclpy
@@ -54,8 +54,8 @@ class GreenwaveNcursesFrontend(Node):
 
         # UI state
         self.input_mode = None
-        self.input_buffer = ""
-        self.status_message = ""
+        self.input_buffer = ''
+        self.status_message = ''
         self.status_timeout = 0
         self.show_only_monitored = False
 
@@ -121,9 +121,9 @@ class GreenwaveNcursesFrontend(Node):
         """Toggle monitoring for a topic."""
         if self.ui_adaptor:
             self.ui_adaptor.toggle_topic_monitoring(topic_name)
-            self.show_status(f"Toggling monitoring for {topic_name}")
+            self.show_status(f'Toggling monitoring for {topic_name}')
         else:
-            self.show_status("UI adaptor not available")
+            self.show_status('UI adaptor not available')
 
     def show_status(self, message: str):
         """Show a status message for 3 seconds."""
@@ -233,13 +233,13 @@ def curses_main(stdscr, node):
                             tolerance = float(parts[1]) if len(parts) > 1 else 5.0
                             success, msg = node.ui_adaptor.set_expected_frequency(
                                 topic_name, hz, tolerance)
-                            status_message = f"Set frequency for {topic_name}: {hz}Hz"
+                            status_message = f'Set frequency for {topic_name}: {hz}Hz'
                             if not success:
-                                status_message = f"Error: {msg}"
+                                status_message = f'Error: {msg}'
                         else:
-                            status_message = "Invalid input format"
+                            status_message = 'Invalid input format'
                     except ValueError:
-                        status_message = "Invalid frequency values"
+                        status_message = 'Invalid frequency values'
                     status_timeout = current_time + 3.0
                 input_mode = None
                 input_buffer = ''
@@ -276,7 +276,7 @@ def curses_main(stdscr, node):
                 if 0 <= selected_row < len(node.visible_topics):
                     topic_name = node.visible_topics[selected_row]
                     node.toggle_topic_monitoring(topic_name)
-                    status_message = f"Toggled monitoring for {topic_name}"
+                    status_message = f'Toggled monitoring for {topic_name}'
                     status_timeout = current_time + 3.0
             elif key == ord('f') or key == ord('F'):
                 if 0 <= selected_row < len(node.visible_topics):
@@ -287,16 +287,16 @@ def curses_main(stdscr, node):
                     topic_name = node.visible_topics[selected_row]
                     success, msg = node.ui_adaptor.set_expected_frequency(
                         topic_name, clear=True)
-                    status_message = f"Cleared frequency for {topic_name}"
+                    status_message = f'Cleared frequency for {topic_name}'
                     if not success:
-                        status_message = f"Error: {msg}"
+                        status_message = f'Error: {msg}'
                     status_timeout = current_time + 3.0
             elif key == ord('h') or key == ord('H'):
                 node.show_only_monitored = not node.show_only_monitored
                 with node.topics_lock:
                     node.update_visible_topics()
-                mode_text = "monitored only" if node.show_only_monitored else "all topics"
-                status_message = f"Showing {mode_text}"
+                mode_text = 'monitored only' if node.show_only_monitored else 'all topics'
+                status_message = f'Showing {mode_text}'
                 status_timeout = current_time + 3.0
 
         # Get data safely
@@ -340,7 +340,7 @@ def curses_main(stdscr, node):
                 # Get expected frequency
                 expected_hz, tolerance = node.ui_adaptor.get_expected_frequency(topic_name)
                 if expected_hz > 0:
-                    expected_freq_display = f"{expected_hz:.1f}Hz".ljust(12)
+                    expected_freq_display = f'{expected_hz:.1f}Hz'.ljust(12)
 
             # Color coding based on status
             if is_monitored:
@@ -418,7 +418,7 @@ def curses_main(stdscr, node):
         # Input prompt (if in input mode)
         if input_mode:
             try:
-                prompt = f"Set frequency: {input_buffer}"
+                prompt = f'Set frequency: {input_buffer}'
                 stdscr.addstr(height - 3, 0, prompt[:width-1],
                               curses.color_pair(COLOR_STATUS_MSG))
                 # Position cursor after the input
@@ -437,7 +437,7 @@ def curses_main(stdscr, node):
             status_line = ("Format: Hz [tolerance%] - Examples: '30' (30Hz±5% default) "
                            "or '30 10' (30Hz±10%) - ESC=cancel, Enter=confirm")
         else:
-            mode_text = "monitored only" if node.show_only_monitored else "all topics"
+            mode_text = 'monitored only' if node.show_only_monitored else 'all topics'
             status_line = (
                 f'Showing {start_idx + 1} - {num_shown} of {len(visible_topics)} '
                 f'topics ({mode_text}). Enter=toggle, f=set freq, c=clear freq, '
