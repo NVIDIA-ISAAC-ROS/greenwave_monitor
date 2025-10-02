@@ -3,13 +3,15 @@ Greenwave monitor is a tool for runtime monitoring of ROS 2 topics.
 
 ![Greenwave Monitor](docs/images/greenwave_r2s_dashboard.png)
 
-1. Provides a node that behaves like C++ based ros2 topic hz. I.E. subscribes to topics to determine the frame rate and latency. compared to ro2s topic hs the greenwave node is more performant, publishes ROS2 Diagnostics, and offers services to manage topics and expected frequencies.
+It provides the following features:
 
-2. Provides a terminal based dashboard that displays the topic rates, latency, and status, and allows you to add/remove topics and set expected frequencies.
+1. A node that behaves like C++ based ros2 topic hz. I.E. subscribes to topics to determine the frame rate and latency. compared to ro2s topic hs the greenwave node is more performant, publishes ROS2 Diagnostics, and offers services to manage topics and expected frequencies.
 
-3. Provides a header only C++ library so you can calculate and publish compatible diagnostics directly from your own nodes for reduced overhead.
+2. A terminal based dashboard that displays the topic rates, latency, and status, and allows you to add/remove topics and set expected frequencies.
 
-This diagram shows an overview of the architecture ![architecture](docs/images/greenwave_diagram.png)
+3. A header only C++ library so you can calculate and publish compatible diagnostics directly from your own nodes for reduced overhead.
+
+This diagram shows an overview of the ![architecture](docs/images/greenwave_diagram.png)
 
 ## Diagnostics Messages
 
@@ -19,7 +21,7 @@ In particular, the messages follow conventions from [Isaac ROS NITROS](https://g
 
 ## Compatibility
 
-Greenwave monitor is a standalone package tested on Humble, Iron, Jazzy, Kilted, and Rolling ROS2 releases, under Ubuntu 22.04 and Ubuntu 24.04. It does not depend on Isaac ROS *(but does play nicely with it)*.
+Greenwave monitor is a standalone package tested on Humble, Iron, Jazzy, Kilted, and Rolling ROS2 releases, under Ubuntu 22.04 and Ubuntu 24.04. It does not depend on Isaac ROS.
 
 ## Installation
 
