@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -20,8 +20,8 @@
 """
 Ncurses-based frontend for Greenwave Monitor.
 
-This module provides a terminal interface for monitoring ROS topics
-similar to the old curses dashboard but using the GreenwaveUiAdaptor.
+This module provides a terminal-based interface for monitoring ROS2 topics
+with real-time diagnostics including publication rates, latency, and status.
 """
 
 import curses
@@ -49,7 +49,7 @@ class GreenwaveNcursesFrontend(Node):
 
         # Topic management
         self.topics_lock = Lock()
-        self.all_topics = {}  # topic_name -> topic_type
+        self.all_topics = set()  # Set of all available topic names
         self.visible_topics = []  # Filtered list of topics to display
 
         # UI state
@@ -80,18 +80,11 @@ class GreenwaveNcursesFrontend(Node):
                 if (not topic_name.endswith('/nitros')) and ('/nitros/' not in topic_name)
             ]
 
-            topic_dict = {topic_name: topic_type[0] if topic_type else ''
-                          for topic_name, topic_type in topic_names_and_types}
+            topic_set = {topic_name for topic_name, topic_type in topic_names_and_types}
 
             with self.topics_lock:
                 # Update topics
-                for topic, topic_type in topic_dict.items():
-                    self.all_topics[topic] = topic_type
-
-                # Remove topics that no longer exist
-                to_remove = [topic for topic in self.all_topics if topic not in topic_dict]
-                for topic in to_remove:
-                    del self.all_topics[topic]
+                self.all_topics = topic_set
 
                 # Update visible topics with filtering
                 self.update_visible_topics()
@@ -101,7 +94,7 @@ class GreenwaveNcursesFrontend(Node):
 
     def update_visible_topics(self):
         """Update the visible topics list based on current filters."""
-        all_topic_names = list(self.all_topics.keys())
+        all_topic_names = list(self.all_topics)
 
         if self.show_only_monitored and self.ui_adaptor:
             # Filter to only show topics that have diagnostic data (are being monitored)
