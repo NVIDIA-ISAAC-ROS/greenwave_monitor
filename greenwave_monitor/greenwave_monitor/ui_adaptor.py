@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -100,6 +100,7 @@ class GreenwaveUiAdaptor:
     """
 
     def __init__(self, node: Node, monitor_node_name: str = 'greenwave_monitor'):
+        """Initialize the UI adaptor for subscribing to diagnostics and managing topics."""
         self.node = node
         self.monitor_node_name = monitor_node_name
         self.data_lock = threading.Lock()

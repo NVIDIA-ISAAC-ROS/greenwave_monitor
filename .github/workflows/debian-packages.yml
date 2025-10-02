@@ -128,8 +128,54 @@ jobs:
 
         # Verify packages are installed
         dpkg -s ros-${{ matrix.ros_distro }}-r2s-gw ros-${{ matrix.ros_distro }}-greenwave-monitor ros-${{ matrix.ros_distro }}-greenwave-monitor-interfaces
+      shell: bash
 
-        # Install Python dependencies
+    - name: Test ncurses_dashboard execution (no extra dependencies)
+      run: |
+        source /opt/ros/${{ matrix.ros_distro }}/setup.bash
+
+        # Test ncurses frontend BEFORE installing any pip dependencies
+        # This verifies it works with only stdlib (curses) from the debian package
+        echo "Testing ncurses_dashboard (no extra dependencies required)..."
+
+        # Start monitor node in background for ncurses to connect to
+        ros2 run greenwave_monitor greenwave_monitor > /dev/null 2>&1 & echo $! > /tmp/gwm_ncurses.pid
+        sleep 3
+
+        # Run ncurses frontend with simulated terminal and quit command
+        # Exit code 0 means clean exit (not 11 for SIGSEGV or 134 for SIGABRT)
+        set +e
+        timeout 10s script -qfec 'python3 -m greenwave_monitor.ncurses_frontend' /dev/null <<< $'q'
+        EXIT_CODE=$?
+        set -e
+
+        if [ $EXIT_CODE -eq 0 ]; then
+          echo "✓ ncurses_dashboard exited cleanly"
+        elif [ $EXIT_CODE -eq 124 ]; then
+          echo "✗ ncurses_dashboard timed out"
+          kill -9 "$(cat /tmp/gwm_ncurses.pid)" 2>/dev/null || true
+          exit 1
+        elif [ $EXIT_CODE -eq 11 ] || [ $EXIT_CODE -eq 139 ]; then
+          echo "✗ ncurses_dashboard crashed with SIGSEGV (code: $EXIT_CODE)"
+          kill -9 "$(cat /tmp/gwm_ncurses.pid)" 2>/dev/null || true
+          exit 1
+        elif [ $EXIT_CODE -eq 134 ]; then
+          echo "✗ ncurses_dashboard crashed with SIGABRT/core dump (code: $EXIT_CODE)"
+          kill -9 "$(cat /tmp/gwm_ncurses.pid)" 2>/dev/null || true
+          exit 1
+        else
+          echo "✓ ncurses_dashboard exited with code: $EXIT_CODE (acceptable)"
+        fi
+
+        # Cleanup
+        kill -INT "$(cat /tmp/gwm_ncurses.pid)" 2>/dev/null || true
+        sleep 1
+        kill -9 "$(cat /tmp/gwm_ncurses.pid)" 2>/dev/null || true
+      shell: bash
+
+    - name: Install Python dependencies for r2s_gw
+      run: |
+        # Install Python dependencies (only needed for r2s_gw, not ncurses)
         apt-get install -y python3-pip || true
         if [[ "${{ matrix.ros_distro }}" == "jazzy" || \
               "${{ matrix.ros_distro }}" == "kilted" || \

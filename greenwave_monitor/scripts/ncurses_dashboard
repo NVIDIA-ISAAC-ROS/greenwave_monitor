@@ -1,0 +1,121 @@
+#!/bin/bash
+
+# SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
+# Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# SPDX-License-Identifier: Apache-2.0
+
+# ROS2 Monitor with ncurses TUI - All-in-one launcher
+# Combines the ROS2 Monitor Node and ncurses TUI in a single command
+
+# Parse command line arguments
+DEMO_MODE=false
+LOG_DIR=""
+MONITOR_ARGS=()
+
+show_help() {
+    echo "Usage: $0 [OPTIONS] [MONITOR_ARGS...]"
+    echo ""
+    echo "Launch Greenwave Monitor with ncurses TUI dashboard"
+    echo ""
+    echo "OPTIONS:"
+    echo "  --demo, --test             Launch demo publisher nodes for testing"
+    echo "  --log-dir DIR              Enable logging to specified directory"
+    echo "  --help, -h                 Show this help message"
+    echo ""
+    echo "MONITOR_ARGS are passed directly to the greenwave_monitor node"
+    echo ""
+    echo "Controls in ncurses interface:"
+    echo "  a = Add topic to monitoring"
+    echo "  r = Remove selected topic"
+    echo "  f = Set expected frequency (format: topic_name hz tolerance)"
+    echo "  c = Clear frequency settings for selected topic"
+    echo "  ↑/↓ = Navigate topics"
+    echo "  q = Quit"
+}
+
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --demo|--test)
+            DEMO_MODE=true
+            shift
+            ;;
+        --log-dir)
+            LOG_DIR="$2"
+            shift 2
+            ;;
+        --help|-h)
+            show_help
+            exit 0
+            ;;
+        *)
+            MONITOR_ARGS+=("$1")
+            shift
+            ;;
+    esac
+done
+
+# Handle logging configuration
+LOG_FILE="/dev/null"
+
+if [ -n "$LOG_DIR" ]; then
+    # Create logs directory if it doesn't exist
+    mkdir -p "${LOG_DIR}"
+
+    # Create a timestamped log file
+    TIMESTAMP=$(date +"%Y-%m-%d_%H-%M-%S")
+    LOG_FILE="${LOG_DIR}/monitor_ncurses_${TIMESTAMP}.log"
+fi
+
+# Function to clean up background processes on exit
+cleanup() {
+    echo "Shutting down..."
+    if [ -n "$MONITOR_PID" ]; then
+        echo "Terminating monitor node (PID: $MONITOR_PID)..."
+        if [ "$LOG_FILE" != "/dev/null" ]; then
+            echo "Monitor log available at: ${LOG_FILE}"
+        fi
+        # Kill background process and all its descendants
+        pkill -TERM -P $MONITOR_PID 2>/dev/null
+        kill -TERM $MONITOR_PID 2>/dev/null
+    fi
+    exit 0
+}
+
+# Set up trap to catch signals
+trap cleanup SIGINT SIGTERM EXIT
+
+# Launch demo nodes if requested
+if [ "$DEMO_MODE" = "true" ]; then
+    echo "Starting demo mode with test publisher nodes..."
+    ros2 launch greenwave_monitor example.launch.py &> "${LOG_FILE}" &
+    MONITOR_PID=$!
+else
+    echo "Starting Greenwave Monitor..."
+    ros2 run greenwave_monitor greenwave_monitor "${MONITOR_ARGS[@]}" &> "${LOG_FILE}" &
+    MONITOR_PID=$!
+fi
+
+# Wait briefly to allow the monitor node to initialize
+sleep 2
+echo "Monitor process started with PID: $MONITOR_PID"
+
+# Launch ncurses frontend in the foreground
+echo "Starting ncurses TUI..."
+echo "Controls: a=Add Topic, r=Remove, f=Set Frequency, c=Clear Freq, q=Quit"
+python3 -m greenwave_monitor.ncurses_frontend
+
+# Note: We don't need to explicitly exit here because the trap will handle cleanup
+# when the ncurses frontend exits
