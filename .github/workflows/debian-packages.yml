@@ -145,7 +145,7 @@ jobs:
         # Run ncurses frontend with simulated terminal and quit command
         # Exit code 0 means clean exit (not 11 for SIGSEGV or 134 for SIGABRT)
         set +e
-        timeout 10s script -qfec 'python3 -m greenwave_monitor.ncurses_frontend' /dev/null <<< $'q'
+        timeout 10s script -qfec 'ros2 run greenwave_monitor ncurses_dashboard' /dev/null <<< $'q'
         EXIT_CODE=$?
         set -e
 
@@ -190,6 +190,7 @@ jobs:
       run: |
         source /opt/ros/${{ matrix.ros_distro }}/setup.bash
         timeout 10s bash -lc "script -qfec 'ros2 run r2s_gw r2s_gw' /dev/null <<< \$'q'" || true
+        timeout 10s bash -lc "script -qfec 'ros2 run greenwave_monitor r2s_gw_dashboard' /dev/null <<< \$'q'" || true
       shell: bash
 
     - name: Test greenwave_monitor execution
