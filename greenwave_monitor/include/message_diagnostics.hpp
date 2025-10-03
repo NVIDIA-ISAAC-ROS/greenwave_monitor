@@ -60,9 +60,6 @@ struct MessageDiagnosticsConfig
   // enable basic diagnostics for all topics, triggered by an environment variable
   bool enable_all_topic_diagnostics{false};
 
-  // Rate (Hz) at which to publish diagnostics to a ROS topic
-  //   float diagnostics_publish_rate{1.0};
-
   // Window size of the mean filter in terms of number of messages received
   int filter_window_size{300};
 

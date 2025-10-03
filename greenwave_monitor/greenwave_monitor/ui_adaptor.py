@@ -104,7 +104,6 @@ class GreenwaveUiAdaptor:
         self.node = node
         self.monitor_node_name = monitor_node_name
         self.data_lock = threading.Lock()
-        # Use a plain dict so lookups don't create entries implicitly (which broke add/remove)
         self.ui_diagnostics: Dict[str, UiDiagnosticData] = {}
         # { topic_name : (expected_hz, tolerance) }
         self.expected_frequencies: Dict[str, tuple[float, float]] = {}
@@ -135,6 +134,29 @@ class GreenwaveUiAdaptor:
             set_freq_service_name
         )
 
+    def _extract_topic_name(self, diagnostic_name: str) -> str:
+        """
+        Extract topic name from diagnostic status name.
+
+        Handles both formats:
+        - NITROS: node_name + namespace + "/" + topic (e.g., "my_node/ns/camera/image")
+        - Greenwave: topic_name only (e.g., "/ns/camera/image")
+
+        This is a temporary hack until NITROS migrates to message_diagnostics.hpp.
+        """
+        # If the name starts with '/', it's already just a topic name (Greenwave format)
+        if diagnostic_name.startswith('/'):
+            return diagnostic_name
+
+        # NITROS format: node_name + namespace + "/" + topic_name
+        # Node names cannot contain '/', so the first '/' marks where namespace+topic begins
+        idx = diagnostic_name.find('/')
+        if idx >= 0:
+            return diagnostic_name[idx:]
+
+        # Fallback: return as-is if no '/' found
+        return diagnostic_name
+
     def _on_diagnostics(self, msg: DiagnosticArray):
         """Process incoming diagnostic messages."""
         with self.data_lock:
@@ -142,7 +164,9 @@ class GreenwaveUiAdaptor:
             for status in msg.status:
                 ui_data = UiDiagnosticData.from_status(status)
                 ui_data.last_update = time.time()
-                self.ui_diagnostics[status.name] = ui_data
+                # Normalize the topic name to handle both NITROS and Greenwave formats
+                topic_name = self._extract_topic_name(status.name)
+                self.ui_diagnostics[topic_name] = ui_data
 
     def toggle_topic_monitoring(self, topic_name: str):
         """Toggle monitoring for a topic."""
@@ -235,7 +259,6 @@ class GreenwaveUiAdaptor:
     def get_topic_diagnostics(self, topic_name: str) -> UiDiagnosticData:
         """Get diagnostic data for a topic. Returns default values if topic not found."""
         with self.data_lock:
-            # Do not create entries for non-monitored topics
             return self.ui_diagnostics.get(topic_name, UiDiagnosticData())
 
     def get_expected_frequency(self, topic_name: str) -> tuple[float, float]:
