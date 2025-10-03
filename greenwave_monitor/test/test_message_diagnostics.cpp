@@ -99,7 +99,8 @@ TEST_F(MessageDiagnosticsTest, FrameRateNodeTest)
 
   const double expected_frame_rate = static_cast<double>(num_messages) / total_duration.count();
 
-  EXPECT_NEAR(message_diagnostics.getFrameRateNode(), expected_frame_rate, 2.0);  // allow 2.0 Hz error
+  // allow 2.0 Hz error
+  EXPECT_NEAR(message_diagnostics.getFrameRateNode(), expected_frame_rate, 2.0);
 }
 
 TEST_F(MessageDiagnosticsTest, MessageLatencyTest)
