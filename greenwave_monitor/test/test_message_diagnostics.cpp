@@ -68,12 +68,12 @@ TEST_F(MessageDiagnosticsTest, FrameRateMsgTest)
   message_diagnostics::MessageDiagnostics message_diagnostics(
     *node_, "test_topic", message_diagnostics::MessageDiagnosticsConfig());
 
-  uint64_t timestamp = test_constants::kStartTimestampNs; // in nanoseconds
+  uint64_t timestamp = test_constants::kStartTimestampNs;  // in nanoseconds
   for (int i = 0; i < 1000; i++) {
     message_diagnostics.updateDiagnostics(timestamp);
-    timestamp += 10000000; // 10 ms in nanoseconds
+    timestamp += 10000000;  // 10 ms in nanoseconds
   }
-  EXPECT_EQ(message_diagnostics.getFrameRateMsg(), 100); // 100 Hz
+  EXPECT_EQ(message_diagnostics.getFrameRateMsg(), 100);  // 100 Hz
 }
 
 TEST_F(MessageDiagnosticsTest, FrameRateNodeTest)
@@ -82,11 +82,12 @@ TEST_F(MessageDiagnosticsTest, FrameRateNodeTest)
   message_diagnostics::MessageDiagnostics message_diagnostics(
     *node_, "test_topic", message_diagnostics::MessageDiagnosticsConfig());
 
-  constexpr auto timestamp = test_constants::kStartTimestampNs; // dummy timestamp, not used for node time calculation
+  // dummy timestamp, not used for node time calculation
+  constexpr auto timestamp = test_constants::kStartTimestampNs;
   const auto start_time = std::chrono::high_resolution_clock::now();
 
   constexpr int num_messages = 1000;
-  constexpr int interarrival_time_ms = 10; // 100 hz
+  constexpr int interarrival_time_ms = 10;  // 100 hz
 
   for (int i = 0; i < num_messages; i++) {
     message_diagnostics.updateDiagnostics(timestamp);
@@ -98,7 +99,8 @@ TEST_F(MessageDiagnosticsTest, FrameRateNodeTest)
 
   const double expected_frame_rate = static_cast<double>(num_messages) / total_duration.count();
 
-  EXPECT_NEAR(message_diagnostics.getFrameRateNode(), expected_frame_rate, 2.0); // allow 2.0 Hz error
+  // allow 2.0 Hz error
+  EXPECT_NEAR(message_diagnostics.getFrameRateNode(), expected_frame_rate, 2.0);
 }
 
 TEST_F(MessageDiagnosticsTest, MessageLatencyTest)
@@ -116,22 +118,24 @@ TEST_F(MessageDiagnosticsTest, MessageLatencyTest)
 
   message_diagnostics.updateDiagnostics(msg_timestamp.nanoseconds());
 
-  EXPECT_NEAR(message_diagnostics.getLatency(), expected_latency_ms, 1.0); // allow 1 ms tolerance
+  EXPECT_NEAR(message_diagnostics.getLatency(), expected_latency_ms, 1.0);  // allow 1 ms tolerance
 }
 
 TEST_F(MessageDiagnosticsTest, DiagnosticPublishSubscribeTest)
 {
-  constexpr int input_frequency = 50; // 50 Hz
+  constexpr int input_frequency = 50;  // 50 Hz
+  // 20 ms in nanoseconds
   const int64_t interarrival_time_ns = static_cast<int64_t>(
-    ::message_diagnostics::constants::kSecondsToNanoseconds / input_frequency); // 20 ms in nanoseconds
+    ::message_diagnostics::constants::kSecondsToNanoseconds / input_frequency);
 
   // Initialize MessageDiagnostics with diagnostics enabled
   message_diagnostics::MessageDiagnosticsConfig config;
   config.enable_msg_time_diagnostics = true;
   config.enable_node_time_diagnostics = true;
   config.enable_increasing_msg_time_diagnostics = true;
+  // in us
   config.expected_dt_us = interarrival_time_ns /
-    ::message_diagnostics::constants::kMicrosecondsToNanoseconds; // in us
+    ::message_diagnostics::constants::kMicrosecondsToNanoseconds;
 
   message_diagnostics::MessageDiagnostics message_diagnostics(*node_, "test_topic", config);
 
@@ -144,10 +148,12 @@ TEST_F(MessageDiagnosticsTest, DiagnosticPublishSubscribeTest)
       received_diagnostics.push_back(msg);
     });
 
+  // 50 ms delay
   constexpr int64_t delay_time_ns = 50 *
     static_cast<int64_t>(::message_diagnostics::constants::kMillisecondsToMicroseconds) *
-    static_cast<int64_t>(::message_diagnostics::constants::kMicrosecondsToNanoseconds); // 50 ms delay
-  auto msg_timestamp = test_constants::kStartTimestampNs; // Starting message timestamp in nanoseconds
+    static_cast<int64_t>(::message_diagnostics::constants::kMicrosecondsToNanoseconds);
+  // Starting message timestamp in nanoseconds
+  auto msg_timestamp = test_constants::kStartTimestampNs;
 
   int sent_count = 0;
   const auto start_time = std::chrono::high_resolution_clock::now();
@@ -170,7 +176,7 @@ TEST_F(MessageDiagnosticsTest, DiagnosticPublishSubscribeTest)
     }
     // Add a jitter by delaying at count 10
     if (sent_count == 10) {
-      std::this_thread::sleep_for(std::chrono::nanoseconds(delay_time_ns)); // 50 ms delay
+      std::this_thread::sleep_for(std::chrono::nanoseconds(delay_time_ns));  // 50 ms delay
       msg_timestamp += delay_time_ns;
     }
 

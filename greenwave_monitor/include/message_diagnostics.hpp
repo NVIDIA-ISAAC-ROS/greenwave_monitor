@@ -487,7 +487,6 @@ private:
     }
     return error_found;
   }
-
 };
 
 }  // namespace message_diagnostics

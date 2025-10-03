@@ -17,6 +17,10 @@
 
 #pragma once
 
+#include <memory>
+#include <string>
+#include <vector>
+
 #include "rclcpp/rclcpp.hpp"
 #include "sensor_msgs/msg/image.hpp"
 #include "sensor_msgs/msg/imu.hpp"
@@ -24,7 +28,7 @@
 #include "message_diagnostics.hpp"
 #include "rclcpp/subscription_options.hpp"
 
-using namespace std::chrono_literals;
+using std::chrono_literals::operator""ms;
 
 class MinimalPublisher : public rclcpp::Node
 {

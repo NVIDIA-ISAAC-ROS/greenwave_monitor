@@ -13,11 +13,12 @@ r2s_gw is written in Python and utilizes [Textual](https://github.com/textualize
 
 ## Installing
 
-To run:
+This package is bundled with the Greenwave Monitor repository. See the main [Greenwave Monitor README](../README.md) for installation instructions.
+
+For standalone development:
 
 ```
-git clone https://github.com/mjcarroll/r2s.git
-cd r2s
+cd r2s_gw
 poetry install
 poetry run r2s_gw
 ```
