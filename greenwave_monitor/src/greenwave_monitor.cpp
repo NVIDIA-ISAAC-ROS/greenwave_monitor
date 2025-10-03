@@ -18,10 +18,11 @@
 #include "greenwave_monitor.hpp"
 
 #include <algorithm>
-#include "rosidl_typesupport_introspection_cpp/message_introspection.hpp"
 #include <cstring>
 #include <mutex>
 #include <unordered_map>
+
+#include "rosidl_typesupport_introspection_cpp/message_introspection.hpp"
 
 using namespace std::chrono_literals;
 
@@ -227,7 +228,7 @@ bool GreenwaveMonitor::has_header_from_type(const std::string & type_name)
     {"std_msgs/msg/Float64", false},
     {"std_msgs/msg/Bool", false},
     {"std_msgs/msg/Empty", false},
-    {"std_msgs/msg/Header", false}, // Header itself doesn't have a header
+    {"std_msgs/msg/Header", false},  // Header itself doesn't have a header
 
     // Common message types without headers
     {"geometry_msgs/msg/Twist", false},
@@ -326,7 +327,7 @@ GreenwaveMonitor::GetTimestampFromSerializedMessage(
   const std::string & type)
 {
   if (!has_header_from_type(type)) {
-    return std::chrono::time_point<std::chrono::system_clock>(); // timestamp 0 as fallback
+    return std::chrono::time_point<std::chrono::system_clock>();  // timestamp 0 as fallback
   }
 
   int32_t timestamp_sec;
