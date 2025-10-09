@@ -5,6 +5,8 @@
   <version>0.1.0</version>
   <description>Interfaces for the greenwave_monitor package</description>
   <maintainer email="sgillen@nvidia.com">Sean Gillen</maintainer>
+  <author email="sgillen@nvidia.com">Sean Gillen</author>
+  <author email="liann@nvidia.com">Ann Li</author>
   <license>Apache-2.0</license>
 
   <buildtool_depend>ament_cmake</buildtool_depend>
