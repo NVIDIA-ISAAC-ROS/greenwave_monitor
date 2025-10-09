@@ -92,7 +92,7 @@ void GreenwaveMonitor::topic_callback(
 
 void GreenwaveMonitor::timer_callback()
 {
-  RCLCPP_INFO(this->get_logger(), "\n====================================================");
+  RCLCPP_INFO(this->get_logger(), "====================================================");
   if (message_diagnostics_.empty()) {
     RCLCPP_INFO(this->get_logger(), "No topics to monitor");
   }
