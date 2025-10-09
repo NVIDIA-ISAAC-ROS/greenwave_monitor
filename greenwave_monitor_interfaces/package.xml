@@ -6,7 +6,6 @@
   <description>Interfaces for the greenwave_monitor package</description>
   <maintainer email="sgillen@nvidia.com">Sean Gillen</maintainer>
   <author> Sean Gillen/sgillen@nvidia.com, Ann Li/liann@nvidia.com></author>
-
   <license>Apache-2.0</license>
 
   <buildtool_depend>ament_cmake</buildtool_depend>
