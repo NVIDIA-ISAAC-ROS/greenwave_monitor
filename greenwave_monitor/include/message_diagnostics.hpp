@@ -43,6 +43,8 @@ inline constexpr uint64_t kMillisecondsToMicroseconds = 1000ULL;
 // Convenience constant for converting milliseconds to seconds in floating-point math
 inline constexpr uint64_t kMillisecondsToSeconds = 1000ULL;
 inline constexpr int64_t kDropWarnTimeoutSeconds = 5;
+// Cutoff where we consider latency to be nonsense
+inline constexpr int64_t kNonsenseLatencyMs = 365 * 24 * 60 * 60 * 1000;
 }  // namespace constants
 
 // Configurations for a message diagnostics
@@ -97,7 +99,7 @@ public:
     prev_timestamp_node_us_ = std::numeric_limits<uint64_t>::min();
     prev_timestamp_msg_us_ = std::numeric_limits<uint64_t>::min();
     num_non_increasing_msg_ = 0;
-    message_latency_msg_ms_ = 0;
+    message_latency_msg_ms_ = -1;
     outdated_msg_ = true;
 
     diagnostic_publisher_ =
@@ -133,7 +135,7 @@ public:
       }
     }
 
-    rclcpp::Time time_from_node = node_.get_clock()->now();
+    const rclcpp::Time time_from_node = node_.get_clock()->now();
     uint64_t ros_node_system_time_us = time_from_node.nanoseconds() /
       message_diagnostics::constants::kMicrosecondsToNanoseconds;
 
@@ -158,8 +160,9 @@ public:
 
     // calculate key values for diagnostics status (computed on publish/getters)
     message_latency_msg_ms_ = latency_wrt_current_timestamp_node_ms;
-
-    // mean jitter computed on publish
+    if (message_latency_msg_ms_ > message_diagnostics::constants::kNonsenseLatencyMs) {
+      message_latency_msg_ms_ = -1;
+    }
 
     // frame dropping warnings
     if (!error_found) {
@@ -217,7 +220,8 @@ public:
       values.push_back(
         diagnostic_msgs::build<diagnostic_msgs::msg::KeyValue>()
         .key("current_delay_from_realtime_ms")
-        .value(std::to_string(message_latency_msg_ms_)));
+        .value(message_latency_msg_ms_ == -1 ?
+          "N/A" : std::to_string(message_latency_msg_ms_)));
       values.push_back(
         diagnostic_msgs::build<diagnostic_msgs::msg::KeyValue>()
         .key("frame_rate_node")
