@@ -20,6 +20,7 @@
 #include <algorithm>
 #include <limits>
 #include <cinttypes>
+#include <cmath>
 #include <mutex>
 #include <queue>
 #include <string>
@@ -42,7 +43,9 @@ inline constexpr uint64_t kMicrosecondsToNanoseconds = 1000ULL;
 inline constexpr uint64_t kMillisecondsToMicroseconds = 1000ULL;
 // Convenience constant for converting milliseconds to seconds in floating-point math
 inline constexpr uint64_t kMillisecondsToSeconds = 1000ULL;
-inline constexpr int64_t kDropWarnTimeoutSeconds = 5;
+inline constexpr int64_t kDropWarnTimeoutSeconds = 5LL;
+// Cutoff where we consider latency to be nonsense
+inline constexpr int64_t kNonsenseLatencyMs = 365LL * 24LL * 60LL * 60LL * 1000LL;
 }  // namespace constants
 
 // Configurations for a message diagnostics
@@ -64,10 +67,10 @@ struct MessageDiagnosticsConfig
   int filter_window_size{300};
 
   // Expected time difference between messages in microseconds for this topic
-  int64_t expected_dt_us{0};
+  int64_t expected_dt_us{0LL};
 
   // Tolerance for jitter from expected frame rate in microseconds
-  int jitter_tolerance_us{0};
+  int64_t jitter_tolerance_us{0LL};
 };
 
 class MessageDiagnostics
@@ -133,7 +136,7 @@ public:
       }
     }
 
-    rclcpp::Time time_from_node = node_.get_clock()->now();
+    const rclcpp::Time time_from_node = node_.get_clock()->now();
     uint64_t ros_node_system_time_us = time_from_node.nanoseconds() /
       message_diagnostics::constants::kMicrosecondsToNanoseconds;
 
@@ -158,8 +161,9 @@ public:
 
     // calculate key values for diagnostics status (computed on publish/getters)
     message_latency_msg_ms_ = latency_wrt_current_timestamp_node_ms;
-
-    // mean jitter computed on publish
+    if (message_latency_msg_ms_ > message_diagnostics::constants::kNonsenseLatencyMs) {
+      message_latency_msg_ms_ = std::numeric_limits<double>::quiet_NaN();
+    }
 
     // frame dropping warnings
     if (!error_found) {
@@ -217,7 +221,9 @@ public:
       values.push_back(
         diagnostic_msgs::build<diagnostic_msgs::msg::KeyValue>()
         .key("current_delay_from_realtime_ms")
-        .value(std::to_string(message_latency_msg_ms_)));
+        .value(
+          std::isnan(message_latency_msg_ms_) ?
+          "N/A" : std::to_string(message_latency_msg_ms_)));
       values.push_back(
         diagnostic_msgs::build<diagnostic_msgs::msg::KeyValue>()
         .key("frame_rate_node")
@@ -276,14 +282,15 @@ public:
       RCLCPP_ERROR(
         node_.get_logger(),
         "expected_hz is 0.0. It should be set to a value greater than 0."
-        " Keeping previous values: expected_dt_us = %" PRId64 ", jitter_tolerance_us = %d.",
+        " Keeping previous values: expected_dt_us = %" PRId64 ","
+        " jitter_tolerance_us = %" PRId64 ".",
         static_cast<int64_t>(diagnostics_config_.expected_dt_us),
         diagnostics_config_.jitter_tolerance_us);
       return;
     }
 
-    const int expected_dt_us =
-      static_cast<int>(message_diagnostics::constants::kSecondsToMicroseconds / expected_hz);
+    const int64_t expected_dt_us =
+      static_cast<int64_t>(message_diagnostics::constants::kSecondsToMicroseconds / expected_hz);
     diagnostics_config_.expected_dt_us = expected_dt_us;
 
     const int tolerance_us =
@@ -324,7 +331,7 @@ private:
     }
 
     // Returns true if abs_jitter_us exceeded tolerance (i.e., counts as a missed deadline)
-    bool addJitter(int64_t abs_jitter_us, int jitter_tolerance_us)
+    bool addJitter(int64_t abs_jitter_us, int64_t jitter_tolerance_us)
     {
       max_abs_jitter_us = std::max(max_abs_jitter_us, abs_jitter_us);
       jitter_abs_us.push(abs_jitter_us);
@@ -333,7 +340,7 @@ private:
         sum_jitter_abs_us -= jitter_abs_us.front();
         jitter_abs_us.pop();
       }
-      if (abs_jitter_us > static_cast<int64_t>(jitter_tolerance_us)) {
+      if (abs_jitter_us > jitter_tolerance_us) {
         ++outlier_count;
         return true;
       }

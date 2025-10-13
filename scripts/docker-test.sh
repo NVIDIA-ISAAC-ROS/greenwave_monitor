@@ -53,7 +53,7 @@ echo "Starting Docker container for ROS 2 $DISTRO..."
 echo "Image: $IMAGE"
 
 # Get current directory (should be the greenwave_monitor root)
-WORKSPACE_DIR=$(pwd)/../
+WORKSPACE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../"
 
 # Run container with interactive shell, mounting current directory
 docker run -it --rm \
@@ -73,9 +73,9 @@ docker run -it --rm \
 
         # Install Python requirements based on ROS distro
         if [[ '${DISTRO}' == 'jazzy' || '${DISTRO}' == 'kilted' || '${DISTRO}' == 'rolling' ]]; then
-            pip3 install --break-system-packages -I pygments -r src/greenwave_monitor/requirements.txt
+            pip3 install --break-system-packages -I pygments -r /workspace/src/greenwave_monitor/r2s_gw/requirements.txt
         else
-            pip3 install -r src/greenwave_monitor/requirements.txt
+            pip3 install -r /workspace/src/greenwave_monitor/r2s_gw/requirements.txt
         fi
 
         echo '=== Building packages ==='

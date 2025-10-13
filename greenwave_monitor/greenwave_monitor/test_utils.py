@@ -17,6 +17,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import math
 import time
 from typing import List, Optional, Tuple
 
@@ -41,7 +42,6 @@ TEST_CONFIGURATIONS = [
 MANAGE_TOPIC_TEST_CONFIG = TEST_CONFIGURATIONS[2]
 MONITOR_NODE_NAME = 'test_greenwave_monitor'
 MONITOR_NODE_NAMESPACE = 'test_namespace'
-ONE_YEAR_IN_MS = 365 * 24 * 60 * 60 * 1000
 
 
 def create_minimal_publisher(
@@ -192,6 +192,8 @@ def find_best_diagnostic(
                 msg_str = kv.value
             elif kv.key == 'current_delay_from_realtime_ms':
                 latency_str = kv.value
+                if latency_str == 'N/A':
+                    latency_str = 'nan'
 
         try:
             node_val = float(node_str) if node_str is not None else None
@@ -242,9 +244,9 @@ def verify_diagnostic_values(status: DiagnosticStatus,
     if message_type == 'string':
         if reported_frequency_msg != 0.0:
             errors.append(f'String message frequency should be 0.0, got {reported_frequency_msg}')
-        if reported_latency_ms < ONE_YEAR_IN_MS:
+        if not math.isnan(reported_latency_ms):
             errors.append(
-                f'String latency should be >= {ONE_YEAR_IN_MS} ms, '
+                f'String latency should be {math.nan}, '
                 f'got {reported_latency_ms}')
     else:
         if abs(reported_frequency_msg - expected_frequency) > tolerance_hz:
