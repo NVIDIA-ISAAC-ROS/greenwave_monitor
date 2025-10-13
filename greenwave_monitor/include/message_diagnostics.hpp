@@ -42,9 +42,9 @@ inline constexpr uint64_t kMicrosecondsToNanoseconds = 1000ULL;
 inline constexpr uint64_t kMillisecondsToMicroseconds = 1000ULL;
 // Convenience constant for converting milliseconds to seconds in floating-point math
 inline constexpr uint64_t kMillisecondsToSeconds = 1000ULL;
-inline constexpr int64_t kDropWarnTimeoutSeconds = 5;
+inline constexpr int64_t kDropWarnTimeoutSeconds = 5LL;
 // Cutoff where we consider latency to be nonsense
-inline constexpr int64_t kNonsenseLatencyMs = 365 * 24 * 60 * 60 * 1000;
+inline constexpr int64_t kNonsenseLatencyMs = 365LL * 24LL * 60LL * 60LL * 1000LL;
 }  // namespace constants
 
 // Configurations for a message diagnostics
@@ -66,10 +66,10 @@ struct MessageDiagnosticsConfig
   int filter_window_size{300};
 
   // Expected time difference between messages in microseconds for this topic
-  int64_t expected_dt_us{0};
+  int64_t expected_dt_us{0LL};
 
   // Tolerance for jitter from expected frame rate in microseconds
-  int jitter_tolerance_us{0};
+  int64_t jitter_tolerance_us{0LL};
 };
 
 class MessageDiagnostics
@@ -280,18 +280,18 @@ public:
       RCLCPP_ERROR(
         node_.get_logger(),
         "expected_hz is 0.0. It should be set to a value greater than 0."
-        " Keeping previous values: expected_dt_us = %" PRId64 ", jitter_tolerance_us = %d.",
+        " Keeping previous values: expected_dt_us = %" PRId64 ", jitter_tolerance_us = %" PRId64 ".",
         static_cast<int64_t>(diagnostics_config_.expected_dt_us),
         diagnostics_config_.jitter_tolerance_us);
       return;
     }
 
-    const int expected_dt_us =
-      static_cast<int>(message_diagnostics::constants::kSecondsToMicroseconds / expected_hz);
+    const int64_t expected_dt_us =
+      static_cast<int64_t>(message_diagnostics::constants::kSecondsToMicroseconds / expected_hz);
     diagnostics_config_.expected_dt_us = expected_dt_us;
 
-    const int tolerance_us =
-      static_cast<int>((message_diagnostics::constants::kSecondsToMicroseconds / expected_hz) *
+    const int64_t tolerance_us =
+      static_cast<int64_t>((message_diagnostics::constants::kSecondsToMicroseconds / expected_hz) *
       (tolerance_percent / 100.0));
     diagnostics_config_.jitter_tolerance_us = tolerance_us;
   }
@@ -302,8 +302,8 @@ public:
     diagnostics_config_.enable_node_time_diagnostics = false;
     diagnostics_config_.enable_msg_time_diagnostics = false;
 
-    diagnostics_config_.expected_dt_us = 0;
-    diagnostics_config_.jitter_tolerance_us = 0;
+    diagnostics_config_.expected_dt_us = 0LL;
+    diagnostics_config_.jitter_tolerance_us = 0LL;
   }
 
 private:
@@ -311,9 +311,9 @@ private:
   {
     int window_size{0};
     std::queue<int64_t> interarrival_us;
-    int64_t sum_interarrival_us{0};
+    int64_t sum_interarrival_us{0LL};
     std::queue<int64_t> jitter_abs_us;
-    int64_t sum_jitter_abs_us{0};
+    int64_t sum_jitter_abs_us{0LL};
     int64_t max_abs_jitter_us{0};
     uint64_t outlier_count{0};
 
@@ -328,7 +328,7 @@ private:
     }
 
     // Returns true if abs_jitter_us exceeded tolerance (i.e., counts as a missed deadline)
-    bool addJitter(int64_t abs_jitter_us, int jitter_tolerance_us)
+    bool addJitter(int64_t abs_jitter_us, int64_t jitter_tolerance_us)
     {
       max_abs_jitter_us = std::max(max_abs_jitter_us, abs_jitter_us);
       jitter_abs_us.push(abs_jitter_us);
@@ -337,7 +337,7 @@ private:
         sum_jitter_abs_us -= jitter_abs_us.front();
         jitter_abs_us.pop();
       }
-      if (abs_jitter_us > static_cast<int64_t>(jitter_tolerance_us)) {
+      if (abs_jitter_us > jitter_tolerance_us) {
         ++outlier_count;
         return true;
       }
@@ -357,7 +357,7 @@ private:
     int64_t meanAbsJitterUs() const
     {
       if (jitter_abs_us.empty()) {
-        return 0;
+        return 0LL;
       }
       return sum_jitter_abs_us / static_cast<int64_t>(jitter_abs_us.size());
     }
