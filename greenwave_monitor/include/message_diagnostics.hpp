@@ -221,7 +221,8 @@ public:
       values.push_back(
         diagnostic_msgs::build<diagnostic_msgs::msg::KeyValue>()
         .key("current_delay_from_realtime_ms")
-        .value(std::isnan(message_latency_msg_ms_) ?
+        .value(
+          std::isnan(message_latency_msg_ms_) ?
           "N/A" : std::to_string(message_latency_msg_ms_)));
       values.push_back(
         diagnostic_msgs::build<diagnostic_msgs::msg::KeyValue>()
