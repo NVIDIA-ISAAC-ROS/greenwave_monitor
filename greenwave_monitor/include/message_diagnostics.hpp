@@ -20,6 +20,7 @@
 #include <algorithm>
 #include <limits>
 #include <cinttypes>
+#include <cmath>
 #include <mutex>
 #include <queue>
 #include <string>
@@ -99,7 +100,7 @@ public:
     prev_timestamp_node_us_ = std::numeric_limits<uint64_t>::min();
     prev_timestamp_msg_us_ = std::numeric_limits<uint64_t>::min();
     num_non_increasing_msg_ = 0;
-    message_latency_msg_ms_ = -1;
+    message_latency_msg_ms_ = std::numeric_limits<double>::quiet_NaN();
     outdated_msg_ = true;
 
     diagnostic_publisher_ =
@@ -161,7 +162,7 @@ public:
     // calculate key values for diagnostics status (computed on publish/getters)
     message_latency_msg_ms_ = latency_wrt_current_timestamp_node_ms;
     if (message_latency_msg_ms_ > message_diagnostics::constants::kNonsenseLatencyMs) {
-      message_latency_msg_ms_ = -1;
+      message_latency_msg_ms_ = std::numeric_limits<double>::quiet_NaN();
     }
 
     // frame dropping warnings
@@ -220,7 +221,7 @@ public:
       values.push_back(
         diagnostic_msgs::build<diagnostic_msgs::msg::KeyValue>()
         .key("current_delay_from_realtime_ms")
-        .value(message_latency_msg_ms_ == -1 ?
+        .value(std::isnan(message_latency_msg_ms_) ?
           "N/A" : std::to_string(message_latency_msg_ms_)));
       values.push_back(
         diagnostic_msgs::build<diagnostic_msgs::msg::KeyValue>()
@@ -280,7 +281,8 @@ public:
       RCLCPP_ERROR(
         node_.get_logger(),
         "expected_hz is 0.0. It should be set to a value greater than 0."
-        " Keeping previous values: expected_dt_us = %" PRId64 ", jitter_tolerance_us = %" PRId64 ".",
+        " Keeping previous values: expected_dt_us = %" PRId64 ","
+        " jitter_tolerance_us = %" PRId64 ".",
         static_cast<int64_t>(diagnostics_config_.expected_dt_us),
         diagnostics_config_.jitter_tolerance_us);
       return;
@@ -290,8 +292,8 @@ public:
       static_cast<int64_t>(message_diagnostics::constants::kSecondsToMicroseconds / expected_hz);
     diagnostics_config_.expected_dt_us = expected_dt_us;
 
-    const int64_t tolerance_us =
-      static_cast<int64_t>((message_diagnostics::constants::kSecondsToMicroseconds / expected_hz) *
+    const int tolerance_us =
+      static_cast<int>((message_diagnostics::constants::kSecondsToMicroseconds / expected_hz) *
       (tolerance_percent / 100.0));
     diagnostics_config_.jitter_tolerance_us = tolerance_us;
   }
@@ -302,8 +304,8 @@ public:
     diagnostics_config_.enable_node_time_diagnostics = false;
     diagnostics_config_.enable_msg_time_diagnostics = false;
 
-    diagnostics_config_.expected_dt_us = 0LL;
-    diagnostics_config_.jitter_tolerance_us = 0LL;
+    diagnostics_config_.expected_dt_us = 0;
+    diagnostics_config_.jitter_tolerance_us = 0;
   }
 
 private:
@@ -311,9 +313,9 @@ private:
   {
     int window_size{0};
     std::queue<int64_t> interarrival_us;
-    int64_t sum_interarrival_us{0LL};
+    int64_t sum_interarrival_us{0};
     std::queue<int64_t> jitter_abs_us;
-    int64_t sum_jitter_abs_us{0LL};
+    int64_t sum_jitter_abs_us{0};
     int64_t max_abs_jitter_us{0};
     uint64_t outlier_count{0};
 
@@ -357,7 +359,7 @@ private:
     int64_t meanAbsJitterUs() const
     {
       if (jitter_abs_us.empty()) {
-        return 0LL;
+        return 0;
       }
       return sum_jitter_abs_us / static_cast<int64_t>(jitter_abs_us.size());
     }

@@ -21,6 +21,21 @@ The diagnostics messages published by greenwave monitor are valid ROS 2 Diagnost
 
 In particular, the messages follow conventions from [Isaac ROS NITROS](https://github.com/NVIDIA-ISAAC-ROS/isaac_ros_nitros), which means configured NITROS nodes can be monitored by greenwave monitor frontends without any additional subscriber overhead. For example the drivers from [Isaac ROS NOVA](https://github.com/NVIDIA-ISAAC-ROS/isaac_ros_nova) can be monitored out of the box. Furthermore, you can set `ENABLE_GLOBAL_NITROS_DIAGNOSTICS=1` to configure all NITROS nodes to publish diagnostics (more info [here](https://nvidia-isaac-ros.github.io/repositories_and_packages/isaac_ros_nitros/isaac_ros_nitros/index.html)).
 
+  ## Latency Measurements
+
+  Latency is calculated as the difference between the current system time and the timestamp in the message header. For this calculation to work correctly:
+
+  - The message type must have a `std_msgs/Header` field
+  - The message type must be in the recognized types list (see `has_header_from_type()` in `greenwave_monitor.cpp`)
+  - The header timestamp must be in epoch time (not boottime)
+
+  If any of these conditions are not met, the latency will be reported as **"N/A"** in the dashboard. This typically occurs when:
+  - The message type doesn't have a header (e.g., `std_msgs/String`, `geometry_msgs/Twist`)
+  - The message type is not recognized by greenwave monitor
+  - The header timestamp is in boottime format instead of epoch time
+
+ Currently, message types with headers must be manually registered in the `known_header_types` map in `greenwave_monitor.cpp`. Support for automatic detection of arbitrary message types may be added in the future. In the meantime, if you need support for a commonly used message type, please submit an issue or pull request to add it to the registry.
+
 ## Compatibility
 
 Greenwave monitor is a standalone package tested on Humble, Iron, Jazzy, Kilted, and Rolling ROS 2 releases, under Ubuntu 22.04 and Ubuntu 24.04. It does not depend on Isaac ROS.
