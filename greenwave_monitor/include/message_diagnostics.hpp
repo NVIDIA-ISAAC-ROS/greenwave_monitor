@@ -100,7 +100,7 @@ public:
     prev_timestamp_node_us_ = std::numeric_limits<uint64_t>::min();
     prev_timestamp_msg_us_ = std::numeric_limits<uint64_t>::min();
     num_non_increasing_msg_ = 0;
-    message_latency_msg_ms_ = std::numeric_limits<double>::quiet_NaN();
+    message_latency_msg_ms_ = 0;
     outdated_msg_ = true;
 
     diagnostic_publisher_ =

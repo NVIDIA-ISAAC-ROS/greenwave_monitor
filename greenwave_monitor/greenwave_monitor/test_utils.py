@@ -178,7 +178,7 @@ def find_best_diagnostic(
     """Find the diagnostic message with frequency closest to expected."""
     best_status = None
     best_values = None
-    best_diff = None
+    best_diff = float('inf')
 
     for status in diagnostics:
         node_str = None
