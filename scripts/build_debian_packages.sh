@@ -82,9 +82,23 @@ if [ ! -f "/.dockerenv" ] && [ ! -f "/run/.containerenv" ]; then
     read -r
 fi
 
+# Setup ROS repository if not already configured
+echo "Setting up ROS repository..."
+export DEBIAN_FRONTEND=noninteractive
+apt-get update -qq
+apt-get install -y curl gnupg lsb-release
+
+if [ ! -f "/etc/apt/sources.list.d/ros2.list" ]; then
+    echo "Adding ROS 2 apt repository..."
+    curl -sSL https://raw.githubusercontent.com/ros/rosdistro/master/ros.key -o /usr/share/keyrings/ros-archive-keyring.gpg
+    echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/ros-archive-keyring.gpg] http://packages.ros.org/ros2/ubuntu $(lsb_release -cs) main" > /etc/apt/sources.list.d/ros2.list
+    apt-get update -qq
+else
+    echo "ROS 2 repository already configured"
+fi
+
 # Install dependencies
 echo "Installing build dependencies..."
-apt-get update -qq
 
 # Check if we need --break-system-packages for pip
 USE_BREAK_SYSTEM_PACKAGES=""
@@ -93,8 +107,7 @@ if [[ "$ROS_DISTRO" == "jazzy" || "$ROS_DISTRO" == "kilted" || "$ROS_DISTRO" == 
 fi
 
 # Install system dependencies
-export DEBIAN_FRONTEND=noninteractive
-apt-get install -y build-essential python3-pip python3-bloom python3-rosdep git lsb-release devscripts debhelper fakeroot python3-colcon-common-extensions cmake
+apt-get install -y build-essential python3-pip python3-bloom python3-rosdep git devscripts debhelper fakeroot python3-colcon-common-extensions cmake
 
 # Install Python dependencies
 if [ -f "requirements.txt" ]; then
