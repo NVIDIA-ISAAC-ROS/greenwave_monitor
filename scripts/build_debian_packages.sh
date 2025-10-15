@@ -29,7 +29,7 @@
 #
 # Docker Usage (Recommended):
 #   docker run -it --rm -v $(pwd):/workspace -w /workspace \
-#     ros:humble-ros-base-jammy ./scripts/build_debian_packages.sh humble jammy
+#     ubuntu:jammy ./scripts/build_debian_packages.sh humble jammy
 #
 # Supported combinations:
 #   humble/jammy, iron/jammy, jazzy/noble, kilted/noble, rolling/noble
@@ -71,18 +71,16 @@ esac
 
 echo "Building Debian packages for ROS $ROS_DISTRO on Ubuntu $UBUNTU_DISTRO"
 
-# Check if running in ROS container or local system
-if [ ! -f "/opt/ros/$ROS_DISTRO/setup.bash" ]; then
-    echo "Error: ROS $ROS_DISTRO not found at /opt/ros/$ROS_DISTRO/setup.bash"
-    echo "Please run this script in a ROS $ROS_DISTRO container or install ROS $ROS_DISTRO locally"
+# Check if running in a container (recommended) or warn user
+if [ ! -f "/.dockerenv" ] && [ ! -f "/run/.containerenv" ]; then
+    echo "WARNING: Not running in a container. This script is designed to run in a clean Ubuntu container."
     echo ""
-    echo "To run in Docker:"
-    echo "  docker run -it --rm -v \$(pwd):/workspace -w /workspace ros:$ROS_DISTRO-ros-base-$UBUNTU_DISTRO ./scripts/build_debian_packages.sh $ROS_DISTRO $UBUNTU_DISTRO"
-    exit 1
+    echo "Recommended: Run in Docker with:"
+    echo "  docker run -it --rm -v \$(pwd):/workspace -w /workspace ubuntu:$UBUNTU_DISTRO ./scripts/build_debian_packages.sh $ROS_DISTRO $UBUNTU_DISTRO"
+    echo ""
+    echo "Press Ctrl+C to cancel, or Enter to continue anyway (not recommended)..."
+    read -r
 fi
-
-# Source ROS environment
-source /opt/ros/$ROS_DISTRO/setup.bash
 
 # Install dependencies
 echo "Installing build dependencies..."
@@ -95,7 +93,8 @@ if [[ "$ROS_DISTRO" == "jazzy" || "$ROS_DISTRO" == "kilted" || "$ROS_DISTRO" == 
 fi
 
 # Install system dependencies
-apt-get install -y build-essential python3-pip python3-bloom python3-rosdep git lsb-release devscripts debhelper fakeroot
+export DEBIAN_FRONTEND=noninteractive
+apt-get install -y build-essential python3-pip python3-bloom python3-rosdep git lsb-release devscripts debhelper fakeroot python3-colcon-common-extensions cmake
 
 # Install Python dependencies
 if [ -f "requirements.txt" ]; then
@@ -107,6 +106,20 @@ if [ -f "requirements.txt" ]; then
         python3 -m pip install -U bloom
     fi
 fi
+
+# Initialize rosdep and install all build dependencies
+echo "Initializing rosdep and resolving dependencies..."
+rosdep init 2>/dev/null || true
+rosdep update --include-eol-distros
+rosdep install --from-paths . --rosdistro "$ROS_DISTRO" --ignore-src -r -y
+
+# Source ROS environment (now installed via rosdep)
+if [ ! -f "/opt/ros/$ROS_DISTRO/setup.bash" ]; then
+    echo "Error: ROS $ROS_DISTRO not found after rosdep install"
+    echo "This should have been installed by rosdep. Check package.xml dependencies."
+    exit 1
+fi
+source /opt/ros/$ROS_DISTRO/setup.bash
 
 # Build workspace first
 echo "Building workspace..."
