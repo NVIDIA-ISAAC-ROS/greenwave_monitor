@@ -85,6 +85,9 @@ fi
 # Setup ROS repository if not already configured
 echo "Setting up ROS repository..."
 export DEBIAN_FRONTEND=noninteractive
+export TZ=Etc/UTC
+ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
+
 apt-get update -qq
 apt-get install -y curl gnupg lsb-release
 
