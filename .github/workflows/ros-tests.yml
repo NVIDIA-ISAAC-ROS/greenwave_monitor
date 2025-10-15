@@ -30,10 +30,7 @@ jobs:
     name: Test ROS2 ${{ matrix.ros_distro }}
     runs-on: ubuntu-latest
     container:
-      image: ros:${{ matrix.ros_distro }}-ros-base-${{ matrix.ubuntu_distro }}
-      credentials:
-        username: ${{ secrets.DOCKERHUB_USERNAME }}
-        password: ${{ secrets.DOCKERHUB_TOKEN }}
+      image: ubuntu:${{ matrix.ubuntu_distro }}
 
     strategy:
       fail-fast: false
@@ -54,11 +51,28 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
 
-    - name: Setup ROS environment
+    - name: Setup ROS repository and install rosdep
       run: |
-        source /opt/ros/${{ matrix.ros_distro }}/setup.bash
-        apt-get update -qq && apt-get install -y build-essential python3-pip
+        export DEBIAN_FRONTEND=noninteractive
+        export TZ=Etc/UTC
+        ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
+
+        apt-get update -qq
+        apt-get install -y curl gnupg lsb-release
+        curl -sSL https://raw.githubusercontent.com/ros/rosdistro/master/ros.key -o /usr/share/keyrings/ros-archive-keyring.gpg
+        echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/ros-archive-keyring.gpg] http://packages.ros.org/ros2/ubuntu $(lsb_release -cs) main" > /etc/apt/sources.list.d/ros2.list
+        apt-get update -qq
+        apt-get install -y python3-rosdep python3-colcon-common-extensions build-essential cmake git python3-pip
       shell: bash
+
+    - name: Initialize rosdep and install dependencies
+      run: |
+        rosdep init
+        rosdep update --include-eol-distros
+        rosdep install --from-paths . --rosdistro ${{ matrix.ros_distro }} --ignore-src -r -y
+      shell: bash
+      env:
+        DEBIAN_FRONTEND: noninteractive
 
     - name: Install Python dependencies
       run: |
