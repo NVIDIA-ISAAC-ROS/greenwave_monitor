@@ -19,7 +19,7 @@
 
 # Build Debian packages for greenwave_monitor
 #
-# This script builds .deb packages for greenwave_monitor_interfaces, greenwave_monitor, and r2s_gw
+# This script builds .deb packages for greenwave_monitor_interfaces and greenwave_monitor
 #
 # Usage: ./scripts/build_debian_packages.sh [ROS_DISTRO] [UBUNTU_DISTRO]
 # Examples:
@@ -139,7 +139,7 @@ source /opt/ros/$ROS_DISTRO/setup.bash
 
 # Build workspace first
 echo "Building workspace..."
-colcon build --packages-up-to r2s_gw
+colcon build --packages-up-to greenwave_monitor
 source install/setup.bash
 
 # Setup rosdep mappings
@@ -217,12 +217,8 @@ else
     echo "Warning: greenwave_monitor directory not found, skipping"
 fi
 
-# 3. Build r2s_gw
-if [ -d "r2s_gw" ]; then
-    build_debian_package "r2s_gw" "r2s_gw"
-else
-    echo "Warning: r2s_gw directory not found, skipping"
-fi
+# Note: r2s_gw is now a separate repository and not included in debian packages
+# Users should install r2s_gw from source if they want the rich TUI
 
 echo "=================================="
 echo "Debian package generation complete!"
