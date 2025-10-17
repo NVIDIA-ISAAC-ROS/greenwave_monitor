@@ -88,7 +88,7 @@ jobs:
       run: |
         rosdep init
         rosdep update --include-eol-distros
-        rosdep install --from-paths greenwave_monitor r2s_gw --rosdistro ${{ matrix.ros_distro }} --ignore-src -r -y
+        rosdep install --from-paths greenwave_monitor --rosdistro ${{ matrix.ros_distro }} --ignore-src -r -y
       shell: bash
       env:
         DEBIAN_FRONTEND: noninteractive
@@ -108,7 +108,21 @@ jobs:
       run: |
         source /opt/ros/${{ matrix.ros_distro }}/setup.bash
         echo "Building and testing on ROS2 ${{ matrix.ros_distro }}"
-        colcon build --packages-up-to r2s_gw
+        colcon build --packages-up-to greenwave_monitor
+      shell: bash
+
+    - name: Install r2s_gw with pip
+      run: |
+        source /opt/ros/${{ matrix.ros_distro }}/setup.bash
+        source install/setup.bash
+        cd r2s_gw
+        if [[ "${{ matrix.ros_distro }}" == "jazzy" || \
+              "${{ matrix.ros_distro }}" == "kilted" || \
+              "${{ matrix.ros_distro }}" == "rolling" ]]; then
+          pip3 install --break-system-packages -e .
+        else
+          pip3 install -e .
+        fi
       shell: bash
 
     - name: Smoke test README commands
