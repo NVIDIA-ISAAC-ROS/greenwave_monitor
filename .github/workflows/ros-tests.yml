@@ -55,6 +55,10 @@ jobs:
 
     - name: Clone r2s_gw repository
       run: |
+        # Install git if not already available
+        apt-get update -qq
+        apt-get install -y git
+
         # Try to clone the matching branch, fallback to main if it doesn't exist
         BRANCH_NAME="${{ github.ref_name }}"
         if git ls-remote --exit-code --heads https://github.com/NVIDIA-ISAAC-ROS/r2s_gw.git "$BRANCH_NAME" > /dev/null 2>&1; then
