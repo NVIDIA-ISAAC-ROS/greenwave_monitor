@@ -151,10 +151,10 @@ jobs:
         ls -la debian_packages/${{ matrix.ros_distro }}/
 
         # Install the debian packages on top of ros-core
-        apt-get install -y ./debian_packages/${{ matrix.ros_distro }}/ros-${{ matrix.ros_distro }}-greenwave-monitor-interfaces_*.deb ./debian_packages/${{ matrix.ros_distro }}/ros-${{ matrix.ros_distro }}-greenwave-monitor_*.deb ./debian_packages/${{ matrix.ros_distro }}/ros-${{ matrix.ros_distro }}-r2s-gw_*.deb
+        apt-get install -y ./debian_packages/${{ matrix.ros_distro }}/ros-${{ matrix.ros_distro }}-greenwave-monitor-interfaces_*.deb ./debian_packages/${{ matrix.ros_distro }}/ros-${{ matrix.ros_distro }}-greenwave-monitor_*.deb
 
         # Verify packages are installed
-        dpkg -s ros-${{ matrix.ros_distro }}-r2s-gw ros-${{ matrix.ros_distro }}-greenwave-monitor ros-${{ matrix.ros_distro }}-greenwave-monitor-interfaces
+        dpkg -s ros-${{ matrix.ros_distro }}-greenwave-monitor ros-${{ matrix.ros_distro }}-greenwave-monitor-interfaces
       shell: bash
       env:
         DEBIAN_FRONTEND: noninteractive
@@ -200,26 +200,6 @@ jobs:
         kill -INT "$(cat /tmp/gwm_ncurses.pid)" 2>/dev/null || true
         sleep 1
         kill -9 "$(cat /tmp/gwm_ncurses.pid)" 2>/dev/null || true
-      shell: bash
-
-    - name: Install Python dependencies for r2s_gw
-      run: |
-        # Install Python dependencies (only needed for r2s_gw, not ncurses)
-        apt-get install -y python3-pip || true
-        if [[ "${{ matrix.ros_distro }}" == "jazzy" || \
-              "${{ matrix.ros_distro }}" == "kilted" || \
-              "${{ matrix.ros_distro }}" == "rolling" ]]; then
-          python3 -m pip install -I textual --break-system-packages
-        else
-          python3 -m pip install textual
-        fi
-      shell: bash
-
-    - name: Test r2s_gw execution
-      run: |
-        source /opt/ros/${{ matrix.ros_distro }}/setup.bash
-        timeout 10s bash -lc "script -qfec 'ros2 run r2s_gw r2s_gw' /dev/null <<< \$'q'" || true
-        timeout 10s bash -lc "script -qfec 'ros2 run greenwave_monitor r2s_gw_dashboard' /dev/null <<< \$'q'" || true
       shell: bash
 
     - name: Test greenwave_monitor execution

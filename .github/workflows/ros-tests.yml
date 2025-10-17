@@ -93,17 +93,6 @@ jobs:
       env:
         DEBIAN_FRONTEND: noninteractive
 
-    - name: Install Python dependencies
-      run: |
-        if [[ "${{ matrix.ros_distro }}" == "jazzy" || \
-              "${{ matrix.ros_distro }}" == "kilted" || \
-              "${{ matrix.ros_distro }}" == "rolling" ]]; then
-          pip3 install --break-system-packages textual
-        else
-          pip3 install textual
-        fi
-      shell: bash
-
     - name: Build packages
       run: |
         source /opt/ros/${{ matrix.ros_distro }}/setup.bash
