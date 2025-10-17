@@ -74,22 +74,11 @@ jobs:
       env:
         DEBIAN_FRONTEND: noninteractive
 
-    - name: Install Python dependencies
-      run: |
-        if [[ "${{ matrix.ros_distro }}" == "jazzy" || \
-              "${{ matrix.ros_distro }}" == "kilted" || \
-              "${{ matrix.ros_distro }}" == "rolling" ]]; then
-          pip3 install --break-system-packages -I pygments textual
-        else
-          pip3 install textual
-        fi
-      shell: bash
-
     - name: Build packages
       run: |
         source /opt/ros/${{ matrix.ros_distro }}/setup.bash
         echo "Building and testing on ROS2 ${{ matrix.ros_distro }}"
-        colcon build --packages-up-to r2s_gw
+        colcon build --packages-up-to greenwave_monitor
       shell: bash
 
     - name: Smoke test README commands
@@ -98,14 +87,13 @@ jobs:
         source install/setup.bash
         set -e
         timeout 10s bash -lc "script -qfec 'ros2 run greenwave_monitor ncurses_dashboard' /dev/null <<< \$'q'" || true
-        timeout 10s bash -lc "script -qfec 'ros2 run greenwave_monitor r2s_gw_dashboard' /dev/null <<< \$'q'" || true
         timeout 5s ros2 launch greenwave_monitor hz.launch.py topics:='["/topic1"]' || true
       shell: bash
 
     - name: Run tests
       run: |
         source /opt/ros/${{ matrix.ros_distro }}/setup.bash
-        colcon test --event-handlers console_direct+ --return-code-on-test-failure --packages-up-to r2s_gw
+        colcon test --event-handlers console_direct+ --return-code-on-test-failure --packages-up-to greenwave_monitor
       shell: bash
 
     - name: Upload test results
