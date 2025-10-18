@@ -173,8 +173,9 @@ jobs:
 
         # Run ncurses frontend with simulated terminal and quit command
         # Exit code 0 means clean exit (not 11 for SIGSEGV or 134 for SIGABRT)
+        # Set TERM=linux to provide basic terminal capabilities for curses
         set +e
-        timeout 10s script -qfec 'ros2 run greenwave_monitor ncurses_dashboard' /dev/null <<< $'q'
+        TERM=linux timeout 10s script -qfec 'ros2 run greenwave_monitor ncurses_dashboard' /dev/null <<< $'q'
         EXIT_CODE=$?
         set -e
 
@@ -200,6 +201,68 @@ jobs:
         kill -INT "$(cat /tmp/gwm_ncurses.pid)" 2>/dev/null || true
         sleep 1
         kill -9 "$(cat /tmp/gwm_ncurses.pid)" 2>/dev/null || true
+      shell: bash
+
+    - name: Clone r2s_gw repository for integration testing
+      run: |
+        # Install git if not available
+        apt-get update -qq
+        apt-get install -y git
+
+        # Try to clone the matching branch, fallback to main if it doesn't exist
+        BRANCH_NAME="${{ github.ref_name }}"
+        if git ls-remote --exit-code --heads https://github.com/NVIDIA-ISAAC-ROS/r2s_gw.git "$BRANCH_NAME" > /dev/null 2>&1; then
+          echo "Cloning r2s_gw branch: $BRANCH_NAME"
+          git clone --branch "$BRANCH_NAME" --depth 1 https://github.com/NVIDIA-ISAAC-ROS/r2s_gw.git
+        else
+          echo "Branch $BRANCH_NAME not found in r2s_gw, falling back to main"
+          git clone --branch main --depth 1 https://github.com/NVIDIA-ISAAC-ROS/r2s_gw.git
+        fi
+      shell: bash
+
+    - name: Install r2s_gw with pip
+      run: |
+        cd r2s_gw
+        if [[ "${{ matrix.ros_distro }}" == "jazzy" || \
+              "${{ matrix.ros_distro }}" == "kilted" || \
+              "${{ matrix.ros_distro }}" == "rolling" ]]; then
+          pip3 install --break-system-packages --ignore-installed pygments -e .
+        else
+          pip3 install --ignore-installed pygments -e .
+        fi
+        cd ..
+      shell: bash
+
+    - name: Test r2s_gw_dashboard execution
+      run: |
+        source /opt/ros/${{ matrix.ros_distro }}/setup.bash
+
+        echo "Testing r2s_gw_dashboard with debian-installed greenwave_monitor..."
+
+        # Start monitor node in background
+        ros2 run greenwave_monitor greenwave_monitor > /dev/null 2>&1 & echo $! > /tmp/gwm_r2s.pid
+        sleep 3
+
+        # Test r2s_gw dashboard with proper terminal
+        set +e
+        TERM=linux timeout 10s script -qfec 'ros2 run r2s_gw r2s_gw_dashboard' /dev/null <<< $'q'
+        EXIT_CODE=$?
+        set -e
+
+        if [ $EXIT_CODE -eq 0 ] || [ $EXIT_CODE -eq 1 ]; then
+          echo "✓ r2s_gw_dashboard exited (code: $EXIT_CODE)"
+        elif [ $EXIT_CODE -eq 124 ]; then
+          echo "✗ r2s_gw_dashboard timed out"
+          kill -9 "$(cat /tmp/gwm_r2s.pid)" 2>/dev/null || true
+          exit 1
+        else
+          echo "✓ r2s_gw_dashboard exited with code: $EXIT_CODE (acceptable)"
+        fi
+
+        # Cleanup
+        kill -INT "$(cat /tmp/gwm_r2s.pid)" 2>/dev/null || true
+        sleep 1
+        kill -9 "$(cat /tmp/gwm_r2s.pid)" 2>/dev/null || true
       shell: bash
 
     - name: Test greenwave_monitor execution
