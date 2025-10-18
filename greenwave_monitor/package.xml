@@ -28,6 +28,7 @@
   <author>Sean Gillen/sgillen@nvidia.com, Ann Li/liann@nvidia.com></author>
 
   <buildtool_depend>ament_cmake</buildtool_depend>
+  <buildtool_depend>ament_cmake_auto</buildtool_depend>
   <buildtool_depend>ament_cmake_python</buildtool_depend>
 
   <depend>rclcpp</depend>

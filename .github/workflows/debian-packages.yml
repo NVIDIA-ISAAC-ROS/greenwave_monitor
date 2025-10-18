@@ -59,10 +59,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: [determine-distros]
     container:
-      image: ros:${{ matrix.ros_distro }}-ros-base-${{ matrix.ubuntu_distro }}
-      credentials:
-        username: ${{ secrets.DOCKERHUB_USERNAME }}
-        password: ${{ secrets.DOCKERHUB_TOKEN }}
+      image: ubuntu:${{ matrix.ubuntu_distro }}
 
     strategy:
       fail-fast: false
@@ -89,6 +86,8 @@ jobs:
         chmod +x scripts/build_debian_packages.sh
         ./scripts/build_debian_packages.sh ${{ matrix.ros_distro }} ${{ matrix.ubuntu_distro }}
       shell: bash
+      env:
+        DEBIAN_FRONTEND: noninteractive
 
     - name: Upload Debian packages
       uses: actions/upload-artifact@v4
@@ -102,10 +101,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: [determine-distros, generate-debian]
     container:
-      image: ros:${{ matrix.ros_distro }}-ros-base-${{ matrix.ubuntu_distro }}
-      credentials:
-        username: ${{ secrets.DOCKERHUB_USERNAME }}
-        password: ${{ secrets.DOCKERHUB_TOKEN }}
+      image: ubuntu:${{ matrix.ubuntu_distro }}
 
     strategy:
       fail-fast: false
@@ -124,9 +120,23 @@ jobs:
             ubuntu_distro: noble
 
     steps:
-    - name: Setup environment
+    - name: Setup ROS repository and install base ROS
       run: |
+        export DEBIAN_FRONTEND=noninteractive
+        export TZ=Etc/UTC
+        ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
+
         apt-get update -qq
+        apt-get install -y curl gnupg lsb-release
+        curl -sSL https://raw.githubusercontent.com/ros/rosdistro/master/ros.key -o /usr/share/keyrings/ros-archive-keyring.gpg
+        echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/ros-archive-keyring.gpg] http://packages.ros.org/ros2/ubuntu $(lsb_release -cs) main" > /etc/apt/sources.list.d/ros2.list
+        apt-get update -qq
+
+        # Install minimal ROS to get /opt/ros and basic infrastructure
+        apt-get install -y ros-${{ matrix.ros_distro }}-ros-core
+      shell: bash
+      env:
+        DEBIAN_FRONTEND: noninteractive
 
     - name: Download Debian packages
       uses: actions/download-artifact@v4
@@ -140,12 +150,14 @@ jobs:
         echo "Smoke testing install on ROS2 ${{ matrix.ros_distro }}"
         ls -la debian_packages/${{ matrix.ros_distro }}/
 
-        # Install the debian packages
+        # Install the debian packages on top of ros-core
         apt-get install -y ./debian_packages/${{ matrix.ros_distro }}/ros-${{ matrix.ros_distro }}-greenwave-monitor-interfaces_*.deb ./debian_packages/${{ matrix.ros_distro }}/ros-${{ matrix.ros_distro }}-greenwave-monitor_*.deb ./debian_packages/${{ matrix.ros_distro }}/ros-${{ matrix.ros_distro }}-r2s-gw_*.deb
 
         # Verify packages are installed
         dpkg -s ros-${{ matrix.ros_distro }}-r2s-gw ros-${{ matrix.ros_distro }}-greenwave-monitor ros-${{ matrix.ros_distro }}-greenwave-monitor-interfaces
       shell: bash
+      env:
+        DEBIAN_FRONTEND: noninteractive
 
     - name: Test ncurses_dashboard execution (no extra dependencies)
       run: |
