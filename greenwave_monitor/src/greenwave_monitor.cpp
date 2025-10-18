@@ -24,6 +24,7 @@
 #include <sys/stat.h>
 #include <yaml-cpp/yaml.h>
 
+#include "ament_index_cpp/get_package_share_directory.hpp"
 #include "rosidl_typesupport_introspection_cpp/message_introspection.hpp"
 
 using namespace std::chrono_literals;
@@ -49,23 +50,17 @@ GreenwaveMonitor::GreenwaveMonitor(const rclcpp::NodeOptions & options)
   auto topics = this->get_parameter("topics").as_string_array();
 
   // Declare and get the type registry path parameter
-  this->declare_parameter<std::string>("type_registry_path", "/workspace/colcon_ws/src/greenwave_monitor/greenwave_monitor/config/type_registry.yml");
+  std::string default_type_registry_path = ament_index_cpp::get_package_share_directory("greenwave_monitor") + "/config/type_registry.yml";
+  this->declare_parameter<std::string>("type_registry_path", default_type_registry_path);
   type_registry_path_ = this->get_parameter("type_registry_path").as_string();
 
   // Check if the type registry path is valid
   if (!type_registry_path_.empty() && !is_valid_file(type_registry_path_)) {
-    RCLCPP_ERROR(
-      this->get_logger(), "Type registry path '%s' is not a valid file",
+    RCLCPP_WARN(
+      this->get_logger(), "Type registry path '%s' is not a valid file."
+      "Falling back to build-in type registry.",
       type_registry_path_.c_str());
     type_registry_path_.clear();
-    return;
-  }
-
-  if(!read_type_registry(type_registry_path_)) {
-    RCLCPP_WARN(
-      this->get_logger(), "Failed to read type registry from path '%s'. "
-      "Assuming no message types have a header. Consider providing a valid type registry.",
-      type_registry_path_.c_str());
   }
 
   message_diagnostics::MessageDiagnosticsConfig diagnostics_config;
@@ -121,45 +116,6 @@ void GreenwaveMonitor::topic_callback(
 {
   auto msg_timestamp = GetTimestampFromSerializedMessage(msg, type);
   message_diagnostics_[topic]->updateDiagnostics(msg_timestamp.time_since_epoch().count());
-}
-
-// Read YAML type registry
-bool GreenwaveMonitor::read_type_registry(const std::string path) {
-  try {
-    YAML::Node config = YAML::LoadFile(path);
-    if (config["has_header"]) {
-      // Check if 'has_header' is a sequence (list)
-      if (config["has_header"].IsSequence()) {
-        for (const auto& type_node : config["has_header"]) {
-          if (type_node.IsScalar()) {
-            known_header_types_[type_node.as<std::string>()] = true;
-          } else {
-            RCLCPP_WARN(
-              this->get_logger(),
-              "Found a non-string value in the registry: %s. Skipping.",
-              type_node.as<std::string>().c_str());
-          }
-        }
-      } else {
-        RCLCPP_ERROR(
-          this->get_logger(),
-          "'has_header' key is not a sequence in the YAML file.");
-        return false;
-      }
-    } else {
-      RCLCPP_ERROR(
-        this->get_logger(),
-        "'has_header' key is not found in the YAML file.");
-      return false;
-    }
-  } catch (const YAML::BadFile& e) {
-    RCLCPP_ERROR(this->get_logger(), "Error reading YAML file: %s", e.what());
-  } catch (const YAML::ParserException& e) {
-    RCLCPP_ERROR(this->get_logger(), "Error parsing YAML string: %s", e.what());
-  } catch (const std::exception& e) {
-    RCLCPP_ERROR(this->get_logger(), "An unexpected error occurred: %s", e.what());
-  }
-  return true;
 }
 
 void GreenwaveMonitor::timer_callback()
@@ -254,20 +210,121 @@ bool GreenwaveMonitor::has_header_from_type(const std::string & type_name)
     return type_has_header_cache[type_name];
   }
 
-  auto it = known_header_types_.find(type_name);
-  bool has_header = (it != known_header_types_.end()) ? it->second : false;
+  // rosidl typesupport API is unstable across ROS distributions, so we use this
+  // map as a more robust way to determine if a message type has a header
+  static const std::unordered_map<std::string, bool> known_header_types = {
+    // sensor_msgs
+    {"sensor_msgs/msg/Image", true},
+    {"sensor_msgs/msg/CompressedImage", true},
+    {"sensor_msgs/msg/CameraInfo", true},
+    {"sensor_msgs/msg/PointCloud2", true},
+    {"sensor_msgs/msg/LaserScan", true},
+    {"sensor_msgs/msg/Imu", true},
+    {"sensor_msgs/msg/NavSatFix", true},
+    {"sensor_msgs/msg/MagneticField", true},
+    {"sensor_msgs/msg/FluidPressure", true},
+    {"sensor_msgs/msg/Illuminance", true},
+    {"sensor_msgs/msg/RelativeHumidity", true},
+    {"sensor_msgs/msg/Temperature", true},
+    {"sensor_msgs/msg/Range", true},
+    {"sensor_msgs/msg/PointCloud", true},
 
-  type_has_header_cache[type_name] = has_header;
+    // geometry_msgs
+    {"geometry_msgs/msg/PoseStamped", true},
+    {"geometry_msgs/msg/TwistStamped", true},
+    {"geometry_msgs/msg/AccelStamped", true},
+    {"geometry_msgs/msg/Vector3Stamped", true},
+    {"geometry_msgs/msg/PointStamped", true},
+    {"geometry_msgs/msg/QuaternionStamped", true},
+    {"geometry_msgs/msg/TransformStamped", true},
+    {"geometry_msgs/msg/WrenchStamped", true},
+
+    // nav_msgs
+    {"nav_msgs/msg/OccupancyGrid", true},
+    {"nav_msgs/msg/GridCells", true},
+    {"nav_msgs/msg/Path", true},
+    {"nav_msgs/msg/Odometry", true},
+
+    // visualization_msgs
+    {"visualization_msgs/msg/Marker", true},
+    {"visualization_msgs/msg/MarkerArray", true},
+    {"visualization_msgs/msg/InteractiveMarker", true},
+
+    // std_msgs (no headers)
+    {"std_msgs/msg/String", false},
+    {"std_msgs/msg/Int32", false},
+    {"std_msgs/msg/Float64", false},
+    {"std_msgs/msg/Bool", false},
+    {"std_msgs/msg/Empty", false},
+    {"std_msgs/msg/Header", false},  // Header itself doesn't have a header
+
+    // Common message types without headers
+    {"geometry_msgs/msg/Twist", false},
+    {"geometry_msgs/msg/Pose", false},
+    {"geometry_msgs/msg/Point", false},
+    {"geometry_msgs/msg/Vector3", false},
+    {"geometry_msgs/msg/Quaternion", false}
+  };
+
+  auto it = known_header_types.find(type_name);
+  bool has_header = (it != known_header_types.end()) ? it->second : false;
+
+  // In case the type is not in the known list, attempt to read from type registry
+  if (it == known_header_types.end() && !type_registry_path_.empty()) {
+    has_header = has_header_from_type_registry(type_name);
+  }
 
   // Fallback of no header in case of unknown type, log for reference
-  if (it == known_header_types_.end()) {
+  if (it == known_header_types.end() && !has_header) {
     RCLCPP_WARN_ONCE(
       this->get_logger(),
       "Unknown message type '%s' - assuming no header. Consider adding to registry.",
       type_name.c_str());
   }
 
+  // Cache the result for future lookups
+  type_has_header_cache[type_name] = has_header;
+
   return has_header;
+}
+
+bool GreenwaveMonitor::has_header_from_type_registry(const std::string & type_name) {
+  try {
+    YAML::Node config = YAML::LoadFile(type_registry_path_);
+    if (config["has_header"]) {
+      // Check if 'has_header' is a sequence (list)
+      if (config["has_header"].IsSequence()) {
+        for (const auto& type_node : config["has_header"]) {
+          if (type_node.IsScalar()) {
+            // Check if the type matches
+            if (type_node.as<std::string>() == type_name) {
+              return true;
+            }
+          } else {
+            RCLCPP_WARN(
+              this->get_logger(),
+              "Found a non-string value in the registry: %s. Skipping.",
+              type_node.as<std::string>().c_str());
+          }
+        }
+      } else {
+        RCLCPP_ERROR(
+          this->get_logger(),
+          "'has_header' key is not a sequence in the YAML file.");
+      }
+    } else {
+      RCLCPP_ERROR(
+        this->get_logger(),
+        "'has_header' key is not found in the YAML file.");
+    }
+  } catch (const YAML::BadFile& e) {
+    RCLCPP_ERROR(this->get_logger(), "Error reading YAML file: %s", e.what());
+  } catch (const YAML::ParserException& e) {
+    RCLCPP_ERROR(this->get_logger(), "Error parsing YAML string: %s", e.what());
+  } catch (const std::exception& e) {
+    RCLCPP_ERROR(this->get_logger(), "An unexpected error occurred: %s", e.what());
+  }
+  return false;
 }
 
 bool GreenwaveMonitor::add_topic(const std::string & topic, std::string & message)

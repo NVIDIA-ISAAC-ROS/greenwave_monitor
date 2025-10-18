@@ -36,6 +36,7 @@ ament_target_dependencies(greenwave_monitor
   diagnostic_msgs
   greenwave_monitor_interfaces
   yaml_cpp_vendor
+  ament_index_cpp
 )
 target_link_libraries(greenwave_monitor message_diagnostics)
 
@@ -61,7 +62,7 @@ install(TARGETS minimal_publisher_node
   DESTINATION lib/${PROJECT_NAME})
 
 install(
-  DIRECTORY launch examples
+  DIRECTORY launch examples config
   DESTINATION share/${PROJECT_NAME}
 )
 

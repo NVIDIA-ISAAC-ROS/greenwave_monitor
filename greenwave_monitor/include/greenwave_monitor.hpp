@@ -63,7 +63,7 @@ private:
 
   bool has_header_from_type(const std::string & type_name);
 
-  bool read_type_registry(const std::string path);
+  bool has_header_from_type_registry(const std::string & type_name);
 
   std::chrono::time_point<std::chrono::system_clock>
   GetTimestampFromSerializedMessage(
@@ -71,7 +71,6 @@ private:
     const std::string & type);
   
   std::string type_registry_path_;
-  std::unordered_map<std::string, bool> known_header_types_;
   std::map<std::string,
     std::unique_ptr<message_diagnostics::MessageDiagnostics>> message_diagnostics_;
   std::vector<std::shared_ptr<rclcpp::GenericSubscription>> subscriptions_;
