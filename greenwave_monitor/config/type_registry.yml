@@ -1,0 +1,2 @@
+has_header:
+  - stereo_msgs/msg/DisparityImage
