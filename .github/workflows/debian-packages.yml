@@ -239,11 +239,8 @@ jobs:
 
         echo "Testing r2s_gw_dashboard with debian-installed greenwave_monitor..."
 
-        # Start monitor node in background
-        ros2 run greenwave_monitor greenwave_monitor > /dev/null 2>&1 & echo $! > /tmp/gwm_r2s.pid
-        sleep 3
-
         # Test r2s_gw dashboard with proper terminal
+        # The dashboard script automatically starts the monitor node
         set +e
         TERM=linux timeout 10s script -qfec 'ros2 run r2s_gw r2s_gw_dashboard' /dev/null <<< $'q'
         EXIT_CODE=$?
@@ -253,16 +250,10 @@ jobs:
           echo "✓ r2s_gw_dashboard exited (code: $EXIT_CODE)"
         elif [ $EXIT_CODE -eq 124 ]; then
           echo "✗ r2s_gw_dashboard timed out"
-          kill -9 "$(cat /tmp/gwm_r2s.pid)" 2>/dev/null || true
           exit 1
         else
           echo "✓ r2s_gw_dashboard exited with code: $EXIT_CODE (acceptable)"
         fi
-
-        # Cleanup
-        kill -INT "$(cat /tmp/gwm_r2s.pid)" 2>/dev/null || true
-        sleep 1
-        kill -9 "$(cat /tmp/gwm_r2s.pid)" 2>/dev/null || true
       shell: bash
 
     - name: Test greenwave_monitor execution

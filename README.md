@@ -71,9 +71,9 @@ ros2 run greenwave_monitor ncurses_dashboard --demo
 
 ### Rich TUI (r2s integration) - Optional
 
-For users who want a more feature-rich terminal interface, **r2s_gw** is available as a separate package. This is a fork of [r2s](https://github.com/mjcarroll/r2s) designed to integrate with Greenwave Monitor.
+For users who want an advanced, feature-rich terminal interface, **r2s_gw** is available as a separate package. Built on the excellent [r2s](https://github.com/mjcarroll/r2s) TUI framework and powered by [Textual](https://github.com/textualize/textual/), r2s_gw provides a beautiful, modern interface with enhanced navigation and visualization capabilities.
 
-**Note:** The r2s integration requires additional dependencies (specifically the `textual` Python package) and can slow down when monitoring many topics. For large deployments or minimal dependencies, we recommend using the ncurses dashboard above.
+**r2s_gw** is perfect for interactive development and debugging sessions. For production deployments with many topics or minimal dependency requirements, the lightweight ncurses dashboard above is recommended.
 
 To use r2s_gw:
 
