@@ -21,6 +21,7 @@ endif()
 
 # find dependencies
 find_package(ament_cmake_auto REQUIRED)
+find_package(yaml-cpp REQUIRED)
 ament_auto_find_build_dependencies()
 
 # Add message_diagnostics.hpp as a header-only library
@@ -35,10 +36,13 @@ ament_target_dependencies(greenwave_monitor
   std_msgs
   diagnostic_msgs
   greenwave_monitor_interfaces
-  yaml_cpp_vendor
   ament_index_cpp
+  yaml_cpp_vendor
 )
-target_link_libraries(greenwave_monitor message_diagnostics)
+target_link_libraries(greenwave_monitor
+ message_diagnostics
+ yaml-cpp
+)
 
 target_include_directories(greenwave_monitor PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
