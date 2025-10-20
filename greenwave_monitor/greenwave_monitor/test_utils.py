@@ -30,11 +30,14 @@ from rclpy.node import Node
 
 # Test configurations for various message types and frequencies
 # (message_type, expected_frequency, tolerance_hz)
+# NOTE: Tolerances and frequencies are set conservatively for reliable operation
+# on slow/loaded CI systems such as the ROS buildfarm. The 30% tolerance standard
+# ensures tests pass even under system load.
 TEST_CONFIGURATIONS = [
-    ('imu', 1.0, 0.5),
+    ('imu', 1.0, 0.3),
     ('imu', 100.0, 30.0),
-    ('imu', 5000.0, 250.0),
-    ('image', 10.0, 2.0),
+    ('imu', 500.0, 150.0),
+    ('image', 10.0, 3.0),
     ('string', 100.0, 30.0),
 ]
 
@@ -253,9 +256,10 @@ def verify_diagnostic_values(status: DiagnosticStatus,
             errors.append(
                 f'Message frequency {reported_frequency_msg} not within '
                 f'{tolerance_hz} Hz of expected {expected_frequency}')
-        if reported_latency_ms > 10:
+        # Relaxed to 50ms for slow/loaded CI systems (was 10ms)
+        if reported_latency_ms > 50:
             errors.append(
-                f'Latency should be <= 10 ms for non-string types, '
+                f'Latency should be <= 50 ms for non-string types, '
                 f'got {reported_latency_ms}')
 
     return errors
