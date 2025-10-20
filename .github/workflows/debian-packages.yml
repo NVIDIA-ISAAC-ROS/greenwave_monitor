@@ -222,6 +222,9 @@ jobs:
 
     - name: Install r2s_gw with pip
       run: |
+        # Install pip if not available
+        apt-get install -y python3-pip || true
+
         cd r2s_gw
         if [[ "${{ matrix.ros_distro }}" == "jazzy" || \
               "${{ matrix.ros_distro }}" == "kilted" || \
