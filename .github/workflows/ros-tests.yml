@@ -50,6 +50,26 @@ jobs:
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
+      with:
+        path: greenwave_monitor
+
+    - name: Clone r2s_gw repository
+      run: |
+        # Install git if not already available
+        apt-get update -qq
+        apt-get install -y git
+
+        # Try to clone the matching branch, fallback to main if it doesn't exist
+        # Use head_ref for PRs (actual branch name), ref_name for pushes
+        BRANCH_NAME="${{ github.head_ref || github.ref_name }}"
+        if git ls-remote --exit-code --heads https://github.com/NVIDIA-ISAAC-ROS/r2s_gw.git "$BRANCH_NAME" > /dev/null 2>&1; then
+          echo "Cloning r2s_gw branch: $BRANCH_NAME"
+          git clone --branch "$BRANCH_NAME" --depth 1 https://github.com/NVIDIA-ISAAC-ROS/r2s_gw.git r2s_gw
+        else
+          echo "Branch $BRANCH_NAME not found in r2s_gw, falling back to main"
+          git clone --branch main --depth 1 https://github.com/NVIDIA-ISAAC-ROS/r2s_gw.git r2s_gw
+        fi
+      shell: bash
 
     - name: Setup ROS repository and install rosdep
       run: |
@@ -69,27 +89,30 @@ jobs:
       run: |
         rosdep init
         rosdep update --include-eol-distros
-        rosdep install --from-paths . --rosdistro ${{ matrix.ros_distro }} --ignore-src -r -y
+        rosdep install --from-paths greenwave_monitor --rosdistro ${{ matrix.ros_distro }} --ignore-src -r -y
       shell: bash
       env:
         DEBIAN_FRONTEND: noninteractive
-
-    - name: Install Python dependencies
-      run: |
-        if [[ "${{ matrix.ros_distro }}" == "jazzy" || \
-              "${{ matrix.ros_distro }}" == "kilted" || \
-              "${{ matrix.ros_distro }}" == "rolling" ]]; then
-          pip3 install --break-system-packages -I pygments textual
-        else
-          pip3 install textual
-        fi
-      shell: bash
 
     - name: Build packages
       run: |
         source /opt/ros/${{ matrix.ros_distro }}/setup.bash
         echo "Building and testing on ROS2 ${{ matrix.ros_distro }}"
-        colcon build --packages-up-to r2s_gw
+        colcon build --packages-up-to greenwave_monitor
+      shell: bash
+
+    - name: Install r2s_gw with pip
+      run: |
+        source /opt/ros/${{ matrix.ros_distro }}/setup.bash
+        source install/setup.bash
+        cd r2s_gw
+        if [[ "${{ matrix.ros_distro }}" == "jazzy" || \
+              "${{ matrix.ros_distro }}" == "kilted" || \
+              "${{ matrix.ros_distro }}" == "rolling" ]]; then
+          pip3 install --break-system-packages --ignore-installed pygments -e .
+        else
+          pip3 install --ignore-installed pygments -e .
+        fi
       shell: bash
 
     - name: Smoke test README commands
@@ -98,14 +121,14 @@ jobs:
         source install/setup.bash
         set -e
         timeout 10s bash -lc "script -qfec 'ros2 run greenwave_monitor ncurses_dashboard' /dev/null <<< \$'q'" || true
-        timeout 10s bash -lc "script -qfec 'ros2 run greenwave_monitor r2s_gw_dashboard' /dev/null <<< \$'q'" || true
+        timeout 10s bash -lc "script -qfec 'ros2 run r2s_gw r2s_gw_dashboard' /dev/null <<< \$'q'" || true
         timeout 5s ros2 launch greenwave_monitor hz.launch.py topics:='["/topic1"]' || true
       shell: bash
 
     - name: Run tests
       run: |
         source /opt/ros/${{ matrix.ros_distro }}/setup.bash
-        colcon test --event-handlers console_direct+ --return-code-on-test-failure --packages-up-to r2s_gw
+        colcon test --event-handlers console_direct+ --return-code-on-test-failure --packages-up-to greenwave_monitor
       shell: bash
 
     - name: Upload test results

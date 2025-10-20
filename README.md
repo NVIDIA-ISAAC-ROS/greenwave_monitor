@@ -53,11 +53,9 @@ source install/setup.bash
 
 ## Usage
 
-Greenwave monitor provides two dashboard frontends, a lightweight ncurses interface and a rich terminal interface (a fork of [r2s](https://github.com/mjcarroll/r2s)). Note we rename the fork r2s_gw to avoid conflicts with the original r2s package.
+Greenwave monitor provides a lightweight ncurses dashboard for monitoring topics. An optional rich TUI (r2s integration) with additional features is also available as a separate package.
 
-We have found that the r2s dashboard gets sluggish when there are many topics, so we recommend using the ncurses dashboard for large deployments.
-
-### ncurses Dashboard (Lightweight)
+### ncurses Dashboard
 
 After installing, you can launch the ncurses dashboard with:
 
@@ -71,27 +69,37 @@ You can also launch the dashboard with some demo publishers to see everything in
 ros2 run greenwave_monitor ncurses_dashboard --demo
 ```
 
-### r2s_gw Dashboard (Rich TUI)
+### Rich TUI (r2s integration) - Optional
 
-First you need to build the r2s_gw package and some additional dependencies, r2s_gw is included in the greenwave_monitor package.
+For users who want an advanced, feature-rich terminal interface, **r2s_gw** is available as a separate package. Built on the excellent [r2s](https://github.com/mjcarroll/r2s) TUI framework and powered by [Textual](https://github.com/textualize/textual/), r2s_gw provides a beautiful, modern interface with enhanced navigation and visualization capabilities.
 
+**r2s_gw** is perfect for interactive development and debugging sessions. For production deployments with many topics or minimal dependency requirements, the lightweight ncurses dashboard above is recommended.
+
+To use r2s_gw:
+
+1. Clone the r2s_gw repository into a workspace:
 ```bash
-cd ros_ws/
-colcon build --packages-up-to r2s_gw
-pip install -I textual # There is a requirements.txt file in the r2s_gw package, but in case you installed from debian and that's not handy ...
+mkdir -p ~/ros_ws/src
+cd ~/ros_ws/src
+git clone https://github.com/NVIDIA-ISAAC-ROS/r2s_gw.git
+```
+
+2. Install dependencies and build:
+```bash
+pip install --ignore-installed pygments -r r2s_gw/requirements.txt
+cd ~/ros_ws
+colcon build --packages-select r2s_gw
 source install/setup.bash
 ```
 
-Then you can launch the dashboard with the following. Use tab to navigate between different UI elements.
-
+3. Launch the dashboard (use tab to navigate between UI elements):
 ```bash
-ros2 run greenwave_monitor r2s_gw_dashboard
+ros2 run r2s_gw r2s_gw_dashboard
 ```
 
-Just like before, you can also launch the dashboard with some demo publishers to see everything in action.
-
+4. Or launch with demo publishers:
 ```bash
-ros2 run greenwave_monitor r2s_gw_dashboard -- --demo
+ros2 run r2s_gw r2s_gw_dashboard -- --demo
 ```
 
 ### Manual Launch (ros2 topic hz mode)
