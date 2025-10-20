@@ -220,25 +220,32 @@ jobs:
         fi
       shell: bash
 
-    - name: Install r2s_gw with pip
+    - name: Install Python dependencies for r2s_gw
       run: |
         # Install pip if not available
-        apt-get install -y python3-pip || true
+        apt-get install -y python3-pip python3-colcon-common-extensions || true
 
-        cd r2s_gw
+        # Install Python dependencies
         if [[ "${{ matrix.ros_distro }}" == "jazzy" || \
               "${{ matrix.ros_distro }}" == "kilted" || \
               "${{ matrix.ros_distro }}" == "rolling" ]]; then
-          pip3 install --break-system-packages --ignore-installed pygments -e .
+          pip3 install --break-system-packages --ignore-installed pygments textual
         else
-          pip3 install --ignore-installed pygments -e .
+          pip3 install --ignore-installed pygments textual
         fi
-        cd ..
+      shell: bash
+
+    - name: Build r2s_gw with colcon
+      run: |
+        source /opt/ros/${{ matrix.ros_distro }}/setup.bash
+        # Build r2s_gw to register it as a ROS package
+        colcon build --packages-select r2s_gw --base-paths .
       shell: bash
 
     - name: Test r2s_gw_dashboard execution
       run: |
         source /opt/ros/${{ matrix.ros_distro }}/setup.bash
+        source install/local_setup.bash
 
         echo "Testing r2s_gw_dashboard with debian-installed greenwave_monitor..."
 
@@ -249,13 +256,14 @@ jobs:
         EXIT_CODE=$?
         set -e
 
-        if [ $EXIT_CODE -eq 0 ] || [ $EXIT_CODE -eq 1 ]; then
-          echo "✓ r2s_gw_dashboard exited (code: $EXIT_CODE)"
+        if [ $EXIT_CODE -eq 0 ]; then
+          echo "✓ r2s_gw_dashboard exited cleanly"
         elif [ $EXIT_CODE -eq 124 ]; then
           echo "✗ r2s_gw_dashboard timed out"
           exit 1
         else
-          echo "✓ r2s_gw_dashboard exited with code: $EXIT_CODE (acceptable)"
+          echo "✗ r2s_gw_dashboard exited with unexpected code: $EXIT_CODE"
+          exit 1
         fi
       shell: bash
 
