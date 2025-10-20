@@ -60,7 +60,8 @@ jobs:
         apt-get install -y git
 
         # Try to clone the matching branch, fallback to main if it doesn't exist
-        BRANCH_NAME="${{ github.ref_name }}"
+        # Use head_ref for PRs (actual branch name), ref_name for pushes
+        BRANCH_NAME="${{ github.head_ref || github.ref_name }}"
         if git ls-remote --exit-code --heads https://github.com/NVIDIA-ISAAC-ROS/r2s_gw.git "$BRANCH_NAME" > /dev/null 2>&1; then
           echo "Cloning r2s_gw branch: $BRANCH_NAME"
           git clone --branch "$BRANCH_NAME" --depth 1 https://github.com/NVIDIA-ISAAC-ROS/r2s_gw.git r2s_gw

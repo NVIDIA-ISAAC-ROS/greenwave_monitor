@@ -77,17 +77,18 @@ For users who want an advanced, feature-rich terminal interface, **r2s_gw** is a
 
 To use r2s_gw:
 
-1. Clone the r2s_gw repository into your workspace:
+1. Clone the r2s_gw repository into a workspace:
 ```bash
-cd ros_ws/src
+mkdir -p ~/ros_ws/src
+cd ~/ros_ws/src
 git clone https://github.com/NVIDIA-ISAAC-ROS/r2s_gw.git
-cd ../..
 ```
 
 2. Install dependencies and build:
 ```bash
-pip install textual
-colcon build --packages-up-to r2s_gw
+pip install --ignore-installed pygments -r r2s_gw/requirements.txt
+cd ~/ros_ws
+colcon build --packages-select r2s_gw
 source install/setup.bash
 ```
 
