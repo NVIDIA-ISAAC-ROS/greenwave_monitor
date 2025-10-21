@@ -36,7 +36,6 @@ ament_target_dependencies(greenwave_monitor
   std_msgs
   diagnostic_msgs
   greenwave_monitor_interfaces
-  ament_index_cpp
   yaml_cpp_vendor
 )
 target_link_libraries(greenwave_monitor

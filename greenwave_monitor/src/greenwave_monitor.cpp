@@ -20,11 +20,10 @@
 #include <algorithm>
 #include <cstring>
 #include <mutex>
-#include <unordered_map>
 #include <sys/stat.h>
+#include <unordered_map>
 #include <yaml-cpp/yaml.h>
 
-#include "ament_index_cpp/get_package_share_directory.hpp"
 #include "rosidl_typesupport_introspection_cpp/message_introspection.hpp"
 
 using namespace std::chrono_literals;
@@ -50,8 +49,7 @@ GreenwaveMonitor::GreenwaveMonitor(const rclcpp::NodeOptions & options)
   auto topics = this->get_parameter("topics").as_string_array();
 
   // Declare and get the type registry path parameter
-  std::string default_type_registry_path = ament_index_cpp::get_package_share_directory("greenwave_monitor") + "/config/type_registry.yml";
-  this->declare_parameter<std::string>("type_registry_path", default_type_registry_path);
+  this->declare_parameter<std::string>("type_registry_path", "");
   type_registry_path_ = this->get_parameter("type_registry_path").as_string();
 
   // Check if the type registry path is valid
