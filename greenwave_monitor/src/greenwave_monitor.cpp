@@ -17,23 +17,25 @@
 
 #include "greenwave_monitor.hpp"
 
+#include <sys/stat.h>
+#include <yaml-cpp/yaml.h>
 #include <algorithm>
 #include <cstring>
 #include <mutex>
-#include <sys/stat.h>
 #include <unordered_map>
-#include <yaml-cpp/yaml.h>
 
 #include "rosidl_typesupport_introspection_cpp/message_introspection.hpp"
 
 using namespace std::chrono_literals;
 
-namespace {
+namespace
+{
 
 // Check if a file exists and is a regular file
-bool is_valid_file(const std::string& path) {
+bool is_valid_file(const std::string & path)
+{
   struct stat st;
-  if (stat(path.c_str(), &st) != 0) { return false; }
+  if (stat(path.c_str(), &st) != 0) {return false;}
   return static_cast<bool>(st.st_mode & S_IFREG);
 }
 
@@ -286,13 +288,14 @@ bool GreenwaveMonitor::has_header_from_type(const std::string & type_name)
   return has_header;
 }
 
-bool GreenwaveMonitor::has_header_from_type_registry(const std::string & type_name) {
+bool GreenwaveMonitor::has_header_from_type_registry(const std::string & type_name)
+{
   try {
     YAML::Node config = YAML::LoadFile(type_registry_path_);
     if (config["has_header"]) {
       // Check if 'has_header' is a sequence (list)
       if (config["has_header"].IsSequence()) {
-        for (const auto& type_node : config["has_header"]) {
+        for (const auto & type_node : config["has_header"]) {
           if (type_node.IsScalar()) {
             // Check if the type matches
             if (type_node.as<std::string>() == type_name) {
@@ -315,11 +318,11 @@ bool GreenwaveMonitor::has_header_from_type_registry(const std::string & type_na
         this->get_logger(),
         "'has_header' key is not found in the YAML file.");
     }
-  } catch (const YAML::BadFile& e) {
+  } catch (const YAML::BadFile & e) {
     RCLCPP_ERROR(this->get_logger(), "Error reading YAML file: %s", e.what());
-  } catch (const YAML::ParserException& e) {
+  } catch (const YAML::ParserException & e) {
     RCLCPP_ERROR(this->get_logger(), "Error parsing YAML string: %s", e.what());
-  } catch (const std::exception& e) {
+  } catch (const std::exception & e) {
     RCLCPP_ERROR(this->get_logger(), "An unexpected error occurred: %s", e.what());
   }
   return false;

@@ -39,8 +39,8 @@ ament_target_dependencies(greenwave_monitor
   yaml_cpp_vendor
 )
 target_link_libraries(greenwave_monitor
- message_diagnostics
- yaml-cpp
+  message_diagnostics
+  yaml-cpp
 )
 
 target_include_directories(greenwave_monitor PUBLIC

@@ -69,7 +69,7 @@ private:
   GetTimestampFromSerializedMessage(
     std::shared_ptr<rclcpp::SerializedMessage> serialized_message_ptr,
     const std::string & type);
-  
+
   std::string type_registry_path_;
   std::map<std::string,
     std::unique_ptr<message_diagnostics::MessageDiagnostics>> message_diagnostics_;
