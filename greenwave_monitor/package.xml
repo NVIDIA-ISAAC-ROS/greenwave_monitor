@@ -51,8 +51,6 @@
   <test_depend>launch_testing</test_depend>
   <test_depend>launch_testing_ros</test_depend>
 
-  <!-- TODO add textual as dependency (need to host rosdep)-->
-
   <build_depend>rosidl_default_generators</build_depend>
   <exec_depend>rosidl_default_runtime</exec_depend>
   <member_of_group>rosidl_interface_packages</member_of_group>
