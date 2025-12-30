@@ -41,7 +41,7 @@ from .ui_adaptor import GreenwaveUiAdaptor
 class GreenwaveNcursesFrontend(Node):
     """Ncurses frontend for Greenwave Monitor."""
 
-    def __init__(self, hide_unmonitored: bool = False):
+    def __init__(self, show_only_monitored: bool = False):
         """Initialize the ncurses frontend node."""
         super().__init__('greenwave_ncurses_frontend')
 
@@ -60,7 +60,7 @@ class GreenwaveNcursesFrontend(Node):
         self.input_buffer = ''
         self.status_message = ''
         self.status_timeout = 0
-        self.show_only_monitored = hide_unmonitored
+        self.show_only_monitored = show_only_monitored
 
         # Initialize UI adaptor
         self.ui_adaptor = GreenwaveUiAdaptor(self)
@@ -452,19 +452,12 @@ def curses_main(stdscr, node):
 def parse_args():
     """Parse command-line arguments."""
     parser = argparse.ArgumentParser(
-        description='Ncurses-based frontend for Greenwave Monitor',
-        add_help=False
+        description='Ncurses-based frontend for Greenwave Monitor'
     )
     parser.add_argument(
-        '--help',
-        action='help',
-        default=argparse.SUPPRESS,
-        help='Show this help message and exit'
-    )
-    parser.add_argument(
-        '--hide-unmonitored',
+        '--show-only-monitored',
         action='store_true',
-        help='Hide unmonitored topics on initialization'
+        help='Show only monitored topics on initialization'
     )
     return parser.parse_known_args()
 
@@ -473,7 +466,7 @@ def main(args=None):
     """Entry point for the ncurses frontend application."""
     parsed_args, ros_args = parse_args()
     rclpy.init(args=ros_args)
-    node = GreenwaveNcursesFrontend(hide_unmonitored=parsed_args.hide_unmonitored)
+    node = GreenwaveNcursesFrontend(show_only_monitored=parsed_args.show_only_monitored)
     thread = None
 
     def signal_handler(signum, frame):

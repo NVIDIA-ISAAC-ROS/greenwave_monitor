@@ -111,7 +111,7 @@ if(BUILD_TESTING)
   )
 
   # Add ncurses frontend tests
-  ament_add_pytest_test(test_ncurses_frontend test/test_ncurses_frontend.py
+  ament_add_pytest_test(test_ncurses_frontend_argparse test/test_ncurses_frontend_argparse.py
     TIMEOUT 120
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
   )

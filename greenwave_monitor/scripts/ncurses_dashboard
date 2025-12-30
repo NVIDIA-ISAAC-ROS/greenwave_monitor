@@ -23,7 +23,7 @@
 # Parse command line arguments
 DEMO_MODE=false
 LOG_DIR=""
-HIDE_UNMONITORED=false
+SHOW_ONLY_MONITORED=false
 MONITOR_ARGS=()
 
 show_help() {
@@ -34,7 +34,7 @@ show_help() {
     echo "OPTIONS:"
     echo "  --demo, --test             Launch demo publisher nodes for testing"
     echo "  --log-dir DIR              Enable logging to specified directory"
-    echo "  --hide-unmonitored         Hide unmonitored topics on initialization"
+    echo "  --show-only-monitored      Show only monitored topics on initialization"
     echo "  --help, -h                 Show this help message"
     echo ""
     echo "MONITOR_ARGS are passed directly to the greenwave_monitor node"
@@ -58,8 +58,8 @@ while [[ $# -gt 0 ]]; do
             LOG_DIR="$2"
             shift 2
             ;;
-        --hide-unmonitored)
-            HIDE_UNMONITORED=true
+        --show-only-monitored)
+            SHOW_ONLY_MONITORED=true
             shift
             ;;
         --help|-h)
@@ -121,9 +121,10 @@ echo "Monitor process started with PID: $MONITOR_PID"
 # Launch ncurses frontend in the foreground
 echo "Starting ncurses TUI..."
 echo "Controls: a=Add Topic, r=Remove, f=Set Frequency, c=Clear Freq, q=Quit"
+# NOTE: add proper argument parsing to the ncurses frontend if more than one argument is added here
 FRONTEND_ARGS=()
-if [ "$HIDE_UNMONITORED" = "true" ]; then
-    FRONTEND_ARGS+=("--hide-unmonitored")
+if [ "$SHOW_ONLY_MONITORED" = "true" ]; then
+    FRONTEND_ARGS+=("--show-only-monitored")
 fi
 python3 -m greenwave_monitor.ncurses_frontend "${FRONTEND_ARGS[@]}"
 

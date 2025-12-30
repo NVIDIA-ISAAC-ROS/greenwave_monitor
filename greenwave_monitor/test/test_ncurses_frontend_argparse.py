@@ -25,29 +25,29 @@ import sys
 class TestParseArgs:
     """Test argument parsing for ncurses frontend."""
 
-    def test_default_hide_unmonitored_false(self, monkeypatch):
-        """Test that hide_unmonitored defaults to False."""
+    def test_default_show_only_monitored_false(self, monkeypatch):
+        """Test that show_only_monitored defaults to False."""
         monkeypatch.setattr(sys, 'argv', ['ncurses_frontend'])
         from greenwave_monitor.ncurses_frontend import parse_args
         parsed_args, _ = parse_args()
-        assert parsed_args.hide_unmonitored is False
+        assert parsed_args.show_only_monitored is False
 
-    def test_hide_unmonitored_long_flag(self, monkeypatch):
-        """Test --hide-unmonitored flag enables hide_unmonitored."""
-        monkeypatch.setattr(sys, 'argv', ['ncurses_frontend', '--hide-unmonitored'])
+    def test_show_only_monitored_long_flag(self, monkeypatch):
+        """Test --show-only-monitored flag enables show_only_monitored."""
+        monkeypatch.setattr(sys, 'argv', ['ncurses_frontend', '--show-only-monitored'])
         from greenwave_monitor.ncurses_frontend import parse_args
         parsed_args, _ = parse_args()
-        assert parsed_args.hide_unmonitored is True
+        assert parsed_args.show_only_monitored is True
 
     def test_ros_args_passthrough(self, monkeypatch):
         """Test that ROS arguments are passed through."""
         monkeypatch.setattr(
             sys, 'argv',
-            ['ncurses_frontend', '--hide-unmonitored', '--ros-args', '-r', '__node:=my_node']
+            ['ncurses_frontend', '--show-only-monitored', '--ros-args', '-r', '__node:=my_node']
         )
         from greenwave_monitor.ncurses_frontend import parse_args
         parsed_args, ros_args = parse_args()
-        assert parsed_args.hide_unmonitored is True
+        assert parsed_args.show_only_monitored is True
         assert '--ros-args' in ros_args
         assert '-r' in ros_args
         assert '__node:=my_node' in ros_args
