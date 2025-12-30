@@ -41,7 +41,7 @@ show_help() {
     echo ""
     echo "Controls in ncurses interface:"
     echo "  enter/space = toggle topic monitoring"
-    echo "  f = Set expected frequency (format: hz tolerance%) [default: 30Hz±5%]"
+    echo "  f = Set expected frequency for selected topic (format: hz tolerance%)"
     echo "  c = Clear frequency settings for selected topic"
     echo "  h = Toggle showing unmonitored topics"
     echo "  ↑/↓ = Navigate topics"
