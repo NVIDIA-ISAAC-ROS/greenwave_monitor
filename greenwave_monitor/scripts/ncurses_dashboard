@@ -43,7 +43,7 @@ show_help() {
     echo "  enter/space = toggle topic monitoring"
     echo "  f = Set expected frequency for selected topic (format: hz tolerance%)"
     echo "  c = Clear frequency settings for selected topic"
-    echo "  h = Toggle showing unmonitored topics"
+    echo "  h = Toggle hiding unmonitored topics"
     echo "  ↑/↓ = Navigate topics"
     echo "  q = Quit"
 }
