@@ -449,7 +449,7 @@ def curses_main(stdscr, node):
         stdscr.refresh()
 
 
-def parse_args():
+def parse_args(args=None):
     """Parse command-line arguments."""
     parser = argparse.ArgumentParser(
         description='Ncurses-based frontend for Greenwave Monitor'
@@ -459,12 +459,12 @@ def parse_args():
         action='store_true',
         help='Show only monitored topics on initialization'
     )
-    return parser.parse_known_args()
+    return parser.parse_known_args(args)
 
 
 def main(args=None):
     """Entry point for the ncurses frontend application."""
-    parsed_args, ros_args = parse_args()
+    parsed_args, ros_args = parse_args(args)
     rclpy.init(args=ros_args)
     node = GreenwaveNcursesFrontend(show_only_monitored=parsed_args.show_only_monitored)
     thread = None
