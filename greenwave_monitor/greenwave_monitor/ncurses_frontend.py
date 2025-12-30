@@ -435,11 +435,16 @@ def curses_main(stdscr, node):
             status_line = ("Format: Hz [tolerance%] - Examples: '30' (30Hz±5% default) "
                            "or '30 10' (30Hz±10%) - ESC=cancel, Enter=confirm")
         else:
-            mode_text = 'monitored only' if node.show_only_monitored else 'all topics'
+            if node.show_only_monitored:
+                mode_text = 'monitored only'
+                mode_help_text = 'show unmonitored'
+            else:
+                mode_text = 'all topics'
+                mode_help_text = 'hide unmonitored'
             status_line = (
                 f'Showing {start_idx + 1} - {num_shown} of {len(visible_topics)} '
                 f'topics ({mode_text}). Enter=toggle, f=set freq, c=clear freq, '
-                f'h=hide unmonitored, q=quit')
+                f'h={mode_help_text}, q=quit')
 
         try:
             stdscr.addstr(height - 2, 0, status_line[:width - 1])

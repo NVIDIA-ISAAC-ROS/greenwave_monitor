@@ -40,10 +40,10 @@ show_help() {
     echo "MONITOR_ARGS are passed directly to the greenwave_monitor node"
     echo ""
     echo "Controls in ncurses interface:"
-    echo "  a = Add topic to monitoring"
-    echo "  r = Remove selected topic"
-    echo "  f = Set expected frequency (format: topic_name hz tolerance)"
+    echo "  enter/space = toggle topic monitoring"
+    echo "  f = Set expected frequency (format: hz tolerance%) [default: 30Hz±5%]"
     echo "  c = Clear frequency settings for selected topic"
+    echo "  h = Toggle showing unmonitored topics"
     echo "  ↑/↓ = Navigate topics"
     echo "  q = Quit"
 }
