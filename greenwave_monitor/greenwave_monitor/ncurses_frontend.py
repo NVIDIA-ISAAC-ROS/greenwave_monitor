@@ -41,7 +41,7 @@ from .ui_adaptor import GreenwaveUiAdaptor
 class GreenwaveNcursesFrontend(Node):
     """Ncurses frontend for Greenwave Monitor."""
 
-    def __init__(self, show_only_monitored: bool = False):
+    def __init__(self, hide_unmonitored: bool = False):
         """Initialize the ncurses frontend node."""
         super().__init__('greenwave_ncurses_frontend')
 
@@ -60,7 +60,7 @@ class GreenwaveNcursesFrontend(Node):
         self.input_buffer = ''
         self.status_message = ''
         self.status_timeout = 0
-        self.show_only_monitored = show_only_monitored
+        self.hide_unmonitored = hide_unmonitored
 
         # Initialize UI adaptor
         self.ui_adaptor = GreenwaveUiAdaptor(self)
@@ -99,7 +99,7 @@ class GreenwaveNcursesFrontend(Node):
         """Update the visible topics list based on current filters."""
         all_topic_names = list(self.all_topics)
 
-        if self.show_only_monitored and self.ui_adaptor:
+        if self.hide_unmonitored and self.ui_adaptor:
             # Filter to only show topics that have diagnostic data (are being monitored)
             filtered_topics = []
             for topic_name in all_topic_names:
@@ -290,10 +290,10 @@ def curses_main(stdscr, node):
                         status_message = f'Error: {msg}'
                     status_timeout = current_time + 3.0
             elif key == ord('h') or key == ord('H'):
-                node.show_only_monitored = not node.show_only_monitored
+                node.hide_unmonitored = not node.hide_unmonitored
                 with node.topics_lock:
                     node.update_visible_topics()
-                mode_text = 'monitored only' if node.show_only_monitored else 'all topics'
+                mode_text = 'monitored only' if node.hide_unmonitored else 'all topics'
                 status_message = f'Showing {mode_text}'
                 status_timeout = current_time + 3.0
 
@@ -435,7 +435,7 @@ def curses_main(stdscr, node):
             status_line = ("Format: Hz [tolerance%] - Examples: '30' (30Hz±5% default) "
                            "or '30 10' (30Hz±10%) - ESC=cancel, Enter=confirm")
         else:
-            if node.show_only_monitored:
+            if node.hide_unmonitored:
                 mode_text = 'monitored only'
                 mode_help_text = 'show unmonitored'
             else:
@@ -460,9 +460,9 @@ def parse_args(args=None):
         description='Ncurses-based frontend for Greenwave Monitor'
     )
     parser.add_argument(
-        '--show-only-monitored',
+        '--hide-unmonitored',
         action='store_true',
-        help='Show only monitored topics on initialization'
+        help='Hide unmonitored topics on initialization'
     )
     return parser.parse_known_args(args)
 
@@ -471,7 +471,7 @@ def main(args=None):
     """Entry point for the ncurses frontend application."""
     parsed_args, ros_args = parse_args(args)
     rclpy.init(args=ros_args)
-    node = GreenwaveNcursesFrontend(show_only_monitored=parsed_args.show_only_monitored)
+    node = GreenwaveNcursesFrontend(hide_unmonitored=parsed_args.hide_unmonitored)
     thread = None
 
     def signal_handler(signum, frame):
