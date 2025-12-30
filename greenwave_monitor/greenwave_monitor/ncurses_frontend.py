@@ -24,6 +24,7 @@ This module provides a terminal-based interface for monitoring ROS2 topics
 with real-time diagnostics including publication rates, latency, and status.
 """
 
+import argparse
 import curses
 import signal
 import threading
@@ -40,7 +41,7 @@ from .ui_adaptor import GreenwaveUiAdaptor
 class GreenwaveNcursesFrontend(Node):
     """Ncurses frontend for Greenwave Monitor."""
 
-    def __init__(self):
+    def __init__(self, hide_unmonitored: bool = False):
         """Initialize the ncurses frontend node."""
         super().__init__('greenwave_ncurses_frontend')
 
@@ -59,7 +60,7 @@ class GreenwaveNcursesFrontend(Node):
         self.input_buffer = ''
         self.status_message = ''
         self.status_timeout = 0
-        self.show_only_monitored = False
+        self.show_only_monitored = hide_unmonitored
 
         # Initialize UI adaptor
         self.ui_adaptor = GreenwaveUiAdaptor(self)
@@ -448,10 +449,31 @@ def curses_main(stdscr, node):
         stdscr.refresh()
 
 
+def parse_args():
+    """Parse command-line arguments."""
+    parser = argparse.ArgumentParser(
+        description='Ncurses-based frontend for Greenwave Monitor',
+        add_help=False
+    )
+    parser.add_argument(
+        '--help',
+        action='help',
+        default=argparse.SUPPRESS,
+        help='Show this help message and exit'
+    )
+    parser.add_argument(
+        '--hide-unmonitored',
+        action='store_true',
+        help='Hide unmonitored topics on initialization'
+    )
+    return parser.parse_known_args()
+
+
 def main(args=None):
     """Entry point for the ncurses frontend application."""
-    rclpy.init(args=args)
-    node = GreenwaveNcursesFrontend()
+    parsed_args, ros_args = parse_args()
+    rclpy.init(args=ros_args)
+    node = GreenwaveNcursesFrontend(hide_unmonitored=parsed_args.hide_unmonitored)
     thread = None
 
     def signal_handler(signum, frame):
