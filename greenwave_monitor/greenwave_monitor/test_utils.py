@@ -17,9 +17,11 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+from abc import ABC
 import math
 import time
 from typing import List, Optional, Tuple
+import unittest
 
 from diagnostic_msgs.msg import DiagnosticArray, DiagnosticStatus
 from greenwave_monitor.ui_adaptor import (
@@ -367,3 +369,37 @@ def create_service_clients(node: Node, namespace: str = MONITOR_NODE_NAMESPACE,
     )
 
     return manage_topic_client, set_frequency_client
+
+
+class RosNodeTestCase(unittest.TestCase, ABC):
+    """
+    Abstract base class for ROS 2 launch tests that need a test node.
+
+    Subclasses must define the TEST_NODE_NAME class attribute to specify
+    the unique name for the test node.
+
+    Example:
+        class TestMyFeature(RosNodeTestCase):
+            TEST_NODE_NAME = 'my_feature_test_node'
+
+            def test_something(self):
+                # self.test_node is available
+                ...
+    """
+
+    TEST_NODE_NAME: str = None
+
+    @classmethod
+    def setUpClass(cls):
+        """Initialize ROS 2 and create test node."""
+        if cls.TEST_NODE_NAME is None:
+            raise ValueError(
+                f'{cls.__name__} must define TEST_NODE_NAME class attribute')
+        rclpy.init()
+        cls.test_node = Node(cls.TEST_NODE_NAME, namespace=MONITOR_NODE_NAMESPACE)
+
+    @classmethod
+    def tearDownClass(cls):
+        """Clean up ROS 2."""
+        cls.test_node.destroy_node()
+        rclpy.shutdown()

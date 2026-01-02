@@ -22,7 +22,6 @@
 import os
 import tempfile
 import time
-import unittest
 
 from greenwave_monitor.test_utils import (
     collect_diagnostics_for_topic,
@@ -30,13 +29,12 @@ from greenwave_monitor.test_utils import (
     find_best_diagnostic,
     MONITOR_NODE_NAME,
     MONITOR_NODE_NAMESPACE,
+    RosNodeTestCase,
 )
 import launch
 import launch_ros.actions
 import launch_testing
 import pytest
-import rclpy
-from rclpy.node import Node
 
 
 YAML_TOPIC = '/yaml_config_topic'
@@ -96,20 +94,10 @@ def generate_test_description():
     )
 
 
-class TestYamlParameterFile(unittest.TestCase):
+class TestYamlParameterFile(RosNodeTestCase):
     """Test loading topic configuration from YAML parameter file."""
 
-    @classmethod
-    def setUpClass(cls):
-        """Initialize ROS2 and create test node."""
-        rclpy.init()
-        cls.test_node = Node('yaml_test_node', namespace=MONITOR_NODE_NAMESPACE)
-
-    @classmethod
-    def tearDownClass(cls):
-        """Clean up ROS2."""
-        cls.test_node.destroy_node()
-        rclpy.shutdown()
+    TEST_NODE_NAME = 'yaml_test_node'
 
     def test_topic_configured_via_yaml(self):
         """Test that topic is monitored when configured via YAML file."""

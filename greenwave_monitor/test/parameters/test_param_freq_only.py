@@ -20,20 +20,17 @@
 """Test: only expected_frequency specified, tolerance defaults to 5%."""
 
 import time
-import unittest
 
 from greenwave_monitor.test_utils import (
     collect_diagnostics_for_topic,
     create_minimal_publisher,
     create_monitor_node,
     find_best_diagnostic,
-    MONITOR_NODE_NAMESPACE,
+    RosNodeTestCase,
 )
 import launch
 import launch_testing
 import pytest
-import rclpy
-from rclpy.node import Node
 
 
 TEST_TOPIC = '/freq_only_topic'
@@ -67,20 +64,10 @@ def generate_test_description():
     )
 
 
-class TestFrequencyOnlyParameter(unittest.TestCase):
+class TestFrequencyOnlyParameter(RosNodeTestCase):
     """Test that only specifying frequency works (tolerance defaults)."""
 
-    @classmethod
-    def setUpClass(cls):
-        """Initialize ROS2 and create test node."""
-        rclpy.init()
-        cls.test_node = Node('freq_only_test_node', namespace=MONITOR_NODE_NAMESPACE)
-
-    @classmethod
-    def tearDownClass(cls):
-        """Clean up ROS2."""
-        cls.test_node.destroy_node()
-        rclpy.shutdown()
+    TEST_NODE_NAME = 'freq_only_test_node'
 
     def test_frequency_only_uses_default_tolerance(self):
         """Test that specifying only frequency uses default tolerance."""

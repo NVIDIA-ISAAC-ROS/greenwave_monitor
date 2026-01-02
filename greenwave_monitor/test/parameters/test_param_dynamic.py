@@ -20,7 +20,6 @@
 """Test: dynamic parameter changes via ros2 param set."""
 
 import time
-import unittest
 
 from greenwave_monitor.test_utils import (
     collect_diagnostics_for_topic,
@@ -29,14 +28,12 @@ from greenwave_monitor.test_utils import (
     get_parameter,
     make_freq_param,
     make_tol_param,
-    MONITOR_NODE_NAMESPACE,
+    RosNodeTestCase,
     set_parameter,
 )
 import launch
 import launch_testing
 import pytest
-import rclpy
-from rclpy.node import Node
 
 
 TEST_TOPIC = '/dynamic_param_topic'
@@ -63,20 +60,10 @@ def generate_test_description():
     )
 
 
-class TestDynamicParameterChanges(unittest.TestCase):
+class TestDynamicParameterChanges(RosNodeTestCase):
     """Test changing parameters dynamically via ros2 param set."""
 
-    @classmethod
-    def setUpClass(cls):
-        """Initialize ROS2 and create test node."""
-        rclpy.init()
-        cls.test_node = Node('dynamic_param_test_node', namespace=MONITOR_NODE_NAMESPACE)
-
-    @classmethod
-    def tearDownClass(cls):
-        """Clean up ROS2."""
-        cls.test_node.destroy_node()
-        rclpy.shutdown()
+    TEST_NODE_NAME = 'dynamic_param_test_node'
 
     def test_set_parameters(self):
         """Test setting frequency and tolerance parameters in sequence."""

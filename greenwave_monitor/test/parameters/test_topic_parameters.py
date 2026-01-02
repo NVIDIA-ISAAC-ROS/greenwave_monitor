@@ -29,6 +29,7 @@ from greenwave_monitor.test_utils import (
     find_best_diagnostic,
     MONITOR_NODE_NAME,
     MONITOR_NODE_NAMESPACE,
+    RosNodeTestCase,
 )
 import launch
 import launch_testing
@@ -72,20 +73,10 @@ def generate_test_description():
 
 
 @post_shutdown_test()
-class TestTopicParametersPostShutdown(unittest.TestCase):
+class TestTopicParametersPostShutdown(RosNodeTestCase):
     """Post-shutdown tests."""
 
-    @classmethod
-    def setUpClass(cls):
-        """Initialize ROS2 and create test node."""
-        rclpy.init()
-        cls.test_node = Node('shutdown_test_node', namespace=MONITOR_NODE_NAMESPACE)
-
-    @classmethod
-    def tearDownClass(cls):
-        """Clean up ROS2."""
-        cls.test_node.destroy_node()
-        rclpy.shutdown()
+    TEST_NODE_NAME = 'shutdown_test_node'
 
     def test_node_shutdown(self, proc_info):
         """Test that the node shuts down correctly."""
@@ -94,20 +85,10 @@ class TestTopicParametersPostShutdown(unittest.TestCase):
         assertExitCodes(proc_info, allowable_exit_codes=[0])
 
 
-class TestTopicParameters(unittest.TestCase):
+class TestTopicParameters(RosNodeTestCase):
     """Tests for parameter-based topic configuration."""
 
-    @classmethod
-    def setUpClass(cls):
-        """Initialize ROS2 and create test node."""
-        rclpy.init()
-        cls.test_node = Node('topic_params_test_node', namespace=MONITOR_NODE_NAMESPACE)
-
-    @classmethod
-    def tearDownClass(cls):
-        """Clean up ROS2."""
-        cls.test_node.destroy_node()
-        rclpy.shutdown()
+    TEST_NODE_NAME = 'topic_params_test_node'
 
     def test_topic_configured_via_parameters(self):
         """Test that topic is monitored when configured via parameters."""
@@ -129,7 +110,7 @@ class TestTopicParameters(unittest.TestCase):
             'Should have received diagnostics with valid frame_rate_node'
         )
         frame_rate_node = best_values[0]
-        tolerance = TEST_FREQUENCY * 0.5
+        tolerance = TEST_FREQUENCY * TEST_TOLERANCE / 100.0
         self.assertAlmostEqual(
             frame_rate_node, TEST_FREQUENCY, delta=tolerance,
             msg=f'Frame rate {frame_rate_node} not within {tolerance} of {TEST_FREQUENCY}'

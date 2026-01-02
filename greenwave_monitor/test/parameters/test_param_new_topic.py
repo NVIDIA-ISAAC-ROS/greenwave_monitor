@@ -20,21 +20,18 @@
 """Test: add new topic to monitoring via ros2 param set."""
 
 import time
-import unittest
 
 from greenwave_monitor.test_utils import (
     collect_diagnostics_for_topic,
     create_minimal_publisher,
     create_monitor_node,
     make_freq_param,
-    MONITOR_NODE_NAMESPACE,
+    RosNodeTestCase,
     set_parameter,
 )
 import launch
 import launch_testing
 import pytest
-import rclpy
-from rclpy.node import Node
 
 
 NEW_TOPIC = '/new_dynamic_topic'
@@ -59,20 +56,10 @@ def generate_test_description():
     )
 
 
-class TestAddNewTopicViaParam(unittest.TestCase):
+class TestAddNewTopicViaParam(RosNodeTestCase):
     """Test adding a new topic to monitoring via ros2 param set."""
 
-    @classmethod
-    def setUpClass(cls):
-        """Initialize ROS2 and create test node."""
-        rclpy.init()
-        cls.test_node = Node('new_topic_test_node', namespace=MONITOR_NODE_NAMESPACE)
-
-    @classmethod
-    def tearDownClass(cls):
-        """Clean up ROS2."""
-        cls.test_node.destroy_node()
-        rclpy.shutdown()
+    TEST_NODE_NAME = 'new_topic_test_node'
 
     def test_add_new_topic_via_frequency_param(self):
         """Test that setting frequency param for new topic starts monitoring."""
