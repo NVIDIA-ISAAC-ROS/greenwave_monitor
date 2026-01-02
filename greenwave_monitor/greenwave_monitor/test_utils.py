@@ -29,6 +29,8 @@ from greenwave_monitor.ui_adaptor import (
 )
 from greenwave_monitor_interfaces.srv import ManageTopic, SetExpectedFrequency
 import launch_ros
+from rcl_interfaces.msg import Parameter, ParameterType, ParameterValue
+from rcl_interfaces.srv import GetParameters, SetParameters
 import rclpy
 from rclpy.node import Node
 
@@ -50,6 +52,87 @@ TEST_CONFIGURATIONS = [
 MANAGE_TOPIC_TEST_CONFIG = TEST_CONFIGURATIONS[2]
 MONITOR_NODE_NAME = 'test_greenwave_monitor'
 MONITOR_NODE_NAMESPACE = 'test_namespace'
+
+
+def make_freq_param(topic: str) -> str:
+    """Build frequency parameter name for a topic."""
+    return f'{TOPIC_PARAM_PREFIX}{topic}{FREQ_SUFFIX}'
+
+
+def make_tol_param(topic: str) -> str:
+    """Build tolerance parameter name for a topic."""
+    return f'{TOPIC_PARAM_PREFIX}{topic}{TOL_SUFFIX}'
+
+
+def set_parameter(test_node: Node, param_name: str, value: float,
+                  node_name: str = MONITOR_NODE_NAME) -> bool:
+    """Set a parameter on the monitor node using rclpy service client."""
+    full_node_name = f'/{MONITOR_NODE_NAMESPACE}/{node_name}'
+    service_name = f'{full_node_name}/set_parameters'
+
+    client = test_node.create_client(SetParameters, service_name)
+    if not client.wait_for_service(timeout_sec=5.0):
+        return False
+
+    param = Parameter()
+    param.name = param_name
+    param.value = ParameterValue()
+    param.value.type = ParameterType.PARAMETER_DOUBLE
+    param.value.double_value = float(value)
+
+    request = SetParameters.Request()
+    request.parameters = [param]
+
+    future = client.call_async(request)
+    rclpy.spin_until_future_complete(test_node, future, timeout_sec=5.0)
+
+    test_node.destroy_client(client)
+
+    if future.result() is None:
+        return False
+    return all(r.successful for r in future.result().results)
+
+
+def get_parameter(test_node: Node, param_name: str,
+                  node_name: str = MONITOR_NODE_NAME) -> Tuple[bool, Optional[float]]:
+    """Get a parameter from the monitor node using rclpy service client."""
+    full_node_name = f'/{MONITOR_NODE_NAMESPACE}/{node_name}'
+    service_name = f'{full_node_name}/get_parameters'
+
+    client = test_node.create_client(GetParameters, service_name)
+    if not client.wait_for_service(timeout_sec=5.0):
+        return False, None
+
+    request = GetParameters.Request()
+    request.names = [param_name]
+
+    future = client.call_async(request)
+    rclpy.spin_until_future_complete(test_node, future, timeout_sec=5.0)
+
+    test_node.destroy_client(client)
+
+    if future.result() is None or not future.result().values:
+        return False, None
+
+    param_value = future.result().values[0]
+    if param_value.type == ParameterType.PARAMETER_DOUBLE:
+        return True, param_value.double_value
+    elif param_value.type == ParameterType.PARAMETER_INTEGER:
+        return True, float(param_value.integer_value)
+    return False, None
+
+
+def has_valid_frame_rate(diagnostics: List[DiagnosticStatus]) -> bool:
+    """Check if any diagnostic has a valid (positive) frame_rate_node value."""
+    for status in diagnostics:
+        for kv in status.values:
+            if kv.key == 'frame_rate_node':
+                try:
+                    if float(kv.value) > 0:
+                        return True
+                except ValueError:
+                    continue
+    return False
 
 
 def create_minimal_publisher(

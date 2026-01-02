@@ -19,7 +19,6 @@
 
 """Test: dynamic parameter changes via ros2 param set."""
 
-import subprocess
 import time
 import unittest
 
@@ -27,13 +26,11 @@ from greenwave_monitor.test_utils import (
     collect_diagnostics_for_topic,
     create_minimal_publisher,
     create_monitor_node,
-    MONITOR_NODE_NAME,
-    MONITOR_NODE_NAMESPACE
-)
-from greenwave_monitor.ui_adaptor import (
-    FREQ_SUFFIX,
-    TOL_SUFFIX,
-    TOPIC_PARAM_PREFIX,
+    get_parameter,
+    make_freq_param,
+    make_tol_param,
+    MONITOR_NODE_NAMESPACE,
+    set_parameter,
 )
 import launch
 import launch_testing
@@ -43,47 +40,7 @@ from rclpy.node import Node
 
 
 TEST_TOPIC = '/dynamic_param_topic'
-NEW_TOPIC = '/new_param_topic'
 TEST_FREQUENCY = 30.0
-
-
-def run_ros2_param_set(node_name: str, param_name: str, value: float) -> bool:
-    """Run ros2 param set command and return success status."""
-    full_node_name = f'/{MONITOR_NODE_NAMESPACE}/{node_name}'
-    cmd = ['ros2', 'param', 'set', full_node_name, param_name, str(value)]
-    try:
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=10.0)
-        return result.returncode == 0
-    except subprocess.TimeoutExpired:
-        return False
-
-
-def run_ros2_param_get(node_name: str, param_name: str) -> tuple[bool, float | None]:
-    """Run ros2 param get command and return (success, value)."""
-    full_node_name = f'/{MONITOR_NODE_NAMESPACE}/{node_name}'
-    cmd = ['ros2', 'param', 'get', full_node_name, param_name]
-    try:
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=10.0)
-        if result.returncode != 0:
-            return False, None
-        # Parse output like "Double value is: 30.0" or "Integer value is: 30"
-        output = result.stdout.strip()
-        if 'value is:' in output:
-            value_str = output.split('value is:')[1].strip()
-            return True, float(value_str)
-        return False, None
-    except (subprocess.TimeoutExpired, ValueError):
-        return False, None
-
-
-def make_freq_param(topic: str) -> str:
-    """Build frequency parameter name for a topic."""
-    return f'{TOPIC_PARAM_PREFIX}{topic}{FREQ_SUFFIX}'
-
-
-def make_tol_param(topic: str) -> str:
-    """Build tolerance parameter name for a topic."""
-    return f'{TOPIC_PARAM_PREFIX}{topic}{TOL_SUFFIX}'
 
 
 @pytest.mark.launch_test
@@ -97,16 +54,10 @@ def generate_test_description():
         TEST_TOPIC, TEST_FREQUENCY, 'imu', '_dynamic'
     )
 
-    # Publisher for topic not initially monitored
-    new_topic_publisher = create_minimal_publisher(
-        NEW_TOPIC, TEST_FREQUENCY, 'imu', '_new_dynamic'
-    )
-
     return (
         launch.LaunchDescription([
             ros2_monitor_node,
             publisher,
-            new_topic_publisher,
             launch_testing.actions.ReadyToTest()
         ]), {}
     )
@@ -132,7 +83,7 @@ class TestDynamicParameterChanges(unittest.TestCase):
         time.sleep(2.0)
 
         freq_param = make_freq_param(TEST_TOPIC)
-        success = run_ros2_param_set(MONITOR_NODE_NAME, freq_param, TEST_FREQUENCY)
+        success = set_parameter(self.test_node, freq_param, TEST_FREQUENCY)
         self.assertTrue(success, f'Failed to set {freq_param}')
 
         time.sleep(1.0)
@@ -151,7 +102,7 @@ class TestDynamicParameterChanges(unittest.TestCase):
         time.sleep(1.0)
 
         tol_param = make_tol_param(TEST_TOPIC)
-        success = run_ros2_param_set(MONITOR_NODE_NAME, tol_param, 20.0)
+        success = set_parameter(self.test_node, tol_param, 20.0)
         self.assertTrue(success, f'Failed to set {tol_param}')
 
         time.sleep(0.5)
@@ -175,57 +126,27 @@ class TestDynamicParameterChanges(unittest.TestCase):
         expected_freq = 42.5
         expected_tol = 15.0
 
-        success = run_ros2_param_set(MONITOR_NODE_NAME, freq_param, expected_freq)
+        success = set_parameter(self.test_node, freq_param, expected_freq)
         self.assertTrue(success, f'Failed to set {freq_param}')
 
-        success = run_ros2_param_set(MONITOR_NODE_NAME, tol_param, expected_tol)
+        success = set_parameter(self.test_node, tol_param, expected_tol)
         self.assertTrue(success, f'Failed to set {tol_param}')
 
         time.sleep(0.5)
 
-        # Verify with ros2 param get
-        success, actual_freq = run_ros2_param_get(MONITOR_NODE_NAME, freq_param)
+        # Verify with get_parameter
+        success, actual_freq = get_parameter(self.test_node, freq_param)
         self.assertTrue(success, f'Failed to get {freq_param}')
         self.assertAlmostEqual(
             actual_freq, expected_freq, places=1,
             msg=f'Frequency mismatch: expected {expected_freq}, got {actual_freq}'
         )
 
-        success, actual_tol = run_ros2_param_get(MONITOR_NODE_NAME, tol_param)
+        success, actual_tol = get_parameter(self.test_node, tol_param)
         self.assertTrue(success, f'Failed to get {tol_param}')
         self.assertAlmostEqual(
             actual_tol, expected_tol, places=1,
             msg=f'Tolerance mismatch: expected {expected_tol}, got {actual_tol}'
-        )
-
-    def test_add_new_topic_via_param(self):
-        """Test that setting frequency param for unmonitored topic starts monitoring."""
-        time.sleep(1.0)
-
-        # Verify topic is not initially monitored
-        initial_diagnostics = collect_diagnostics_for_topic(
-            self.test_node, NEW_TOPIC, expected_count=1, timeout_sec=2.0
-        )
-        self.assertEqual(
-            len(initial_diagnostics), 0,
-            f'{NEW_TOPIC} should not be monitored initially'
-        )
-
-        # Set expected frequency for the new topic
-        freq_param = make_freq_param(NEW_TOPIC)
-        success = run_ros2_param_set(MONITOR_NODE_NAME, freq_param, TEST_FREQUENCY)
-        self.assertTrue(success, f'Failed to set {freq_param}')
-
-        time.sleep(2.0)
-
-        # Verify topic is now monitored
-        received_diagnostics = collect_diagnostics_for_topic(
-            self.test_node, NEW_TOPIC, expected_count=3, timeout_sec=10.0
-        )
-
-        self.assertGreaterEqual(
-            len(received_diagnostics), 3,
-            f'{NEW_TOPIC} should be monitored after setting frequency param'
         )
 
 

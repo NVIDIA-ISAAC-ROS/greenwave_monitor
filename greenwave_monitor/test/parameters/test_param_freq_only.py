@@ -26,7 +26,8 @@ from greenwave_monitor.test_utils import (
     collect_diagnostics_for_topic,
     create_minimal_publisher,
     create_monitor_node,
-    MONITOR_NODE_NAMESPACE
+    has_valid_frame_rate,
+    MONITOR_NODE_NAMESPACE,
 )
 import launch
 import launch_testing
@@ -93,21 +94,10 @@ class TestFrequencyOnlyParameter(unittest.TestCase):
             len(received_diagnostics), 3,
             f'Expected at least 3 diagnostics, got {len(received_diagnostics)}'
         )
-
-        has_valid_rate = False
-        for status in received_diagnostics:
-            for kv in status.values:
-                if kv.key == 'frame_rate_node':
-                    try:
-                        if float(kv.value) > 0:
-                            has_valid_rate = True
-                            break
-                    except ValueError:
-                        continue
-            if has_valid_rate:
-                break
-
-        self.assertTrue(has_valid_rate, 'Should have valid frame rate with default tolerance')
+        self.assertTrue(
+            has_valid_frame_rate(received_diagnostics),
+            'Should have valid frame rate with default tolerance'
+        )
 
 
 if __name__ == '__main__':

@@ -19,7 +19,6 @@
 
 """Test: add new topic to monitoring via ros2 param set."""
 
-import subprocess
 import time
 import unittest
 
@@ -27,12 +26,9 @@ from greenwave_monitor.test_utils import (
     collect_diagnostics_for_topic,
     create_minimal_publisher,
     create_monitor_node,
-    MONITOR_NODE_NAME,
-    MONITOR_NODE_NAMESPACE
-)
-from greenwave_monitor.ui_adaptor import (
-    FREQ_SUFFIX,
-    TOPIC_PARAM_PREFIX,
+    make_freq_param,
+    MONITOR_NODE_NAMESPACE,
+    set_parameter,
 )
 import launch
 import launch_testing
@@ -43,22 +39,6 @@ from rclpy.node import Node
 
 NEW_TOPIC = '/new_dynamic_topic'
 TEST_FREQUENCY = 50.0
-
-
-def run_ros2_param_set(node_name: str, param_name: str, value: float) -> bool:
-    """Run ros2 param set command and return success status."""
-    full_node_name = f'/{MONITOR_NODE_NAMESPACE}/{node_name}'
-    cmd = ['ros2', 'param', 'set', full_node_name, param_name, str(value)]
-    try:
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=10.0)
-        return result.returncode == 0
-    except subprocess.TimeoutExpired:
-        return False
-
-
-def make_freq_param(topic: str) -> str:
-    """Build frequency parameter name for a topic."""
-    return f'{TOPIC_PARAM_PREFIX}{topic}{FREQ_SUFFIX}'
 
 
 @pytest.mark.launch_test
@@ -107,7 +87,7 @@ class TestAddNewTopicViaParam(unittest.TestCase):
         )
 
         freq_param = make_freq_param(NEW_TOPIC)
-        success = run_ros2_param_set(MONITOR_NODE_NAME, freq_param, TEST_FREQUENCY)
+        success = set_parameter(self.test_node, freq_param, TEST_FREQUENCY)
         self.assertTrue(success, f'Failed to set {freq_param}')
 
         time.sleep(2.0)

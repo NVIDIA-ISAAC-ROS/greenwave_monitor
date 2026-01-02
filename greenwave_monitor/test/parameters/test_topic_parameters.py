@@ -27,7 +27,7 @@ from greenwave_monitor.test_utils import (
     create_minimal_publisher,
     create_monitor_node,
     MONITOR_NODE_NAME,
-    MONITOR_NODE_NAMESPACE
+    MONITOR_NODE_NAMESPACE,
 )
 import launch
 import launch_testing

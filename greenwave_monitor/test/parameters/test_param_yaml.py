@@ -27,8 +27,9 @@ import unittest
 from greenwave_monitor.test_utils import (
     collect_diagnostics_for_topic,
     create_minimal_publisher,
+    has_valid_frame_rate,
     MONITOR_NODE_NAME,
-    MONITOR_NODE_NAMESPACE
+    MONITOR_NODE_NAMESPACE,
 )
 import launch
 import launch_ros.actions
@@ -122,21 +123,10 @@ class TestYamlParameterFile(unittest.TestCase):
             len(received_diagnostics), 3,
             'Expected diagnostics from YAML-configured topic'
         )
-
-        has_valid_rate = False
-        for status in received_diagnostics:
-            for kv in status.values:
-                if kv.key == 'frame_rate_node':
-                    try:
-                        if float(kv.value) > 0:
-                            has_valid_rate = True
-                            break
-                    except ValueError:
-                        continue
-            if has_valid_rate:
-                break
-
-        self.assertTrue(has_valid_rate, 'Should have valid frame rate from YAML config')
+        self.assertTrue(
+            has_valid_frame_rate(received_diagnostics),
+            'Should have valid frame rate from YAML config'
+        )
 
     def test_nested_dict_topic_configured_via_yaml(self):
         """Test that topic configured via nested YAML dict is monitored."""
@@ -150,21 +140,10 @@ class TestYamlParameterFile(unittest.TestCase):
             len(received_diagnostics), 3,
             'Expected diagnostics from nested YAML-configured topic'
         )
-
-        has_valid_rate = False
-        for status in received_diagnostics:
-            for kv in status.values:
-                if kv.key == 'frame_rate_node':
-                    try:
-                        if float(kv.value) > 0:
-                            has_valid_rate = True
-                            break
-                    except ValueError:
-                        continue
-            if has_valid_rate:
-                break
-
-        self.assertTrue(has_valid_rate, 'Should have valid frame rate from nested YAML config')
+        self.assertTrue(
+            has_valid_frame_rate(received_diagnostics),
+            'Should have valid frame rate from nested YAML config'
+        )
 
 
 if __name__ == '__main__':

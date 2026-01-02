@@ -25,12 +25,9 @@ import unittest
 from greenwave_monitor.test_utils import (
     collect_diagnostics_for_topic,
     create_minimal_publisher,
+    make_tol_param,
     MONITOR_NODE_NAME,
-    MONITOR_NODE_NAMESPACE
-)
-from greenwave_monitor.ui_adaptor import (
-    TOL_SUFFIX,
-    TOPIC_PARAM_PREFIX,
+    MONITOR_NODE_NAMESPACE,
 )
 import launch
 import launch_ros.actions
@@ -48,7 +45,7 @@ TEST_FREQUENCY = 50.0
 def generate_test_description():
     """Test with only tolerance specified (should not monitor)."""
     params = {
-        f'{TOPIC_PARAM_PREFIX}{TEST_TOPIC}{TOL_SUFFIX}': 15.0
+        make_tol_param(TEST_TOPIC): 15.0
     }
 
     ros2_monitor_node = launch_ros.actions.Node(
