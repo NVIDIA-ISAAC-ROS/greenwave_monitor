@@ -1,0 +1,131 @@
+#!/usr/bin/env python3
+
+# SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
+# Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# SPDX-License-Identifier: Apache-2.0
+
+"""Test: add new topic to monitoring via ros2 param set."""
+
+import subprocess
+import time
+import unittest
+
+from greenwave_monitor.test_utils import (
+    collect_diagnostics_for_topic,
+    create_minimal_publisher,
+    create_monitor_node,
+    MONITOR_NODE_NAME,
+    MONITOR_NODE_NAMESPACE
+)
+from greenwave_monitor.ui_adaptor import (
+    FREQ_SUFFIX,
+    TOPIC_PARAM_PREFIX,
+)
+import launch
+import launch_testing
+import pytest
+import rclpy
+from rclpy.node import Node
+
+
+NEW_TOPIC = '/new_dynamic_topic'
+TEST_FREQUENCY = 50.0
+
+
+def run_ros2_param_set(node_name: str, param_name: str, value: float) -> bool:
+    """Run ros2 param set command and return success status."""
+    full_node_name = f'/{MONITOR_NODE_NAMESPACE}/{node_name}'
+    cmd = ['ros2', 'param', 'set', full_node_name, param_name, str(value)]
+    try:
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=10.0)
+        return result.returncode == 0
+    except subprocess.TimeoutExpired:
+        return False
+
+
+def make_freq_param(topic: str) -> str:
+    """Build frequency parameter name for a topic."""
+    return f'{TOPIC_PARAM_PREFIX}{topic}{FREQ_SUFFIX}'
+
+
+@pytest.mark.launch_test
+def generate_test_description():
+    """Test adding a new topic via ros2 param set."""
+    ros2_monitor_node = create_monitor_node(
+        namespace=MONITOR_NODE_NAMESPACE,
+        node_name=MONITOR_NODE_NAME,
+        topics=[''],  # Empty - no initial topics
+        topic_configs={}
+    )
+
+    publisher = create_minimal_publisher(
+        NEW_TOPIC, TEST_FREQUENCY, 'imu', '_new_dynamic'
+    )
+
+    return (
+        launch.LaunchDescription([
+            ros2_monitor_node,
+            publisher,
+            launch_testing.actions.ReadyToTest()
+        ]), {}
+    )
+
+
+class TestAddNewTopicViaParam(unittest.TestCase):
+    """Test adding a new topic to monitoring via ros2 param set."""
+
+    @classmethod
+    def setUpClass(cls):
+        """Initialize ROS2 and create test node."""
+        rclpy.init()
+        cls.test_node = Node('new_topic_test_node', namespace=MONITOR_NODE_NAMESPACE)
+
+    @classmethod
+    def tearDownClass(cls):
+        """Clean up ROS2."""
+        cls.test_node.destroy_node()
+        rclpy.shutdown()
+
+    def test_add_new_topic_via_frequency_param(self):
+        """Test that setting frequency param for new topic starts monitoring."""
+        time.sleep(2.0)
+
+        initial_diagnostics = collect_diagnostics_for_topic(
+            self.test_node, NEW_TOPIC, expected_count=1, timeout_sec=2.0
+        )
+        self.assertEqual(
+            len(initial_diagnostics), 0,
+            'Topic should not be monitored initially'
+        )
+
+        freq_param = make_freq_param(NEW_TOPIC)
+        success = run_ros2_param_set(MONITOR_NODE_NAME, freq_param, TEST_FREQUENCY)
+        self.assertTrue(success, f'Failed to set {freq_param}')
+
+        time.sleep(2.0)
+
+        received_diagnostics = collect_diagnostics_for_topic(
+            self.test_node, NEW_TOPIC, expected_count=3, timeout_sec=10.0
+        )
+
+        self.assertGreaterEqual(
+            len(received_diagnostics), 3,
+            'Should monitor new topic after setting frequency param'
+        )
+
+
+if __name__ == '__main__':
+    unittest.main()

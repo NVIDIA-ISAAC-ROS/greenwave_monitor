@@ -22,17 +22,113 @@
 #include <mutex>
 #include <unordered_map>
 
+#include "rcl_interfaces/srv/list_parameters.hpp"
 #include "rosidl_typesupport_introspection_cpp/message_introspection.hpp"
 
 using namespace std::chrono_literals;
 
+namespace
+{
+constexpr const char * kTopicParamPrefix = "topics.";
+constexpr const char * kFreqSuffix = ".expected_frequency";
+constexpr const char * kTolSuffix = ".tolerance";
+constexpr double kDefaultTolerancePercent = 5.0;
+
+std::string make_freq_param_name(const std::string & topic_name)
+{
+  return std::string(kTopicParamPrefix) + topic_name + kFreqSuffix;
+}
+
+std::string make_tol_param_name(const std::string & topic_name)
+{
+  return std::string(kTopicParamPrefix) + topic_name + kTolSuffix;
+}
+
+enum class TopicParamField { kNone, kFrequency, kTolerance };
+
+struct TopicParamInfo
+{
+  std::string topic_name;
+  TopicParamField field = TopicParamField::kNone;
+};
+
+// Parse a parameter name like "topics./my_topic.expected_frequency" into topic name and field type
+TopicParamInfo parse_topic_param_name(const std::string & param_name)
+{
+  TopicParamInfo info;
+
+  if (param_name.rfind(kTopicParamPrefix, 0) != 0) {
+    return info;
+  }
+
+  std::string topic_and_field = param_name.substr(strlen(kTopicParamPrefix));
+
+  const size_t freq_suffix_len = strlen(kFreqSuffix);
+  const size_t tol_suffix_len = strlen(kTolSuffix);
+
+  if (topic_and_field.length() > freq_suffix_len &&
+    topic_and_field.rfind(kFreqSuffix) == topic_and_field.length() - freq_suffix_len)
+  {
+    info.topic_name = topic_and_field.substr(0, topic_and_field.length() - freq_suffix_len);
+    info.field = TopicParamField::kFrequency;
+  } else if (topic_and_field.length() > tol_suffix_len &&
+    topic_and_field.rfind(kTolSuffix) == topic_and_field.length() - tol_suffix_len)
+  {
+    info.topic_name = topic_and_field.substr(0, topic_and_field.length() - tol_suffix_len);
+    info.field = TopicParamField::kTolerance;
+  }
+
+  return info;
+}
+
+// Convert a parameter to double if it's a numeric type
+std::optional<double> param_to_double(const rclcpp::Parameter & param)
+{
+  if (param.get_type() == rclcpp::ParameterType::PARAMETER_DOUBLE) {
+    return param.as_double();
+  } else if (param.get_type() == rclcpp::ParameterType::PARAMETER_INTEGER) {
+    return static_cast<double>(param.as_int());
+  }
+  return std::nullopt;
+}
+
+const char * get_field_name(TopicParamField field)
+{
+  if (field == TopicParamField::kNone) {
+    return "none";
+  } else if (field == TopicParamField::kFrequency) {
+    return "expected_frequency";
+  } else if (field == TopicParamField::kTolerance) {
+    return "tolerance";
+  }
+  return "unknown";
+}
+
+const char * get_field_unit(TopicParamField field)
+{
+  if (field == TopicParamField::kNone) {
+    return "";
+  } else if (field == TopicParamField::kFrequency) {
+    return "Hz";
+  } else if (field == TopicParamField::kTolerance) {
+    return "%";
+  }
+  return "unknown";
+}
+}  // namespace
+
 GreenwaveMonitor::GreenwaveMonitor(const rclcpp::NodeOptions & options)
-: Node("greenwave_monitor", options)
+: Node("greenwave_monitor",
+    rclcpp::NodeOptions(options)
+    .allow_undeclared_parameters(true)
+    .automatically_declare_parameters_from_overrides(true))
 {
   RCLCPP_INFO(this->get_logger(), "Starting GreenwaveMonitorNode");
 
-  // Declare and get the topics parameter
-  this->declare_parameter<std::vector<std::string>>("topics", {""});
+  // Get the topics parameter (declare only if not already declared from overrides)
+  if (!this->has_parameter("topics")) {
+    this->declare_parameter<std::vector<std::string>>("topics", {""});
+  }
   auto topics = this->get_parameter("topics").as_string_array();
 
   message_diagnostics::MessageDiagnosticsConfig diagnostics_config;
@@ -46,6 +142,13 @@ GreenwaveMonitor::GreenwaveMonitor(const rclcpp::NodeOptions & options)
       add_topic(topic, message);
     }
   }
+
+  // Register parameter callback for dynamic topic configuration
+  param_callback_handle_ = this->add_on_set_parameters_callback(
+    std::bind(&GreenwaveMonitor::on_parameter_change, this, std::placeholders::_1));
+
+  // Process any topic parameters passed at startup
+  load_topic_parameters_from_overrides();
 
   timer_ = this->create_wall_timer(
     1s, std::bind(&GreenwaveMonitor::timer_callback, this));
@@ -143,30 +246,256 @@ void GreenwaveMonitor::handle_set_expected_frequency(
 
   if (request->clear_expected) {
     msg_diagnostics_obj.clearExpectedDt();
+    undeclare_topic_parameters(request->topic_name);
+
     response->success = true;
     response->message = "Successfully cleared expected frequency for topic '" +
       request->topic_name + "'";
     return;
   }
 
-  if (request->expected_hz <= 0.0) {
-    response->success = false;
-    response->message = "Invalid expected frequency, must be set to a positive value";
-    return;
+  response->success = set_topic_expected_frequency(
+    request->topic_name,
+    request->expected_hz,
+    request->tolerance_percent,
+    false,  // topic already exists at this point
+    response->message);
+}
+
+bool GreenwaveMonitor::set_topic_expected_frequency(
+  const std::string & topic_name,
+  double expected_hz,
+  double tolerance_percent,
+  bool add_topic_if_missing,
+  std::string & message,
+  bool update_parameters)
+{
+  auto it = message_diagnostics_.find(topic_name);
+
+  if (it == message_diagnostics_.end()) {
+    if (!add_topic_if_missing) {
+      message = "Failed to find topic '" + topic_name + "'";
+      return false;
+    }
+
+    if (!add_topic(topic_name, message)) {
+      return false;
+    }
+    it = message_diagnostics_.find(topic_name);
   }
-  if (request->tolerance_percent < 0.0) {
-    response->success = false;
-    response->message =
-      "Invalid tolerance, must be a non-negative percentage";
+
+  if (expected_hz <= 0.0) {
+    message = "Invalid expected frequency, must be set to a positive value";
+    return false;
+  }
+  if (tolerance_percent < 0.0) {
+    message = "Invalid tolerance, must be a non-negative percentage";
+    return false;
+  }
+
+  message_diagnostics::MessageDiagnostics & msg_diagnostics_obj = *(it->second);
+  msg_diagnostics_obj.setExpectedDt(expected_hz, tolerance_percent);
+
+  // Sync parameters with the new values
+  if (update_parameters) {
+    declare_or_set_parameter(make_freq_param_name(topic_name), expected_hz);
+    declare_or_set_parameter(make_tol_param_name(topic_name), tolerance_percent);
+  }
+
+  message = "Successfully set expected frequency for topic '" +
+    topic_name + "' to " + std::to_string(expected_hz) +
+    " hz with tolerance " + std::to_string(tolerance_percent) + "%";
+  return true;
+}
+
+rcl_interfaces::msg::SetParametersResult GreenwaveMonitor::on_parameter_change(
+  const std::vector<rclcpp::Parameter> & parameters)
+{
+  rcl_interfaces::msg::SetParametersResult result;
+  result.successful = true;
+
+  for (const auto & param : parameters) {
+    auto info = parse_topic_param_name(param.get_name());
+    if (info.field == TopicParamField::kNone || info.topic_name.empty()) {
+      continue;
+    }
+
+    auto value_opt = param_to_double(param);
+    if (!value_opt.has_value()) {
+      RCLCPP_WARN(
+        this->get_logger(),
+        "Parameter '%s' is not a numeric type, skipping",
+        param.get_name().c_str());
+      continue;
+    }
+
+    double value = value_opt.value();
+    TopicConfig & config = pending_topic_configs_[info.topic_name];
+
+    if (info.field == TopicParamField::kFrequency) {
+      config.expected_frequency = value;
+    } else {
+      config.tolerance = value;
+    }
+
+    RCLCPP_INFO(
+      this->get_logger(),
+      "Parameter set: %s for topic '%s' = %.2f %s",
+      get_field_name(info.field), info.topic_name.c_str(), value, get_field_unit(info.field));
+
+    apply_topic_config_if_complete(info.topic_name);
+  }
+
+  return result;
+}
+
+void GreenwaveMonitor::apply_topic_config_if_complete(const std::string & topic_name)
+{
+  auto it = pending_topic_configs_.find(topic_name);
+  if (it == pending_topic_configs_.end()) {
     return;
   }
 
-  msg_diagnostics_obj.setExpectedDt(request->expected_hz, request->tolerance_percent);
+  const TopicConfig & config = it->second;
 
-  response->success = true;
-  response->message = "Successfully set expected frequency for topic '" +
-    request->topic_name + "' to " + std::to_string(request->expected_hz) +
-    " hz with tolerance " + std::to_string(request->tolerance_percent) + "%";
+  // Get expected frequency from pending config or existing parameter
+  double expected_freq = 0.0;
+  if (config.expected_frequency.has_value()) {
+    expected_freq = config.expected_frequency.value();
+  } else {
+    auto freq_opt = get_numeric_parameter(make_freq_param_name(topic_name));
+    if (freq_opt.has_value()) {
+      expected_freq = freq_opt.value();
+    } else {
+      // No frequency available, nothing to do
+      return;
+    }
+  }
+
+  // Get tolerance from pending config, existing parameter, or default
+  double tolerance = config.tolerance.value_or(
+    get_numeric_parameter(make_tol_param_name(topic_name)).value_or(kDefaultTolerancePercent)
+  );
+
+  std::string message;
+  bool success = set_topic_expected_frequency(
+    topic_name,
+    expected_freq,
+    tolerance,
+    true,
+    message,
+    false);  // don't update parameters - called from parameter change
+
+  if (success) {
+    RCLCPP_INFO(this->get_logger(), "%s", message.c_str());
+  } else {
+    RCLCPP_WARN(
+      this->get_logger(),
+      "Could not apply config for topic '%s': %s. "
+      "Use manage_topic service to add the topic first.",
+      topic_name.c_str(), message.c_str());
+  }
+
+  pending_topic_configs_.erase(it);
+}
+
+void GreenwaveMonitor::load_topic_parameters_from_overrides()
+{
+  // Parameters are automatically declared from overrides due to NodeOptions setting.
+  // List all parameters and filter by prefix manually (list_parameters prefix matching
+  // can be unreliable with deeply nested parameter names).
+  auto all_params = this->list_parameters(
+    {}, rcl_interfaces::srv::ListParameters::Request::DEPTH_RECURSIVE);
+
+  for (const auto & name : all_params.names) {
+    auto info = parse_topic_param_name(name);
+    if (info.field == TopicParamField::kNone || info.topic_name.empty()) {
+      continue;
+    }
+
+    auto value_opt = get_numeric_parameter(name);
+    if (!value_opt.has_value()) {
+      continue;
+    }
+
+    double value = value_opt.value();
+    TopicConfig & config = pending_topic_configs_[info.topic_name];
+
+    if (info.field == TopicParamField::kFrequency) {
+      config.expected_frequency = value;
+    } else {
+      config.tolerance = value;
+    }
+
+    RCLCPP_INFO(
+      this->get_logger(),
+      "Initial parameter: %s for topic '%s' = %.2f %s",
+      get_field_name(info.field), info.topic_name.c_str(), value, get_field_unit(info.field));
+  }
+
+  // Apply all complete configs - at startup we can add topics if needed
+  std::vector<std::string> topics_to_apply;
+  for (const auto & [topic, config] : pending_topic_configs_) {
+    if (config.expected_frequency.has_value()) {
+      topics_to_apply.push_back(topic);
+    }
+  }
+  for (const auto & topic : topics_to_apply) {
+    const TopicConfig & config = pending_topic_configs_[topic];
+    double tolerance = config.tolerance.value_or(kDefaultTolerancePercent);
+
+    std::string message;
+    bool success = set_topic_expected_frequency(
+      topic,
+      config.expected_frequency.value(),
+      tolerance,
+      true,   // add topic if missing - safe at startup
+      message,
+      false);  // don't update parameters
+
+    if (success) {
+      RCLCPP_INFO(this->get_logger(), "%s", message.c_str());
+    } else {
+      RCLCPP_WARN(this->get_logger(), "%s", message.c_str());
+    }
+    pending_topic_configs_.erase(topic);
+  }
+}
+
+std::optional<double> GreenwaveMonitor::get_numeric_parameter(const std::string & param_name)
+{
+  if (!this->has_parameter(param_name)) {
+    return std::nullopt;
+  }
+  return param_to_double(this->get_parameter(param_name));
+}
+
+void GreenwaveMonitor::try_undeclare_parameter(const std::string & param_name)
+{
+  try {
+    if (this->has_parameter(param_name)) {
+      this->undeclare_parameter(param_name);
+    }
+  } catch (const std::exception & e) {
+    RCLCPP_WARN(
+      this->get_logger(), "Could not undeclare %s: %s",
+      param_name.c_str(), e.what());
+  }
+}
+
+void GreenwaveMonitor::declare_or_set_parameter(const std::string & param_name, double value)
+{
+  if (!this->has_parameter(param_name)) {
+    this->declare_parameter(param_name, value);
+  } else {
+    this->set_parameter(rclcpp::Parameter(param_name, value));
+  }
+}
+
+void GreenwaveMonitor::undeclare_topic_parameters(const std::string & topic_name)
+{
+  try_undeclare_parameter(make_freq_param_name(topic_name));
+  try_undeclare_parameter(make_tol_param_name(topic_name));
 }
 
 bool GreenwaveMonitor::has_header_from_type(const std::string & type_name)
@@ -315,6 +644,10 @@ bool GreenwaveMonitor::remove_topic(const std::string & topic, std::string & mes
   }
 
   message_diagnostics_.erase(diag_it);
+
+  // Clear any associated parameters
+  undeclare_topic_parameters(topic);
+
   message = "Successfully removed topic";
   return true;
 }

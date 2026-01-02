@@ -1,0 +1,107 @@
+#!/usr/bin/env python3
+
+# SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
+# Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# SPDX-License-Identifier: Apache-2.0
+
+"""Test: only tolerance specified - should NOT start monitoring."""
+
+import time
+import unittest
+
+from greenwave_monitor.test_utils import (
+    collect_diagnostics_for_topic,
+    create_minimal_publisher,
+    MONITOR_NODE_NAME,
+    MONITOR_NODE_NAMESPACE
+)
+from greenwave_monitor.ui_adaptor import (
+    TOL_SUFFIX,
+    TOPIC_PARAM_PREFIX,
+)
+import launch
+import launch_ros.actions
+import launch_testing
+import pytest
+import rclpy
+from rclpy.node import Node
+
+
+TEST_TOPIC = '/tol_only_topic'
+TEST_FREQUENCY = 50.0
+
+
+@pytest.mark.launch_test
+def generate_test_description():
+    """Test with only tolerance specified (should not monitor)."""
+    params = {
+        'topics': [''],
+        f'{TOPIC_PARAM_PREFIX}{TEST_TOPIC}{TOL_SUFFIX}': 15.0
+    }
+
+    ros2_monitor_node = launch_ros.actions.Node(
+        package='greenwave_monitor',
+        executable='greenwave_monitor',
+        name=MONITOR_NODE_NAME,
+        namespace=MONITOR_NODE_NAMESPACE,
+        parameters=[params],
+        output='screen'
+    )
+
+    publisher = create_minimal_publisher(
+        TEST_TOPIC, TEST_FREQUENCY, 'imu', '_tol_only'
+    )
+
+    return (
+        launch.LaunchDescription([
+            ros2_monitor_node,
+            publisher,
+            launch_testing.actions.ReadyToTest()
+        ]), {}
+    )
+
+
+class TestToleranceOnlyParameter(unittest.TestCase):
+    """Test that only specifying tolerance does NOT start monitoring."""
+
+    @classmethod
+    def setUpClass(cls):
+        """Initialize ROS2 and create test node."""
+        rclpy.init()
+        cls.test_node = Node('tol_only_test_node', namespace=MONITOR_NODE_NAMESPACE)
+
+    @classmethod
+    def tearDownClass(cls):
+        """Clean up ROS2."""
+        cls.test_node.destroy_node()
+        rclpy.shutdown()
+
+    def test_tolerance_only_does_not_monitor(self):
+        """Test that specifying only tolerance does not start monitoring."""
+        time.sleep(2.0)
+
+        received_diagnostics = collect_diagnostics_for_topic(
+            self.test_node, TEST_TOPIC, expected_count=1, timeout_sec=3.0
+        )
+
+        self.assertEqual(
+            len(received_diagnostics), 0,
+            f'Should not monitor topic with only tolerance set, got {len(received_diagnostics)}'
+        )
+
+
+if __name__ == '__main__':
+    unittest.main()

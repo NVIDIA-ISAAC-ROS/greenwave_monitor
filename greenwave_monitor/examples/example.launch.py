@@ -13,7 +13,6 @@
 # limitations under the License.
 
 from launch import LaunchDescription
-from launch.actions import LogInfo
 from launch_ros.actions import Node
 
 
@@ -52,11 +51,13 @@ def generate_launch_description():
             name='greenwave_monitor',
             output='log',
             parameters=[
-                {'topics': ['/imu_topic', '/image_topic', '/string_topic']}
-            ],
-        ),
-        LogInfo(
-            msg='Run `ros2 run r2s_gw r2s_gw` in another terminal to see the demo output '
-                'with the r2s dashboard.'
-        ),
+                {
+                    'topics': {
+                        '/imu_topic': {'expected_frequency': 100.0},
+                        '/image_topic': {'expected_frequency': 30.0},
+                        '/string_topic': {'expected_frequency': 1000.0}
+                    },
+                }
+            ]
+        )
     ])

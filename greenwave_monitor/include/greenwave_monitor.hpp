@@ -26,6 +26,7 @@
 #include <vector>
 
 #include "rclcpp/rclcpp.hpp"
+#include "rcl_interfaces/msg/set_parameters_result.hpp"
 #include "std_msgs/msg/string.hpp"
 #include "diagnostic_msgs/msg/diagnostic_array.hpp"
 #include "diagnostic_msgs/msg/diagnostic_status.hpp"
@@ -40,6 +41,12 @@ public:
   explicit GreenwaveMonitor(const rclcpp::NodeOptions & options);
 
 private:
+  struct TopicConfig
+  {
+    std::optional<double> expected_frequency;
+    std::optional<double> tolerance;
+  };
+
   std::optional<std::string> find_topic_type_with_retry(
     const std::string & topic, const int max_retries, const int retry_period_s);
 
@@ -56,6 +63,29 @@ private:
   void handle_set_expected_frequency(
     const std::shared_ptr<greenwave_monitor_interfaces::srv::SetExpectedFrequency::Request> request,
     std::shared_ptr<greenwave_monitor_interfaces::srv::SetExpectedFrequency::Response> response);
+
+  bool set_topic_expected_frequency(
+    const std::string & topic_name,
+    double expected_hz,
+    double tolerance_percent,
+    bool add_topic_if_missing,
+    std::string & message,
+    bool update_parameters = true);
+
+  rcl_interfaces::msg::SetParametersResult on_parameter_change(
+    const std::vector<rclcpp::Parameter> & parameters);
+
+  void apply_topic_config_if_complete(const std::string & topic_name);
+
+  void load_topic_parameters_from_overrides();
+
+  std::optional<double> get_numeric_parameter(const std::string & param_name);
+
+  void try_undeclare_parameter(const std::string & param_name);
+
+  void declare_or_set_parameter(const std::string & param_name, double value);
+
+  void undeclare_topic_parameters(const std::string & topic_name);
 
   bool add_topic(const std::string & topic, std::string & message);
 
@@ -76,4 +106,7 @@ private:
     manage_topic_service_;
   rclcpp::Service<greenwave_monitor_interfaces::srv::SetExpectedFrequency>::SharedPtr
     set_expected_frequency_service_;
+
+  std::map<std::string, TopicConfig> pending_topic_configs_;
+  rclcpp::node_interfaces::OnSetParametersCallbackHandle::SharedPtr param_callback_handle_;
 };

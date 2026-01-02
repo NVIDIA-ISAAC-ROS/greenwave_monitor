@@ -22,6 +22,11 @@ import time
 from typing import List, Optional, Tuple
 
 from diagnostic_msgs.msg import DiagnosticArray, DiagnosticStatus
+from greenwave_monitor.ui_adaptor import (
+    FREQ_SUFFIX,
+    TOL_SUFFIX,
+    TOPIC_PARAM_PREFIX,
+)
 from greenwave_monitor_interfaces.srv import ManageTopic, SetExpectedFrequency
 import launch_ros
 import rclpy
@@ -65,19 +70,32 @@ def create_minimal_publisher(
 
 def create_monitor_node(namespace: str = MONITOR_NODE_NAMESPACE,
                         node_name: str = MONITOR_NODE_NAME,
-                        topics: List[str] = None):
+                        topics: List[str] = None,
+                        topic_configs: dict = None):
     """Create a greenwave_monitor node for testing."""
     if topics is None:
         topics = ['/test_topic']
+
+    # Ensure topics list has at least one element (even if empty string)
+    if not topics:
+        topics = ['']
+
+    params = {'topics': topics}
+
+    if topic_configs:
+        for topic, config in topic_configs.items():
+            if 'expected_frequency' in config:
+                params[f'{TOPIC_PARAM_PREFIX}{topic}{FREQ_SUFFIX}'] = float(
+                    config['expected_frequency'])
+            if 'tolerance' in config:
+                params[f'{TOPIC_PARAM_PREFIX}{topic}{TOL_SUFFIX}'] = float(config['tolerance'])
 
     return launch_ros.actions.Node(
         package='greenwave_monitor',
         executable='greenwave_monitor',
         name=node_name,
         namespace=namespace,
-        parameters=[{
-            'topics': topics
-        }],
+        parameters=[params],
         output='screen'
     )
 
