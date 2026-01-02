@@ -41,6 +41,8 @@ from rclpy.node import Node
 
 TEST_TOPIC = '/dynamic_param_topic'
 TEST_FREQUENCY = 30.0
+TEST_TOLERANCE = 20.0
+NONEXISTENT_TOPIC = '/topic_that_does_not_exist'
 
 
 @pytest.mark.launch_test
@@ -82,6 +84,15 @@ class TestDynamicParameterChanges(unittest.TestCase):
         """Test setting expected frequency via ros2 param set."""
         time.sleep(2.0)
 
+        # Verify topic is not monitored before setting frequency
+        initial_diagnostics = collect_diagnostics_for_topic(
+            self.test_node, TEST_TOPIC, expected_count=1, timeout_sec=2.0
+        )
+        self.assertEqual(
+            len(initial_diagnostics), 0,
+            f'{TEST_TOPIC} should not be monitored before setting frequency'
+        )
+
         freq_param = make_freq_param(TEST_TOPIC)
         success = set_parameter(self.test_node, freq_param, TEST_FREQUENCY)
         self.assertTrue(success, f'Failed to set {freq_param}')
@@ -97,12 +108,20 @@ class TestDynamicParameterChanges(unittest.TestCase):
             'Expected diagnostics after setting frequency param'
         )
 
+        # Verify parameter value
+        success, actual_freq = get_parameter(self.test_node, freq_param)
+        self.assertTrue(success, f'Failed to get {freq_param}')
+        self.assertAlmostEqual(
+            actual_freq, TEST_FREQUENCY, places=1,
+            msg=f'Frequency mismatch: expected {TEST_FREQUENCY}, got {actual_freq}'
+        )
+
     def test_change_tolerance_via_param(self):
         """Test changing tolerance via ros2 param set."""
         time.sleep(1.0)
 
         tol_param = make_tol_param(TEST_TOPIC)
-        success = set_parameter(self.test_node, tol_param, 20.0)
+        success = set_parameter(self.test_node, tol_param, TEST_TOLERANCE)
         self.assertTrue(success, f'Failed to set {tol_param}')
 
         time.sleep(0.5)
@@ -116,37 +135,37 @@ class TestDynamicParameterChanges(unittest.TestCase):
             'Topic should still be monitored after tolerance change'
         )
 
-    def test_verify_params_with_get(self):
-        """Test that ros2 param get returns the values we set."""
-        time.sleep(1.0)
-
-        # Set specific values
-        freq_param = make_freq_param(TEST_TOPIC)
-        tol_param = make_tol_param(TEST_TOPIC)
-        expected_freq = 42.5
-        expected_tol = 15.0
-
-        success = set_parameter(self.test_node, freq_param, expected_freq)
-        self.assertTrue(success, f'Failed to set {freq_param}')
-
-        success = set_parameter(self.test_node, tol_param, expected_tol)
-        self.assertTrue(success, f'Failed to set {tol_param}')
-
-        time.sleep(0.5)
-
-        # Verify with get_parameter
-        success, actual_freq = get_parameter(self.test_node, freq_param)
-        self.assertTrue(success, f'Failed to get {freq_param}')
-        self.assertAlmostEqual(
-            actual_freq, expected_freq, places=1,
-            msg=f'Frequency mismatch: expected {expected_freq}, got {actual_freq}'
-        )
-
+        # Verify parameter value
         success, actual_tol = get_parameter(self.test_node, tol_param)
         self.assertTrue(success, f'Failed to get {tol_param}')
         self.assertAlmostEqual(
-            actual_tol, expected_tol, places=1,
-            msg=f'Tolerance mismatch: expected {expected_tol}, got {actual_tol}'
+            actual_tol, TEST_TOLERANCE, places=1,
+            msg=f'Tolerance mismatch: expected {TEST_TOLERANCE}, got {actual_tol}'
+        )
+
+    def test_set_frequency_for_nonexistent_topic(self):
+        """Test setting expected frequency for a topic that does not exist."""
+        time.sleep(1.0)
+
+        freq_param = make_freq_param(NONEXISTENT_TOPIC)
+        success = set_parameter(self.test_node, freq_param, TEST_FREQUENCY)
+        self.assertTrue(success, f'Failed to set {freq_param}')
+
+        # Verify parameter was set
+        success, actual_freq = get_parameter(self.test_node, freq_param)
+        self.assertTrue(success, f'Failed to get {freq_param}')
+        self.assertAlmostEqual(
+            actual_freq, TEST_FREQUENCY, places=1,
+            msg=f'Frequency mismatch: expected {TEST_FREQUENCY}, got {actual_freq}'
+        )
+
+        # Topic should not appear in diagnostics since it doesn't exist
+        diagnostics = collect_diagnostics_for_topic(
+            self.test_node, NONEXISTENT_TOPIC, expected_count=1, timeout_sec=3.0
+        )
+        self.assertEqual(
+            len(diagnostics), 0,
+            f'{NONEXISTENT_TOPIC} should not appear in diagnostics'
         )
 
 
