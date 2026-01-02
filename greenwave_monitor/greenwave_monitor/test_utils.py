@@ -65,7 +65,8 @@ def make_tol_param(topic: str) -> str:
 
 
 def set_parameter(test_node: Node, param_name: str, value: float,
-                  node_name: str = MONITOR_NODE_NAME) -> bool:
+                  node_name: str = MONITOR_NODE_NAME,
+                  timeout_sec: float = 10.0) -> bool:
     """Set a parameter on the monitor node using rclpy service client."""
     full_node_name = f'/{MONITOR_NODE_NAMESPACE}/{node_name}'
     service_name = f'{full_node_name}/set_parameters'
@@ -84,7 +85,7 @@ def set_parameter(test_node: Node, param_name: str, value: float,
     request.parameters = [param]
 
     future = client.call_async(request)
-    rclpy.spin_until_future_complete(test_node, future, timeout_sec=5.0)
+    rclpy.spin_until_future_complete(test_node, future, timeout_sec=timeout_sec)
 
     test_node.destroy_client(client)
 
@@ -120,19 +121,6 @@ def get_parameter(test_node: Node, param_name: str,
     elif param_value.type == ParameterType.PARAMETER_INTEGER:
         return True, float(param_value.integer_value)
     return False, None
-
-
-def has_valid_frame_rate(diagnostics: List[DiagnosticStatus]) -> bool:
-    """Check if any diagnostic has a valid (positive) frame_rate_node value."""
-    for status in diagnostics:
-        for kv in status.values:
-            if kv.key == 'frame_rate_node':
-                try:
-                    if float(kv.value) > 0:
-                        return True
-                except ValueError:
-                    continue
-    return False
 
 
 def create_minimal_publisher(

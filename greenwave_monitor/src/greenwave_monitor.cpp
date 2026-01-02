@@ -192,11 +192,13 @@ void GreenwaveMonitor::topic_callback(
   const std::string & topic, const std::string & type)
 {
   auto msg_timestamp = GetTimestampFromSerializedMessage(msg, type);
+  std::lock_guard<std::mutex> lock(state_mutex_);
   message_diagnostics_[topic]->updateDiagnostics(msg_timestamp.time_since_epoch().count());
 }
 
 void GreenwaveMonitor::timer_callback()
 {
+  std::lock_guard<std::mutex> lock(state_mutex_);
   RCLCPP_INFO(this->get_logger(), "====================================================");
   if (message_diagnostics_.empty()) {
     RCLCPP_INFO(this->get_logger(), "No topics to monitor");
@@ -217,6 +219,7 @@ void GreenwaveMonitor::handle_manage_topic(
   const std::shared_ptr<greenwave_monitor_interfaces::srv::ManageTopic::Request> request,
   std::shared_ptr<greenwave_monitor_interfaces::srv::ManageTopic::Response> response)
 {
+  std::lock_guard<std::mutex> lock(state_mutex_);
   if (request->add_topic) {
     response->success = add_topic(request->topic_name, response->message);
   } else {
@@ -228,6 +231,7 @@ void GreenwaveMonitor::handle_set_expected_frequency(
   const std::shared_ptr<greenwave_monitor_interfaces::srv::SetExpectedFrequency::Request> request,
   std::shared_ptr<greenwave_monitor_interfaces::srv::SetExpectedFrequency::Response> response)
 {
+  std::lock_guard<std::mutex> lock(state_mutex_);
   auto it = message_diagnostics_.find(request->topic_name);
 
   if (it == message_diagnostics_.end()) {
@@ -300,8 +304,10 @@ bool GreenwaveMonitor::set_topic_expected_frequency(
 
   // Sync parameters with the new values
   if (update_parameters) {
+    updating_params_internally_ = true;
     declare_or_set_parameter(make_freq_param_name(topic_name), expected_hz);
     declare_or_set_parameter(make_tol_param_name(topic_name), tolerance_percent);
+    updating_params_internally_ = false;
   }
 
   message = "Successfully set expected frequency for topic '" +
@@ -315,6 +321,13 @@ rcl_interfaces::msg::SetParametersResult GreenwaveMonitor::on_parameter_change(
 {
   rcl_interfaces::msg::SetParametersResult result;
   result.successful = true;
+
+  // Skip if updating from within the node (avoids redundant work and deadlock)
+  if (updating_params_internally_) {
+    return result;
+  }
+
+  std::lock_guard<std::mutex> lock(state_mutex_);
 
   for (const auto & param : parameters) {
     auto info = parse_topic_param_name(param.get_name());
@@ -403,6 +416,8 @@ void GreenwaveMonitor::apply_topic_config_if_complete(const std::string & topic_
 
 void GreenwaveMonitor::load_topic_parameters_from_overrides()
 {
+  std::lock_guard<std::mutex> lock(state_mutex_);
+
   // Parameters are automatically declared from overrides due to NodeOptions setting.
   // List all parameters and filter by prefix manually (list_parameters prefix matching
   // can be unreliable with deeply nested parameter names).

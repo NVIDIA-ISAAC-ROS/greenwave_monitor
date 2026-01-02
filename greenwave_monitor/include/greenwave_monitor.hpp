@@ -20,6 +20,7 @@
 #include <chrono>
 #include <map>
 #include <memory>
+#include <mutex>
 #include <optional>
 #include <string>
 #include <thread>
@@ -109,4 +110,9 @@ private:
 
   std::map<std::string, TopicConfig> pending_topic_configs_;
   rclcpp::node_interfaces::OnSetParametersCallbackHandle::SharedPtr param_callback_handle_;
+
+  // Mutex protecting message_diagnostics_, subscriptions_, and pending_topic_configs_
+  mutable std::mutex state_mutex_;
+  // Flag to skip parameter callback when updating params internally (avoids redundant work)
+  bool updating_params_internally_ = false;
 };

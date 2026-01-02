@@ -26,6 +26,7 @@ from greenwave_monitor.test_utils import (
     collect_diagnostics_for_topic,
     create_minimal_publisher,
     create_monitor_node,
+    find_best_diagnostic,
     MONITOR_NODE_NAME,
     MONITOR_NODE_NAMESPACE,
 )
@@ -120,34 +121,14 @@ class TestTopicParameters(unittest.TestCase):
             len(received_diagnostics), 3,
             f'Expected at least 3 diagnostics for {TEST_TOPIC}, got {len(received_diagnostics)}'
         )
-
-        # Verify valid frame rate exists
-        best_status = None
-        for status in received_diagnostics:
-            for kv in status.values:
-                if kv.key == 'frame_rate_node':
-                    try:
-                        frame_rate = float(kv.value)
-                        if frame_rate > 0:
-                            best_status = status
-                            break
-                    except ValueError:
-                        continue
-            if best_status:
-                break
-
+        best_status, best_values = find_best_diagnostic(
+            received_diagnostics, TEST_FREQUENCY, 'imu'
+        )
         self.assertIsNotNone(
             best_status,
             'Should have received diagnostics with valid frame_rate_node'
         )
-
-        frame_rate_node = None
-        for kv in best_status.values:
-            if kv.key == 'frame_rate_node':
-                frame_rate_node = float(kv.value)
-                break
-
-        self.assertIsNotNone(frame_rate_node)
+        frame_rate_node = best_values[0]
         tolerance = TEST_FREQUENCY * 0.5
         self.assertAlmostEqual(
             frame_rate_node, TEST_FREQUENCY, delta=tolerance,

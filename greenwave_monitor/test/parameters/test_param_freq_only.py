@@ -26,7 +26,7 @@ from greenwave_monitor.test_utils import (
     collect_diagnostics_for_topic,
     create_minimal_publisher,
     create_monitor_node,
-    has_valid_frame_rate,
+    find_best_diagnostic,
     MONITOR_NODE_NAMESPACE,
 )
 import launch
@@ -94,8 +94,11 @@ class TestFrequencyOnlyParameter(unittest.TestCase):
             len(received_diagnostics), 3,
             f'Expected at least 3 diagnostics, got {len(received_diagnostics)}'
         )
-        self.assertTrue(
-            has_valid_frame_rate(received_diagnostics),
+        best_status, _ = find_best_diagnostic(
+            received_diagnostics, TEST_FREQUENCY, 'imu'
+        )
+        self.assertIsNotNone(
+            best_status,
             'Should have valid frame rate with default tolerance'
         )
 

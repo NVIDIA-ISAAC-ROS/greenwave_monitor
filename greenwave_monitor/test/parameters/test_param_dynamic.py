@@ -48,9 +48,7 @@ NONEXISTENT_TOPIC = '/topic_that_does_not_exist'
 @pytest.mark.launch_test
 def generate_test_description():
     """Test dynamic parameter changes via ros2 param set."""
-    ros2_monitor_node = create_monitor_node(
-        topics=[TEST_TOPIC]  # Topic exists but no expected frequency
-    )
+    ros2_monitor_node = create_monitor_node()
 
     publisher = create_minimal_publisher(
         TEST_TOPIC, TEST_FREQUENCY, 'imu', '_dynamic'
@@ -80,35 +78,46 @@ class TestDynamicParameterChanges(unittest.TestCase):
         cls.test_node.destroy_node()
         rclpy.shutdown()
 
-    def test_set_expected_frequency_via_param(self):
-        """Test setting expected frequency via ros2 param set."""
+    def test_set_parameters(self):
+        """Test setting frequency and tolerance parameters in sequence."""
         time.sleep(2.0)
 
-        # Verify topic is not monitored before setting frequency
+        freq_param = make_freq_param(TEST_TOPIC)
+        tol_param = make_tol_param(TEST_TOPIC)
+
+        # 1. Verify topic is not monitored initially
         initial_diagnostics = collect_diagnostics_for_topic(
             self.test_node, TEST_TOPIC, expected_count=1, timeout_sec=2.0
         )
         self.assertEqual(
             len(initial_diagnostics), 0,
-            f'{TEST_TOPIC} should not be monitored before setting frequency'
+            f'{TEST_TOPIC} should not be monitored initially'
         )
 
-        freq_param = make_freq_param(TEST_TOPIC)
+        # 2. Set tolerance before frequency - topic should remain unmonitored
+        success = set_parameter(self.test_node, tol_param, TEST_TOLERANCE)
+        self.assertTrue(success, f'Failed to set {tol_param}')
+
+        success, actual_tol = get_parameter(self.test_node, tol_param)
+        self.assertTrue(success, f'Failed to get {tol_param}')
+        self.assertAlmostEqual(
+            actual_tol, TEST_TOLERANCE, places=1,
+            msg=f'Tolerance mismatch: expected {TEST_TOLERANCE}, got {actual_tol}'
+        )
+
+        time.sleep(1.0)
+        diagnostics_after_tol = collect_diagnostics_for_topic(
+            self.test_node, TEST_TOPIC, expected_count=1, timeout_sec=2.0
+        )
+        self.assertEqual(
+            len(diagnostics_after_tol), 0,
+            f'{TEST_TOPIC} should remain unmonitored after setting only tolerance'
+        )
+
+        # 3. Set frequency - topic should become monitored
         success = set_parameter(self.test_node, freq_param, TEST_FREQUENCY)
         self.assertTrue(success, f'Failed to set {freq_param}')
 
-        time.sleep(1.0)
-
-        received_diagnostics = collect_diagnostics_for_topic(
-            self.test_node, TEST_TOPIC, expected_count=3, timeout_sec=10.0
-        )
-
-        self.assertGreaterEqual(
-            len(received_diagnostics), 3,
-            'Expected diagnostics after setting frequency param'
-        )
-
-        # Verify parameter value
         success, actual_freq = get_parameter(self.test_node, freq_param)
         self.assertTrue(success, f'Failed to get {freq_param}')
         self.assertAlmostEqual(
@@ -116,31 +125,42 @@ class TestDynamicParameterChanges(unittest.TestCase):
             msg=f'Frequency mismatch: expected {TEST_FREQUENCY}, got {actual_freq}'
         )
 
-    def test_change_tolerance_via_param(self):
-        """Test changing tolerance via ros2 param set."""
         time.sleep(1.0)
-
-        tol_param = make_tol_param(TEST_TOPIC)
-        success = set_parameter(self.test_node, tol_param, TEST_TOLERANCE)
-        self.assertTrue(success, f'Failed to set {tol_param}')
-
-        time.sleep(0.5)
-
-        received_diagnostics = collect_diagnostics_for_topic(
-            self.test_node, TEST_TOPIC, expected_count=2, timeout_sec=5.0
+        diagnostics_after_freq = collect_diagnostics_for_topic(
+            self.test_node, TEST_TOPIC, expected_count=3, timeout_sec=10.0
         )
-
         self.assertGreaterEqual(
-            len(received_diagnostics), 2,
-            'Topic should still be monitored after tolerance change'
+            len(diagnostics_after_freq), 3,
+            'Expected diagnostics after setting frequency param'
         )
 
-        # Verify parameter value
+        # 4. Set tolerance to 0.0 - should cause diagnostics to show error
+        success = set_parameter(self.test_node, tol_param, 0.0)
+        self.assertTrue(success, f'Failed to set {tol_param} to 0.0')
+
         success, actual_tol = get_parameter(self.test_node, tol_param)
         self.assertTrue(success, f'Failed to get {tol_param}')
         self.assertAlmostEqual(
-            actual_tol, TEST_TOLERANCE, places=1,
-            msg=f'Tolerance mismatch: expected {TEST_TOLERANCE}, got {actual_tol}'
+            actual_tol, 0.0, places=1,
+            msg=f'Tolerance mismatch: expected 0.0, got {actual_tol}'
+        )
+
+        time.sleep(2.0)
+        diagnostics_with_zero_tol = collect_diagnostics_for_topic(
+            self.test_node, TEST_TOPIC, expected_count=2, timeout_sec=5.0
+        )
+        self.assertGreaterEqual(
+            len(diagnostics_with_zero_tol), 2,
+            'Topic should still be monitored with zero tolerance'
+        )
+
+        # Check that at least one diagnostic has ERROR level (frequency outside 0% tolerance)
+        has_error = any(
+            d.level != 0 for d in diagnostics_with_zero_tol
+        )
+        self.assertTrue(
+            has_error,
+            'Expected ERROR diagnostics with 0% tolerance'
         )
 
     def test_set_frequency_for_nonexistent_topic(self):

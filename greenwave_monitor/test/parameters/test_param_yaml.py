@@ -27,7 +27,7 @@ import unittest
 from greenwave_monitor.test_utils import (
     collect_diagnostics_for_topic,
     create_minimal_publisher,
-    has_valid_frame_rate,
+    find_best_diagnostic,
     MONITOR_NODE_NAME,
     MONITOR_NODE_NAMESPACE,
 )
@@ -123,8 +123,11 @@ class TestYamlParameterFile(unittest.TestCase):
             len(received_diagnostics), 3,
             'Expected diagnostics from YAML-configured topic'
         )
-        self.assertTrue(
-            has_valid_frame_rate(received_diagnostics),
+        best_status, _ = find_best_diagnostic(
+            received_diagnostics, TEST_FREQUENCY, 'imu'
+        )
+        self.assertIsNotNone(
+            best_status,
             'Should have valid frame rate from YAML config'
         )
 
@@ -140,8 +143,11 @@ class TestYamlParameterFile(unittest.TestCase):
             len(received_diagnostics), 3,
             'Expected diagnostics from nested YAML-configured topic'
         )
-        self.assertTrue(
-            has_valid_frame_rate(received_diagnostics),
+        best_status, _ = find_best_diagnostic(
+            received_diagnostics, NESTED_FREQUENCY, 'imu'
+        )
+        self.assertIsNotNone(
+            best_status,
             'Should have valid frame rate from nested YAML config'
         )
 
