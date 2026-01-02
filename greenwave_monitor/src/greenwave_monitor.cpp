@@ -67,13 +67,11 @@ TopicParamInfo parse_topic_param_name(const std::string & param_name)
   const size_t tol_suffix_len = strlen(kTolSuffix);
 
   if (topic_and_field.length() > freq_suffix_len &&
-    topic_and_field.rfind(kFreqSuffix) == topic_and_field.length() - freq_suffix_len)
-  {
+    topic_and_field.rfind(kFreqSuffix) == topic_and_field.length() - freq_suffix_len) {
     info.topic_name = topic_and_field.substr(0, topic_and_field.length() - freq_suffix_len);
     info.field = TopicParamField::kFrequency;
   } else if (topic_and_field.length() > tol_suffix_len &&
-    topic_and_field.rfind(kTolSuffix) == topic_and_field.length() - tol_suffix_len)
-  {
+    topic_and_field.rfind(kTolSuffix) == topic_and_field.length() - tol_suffix_len) {
     info.topic_name = topic_and_field.substr(0, topic_and_field.length() - tol_suffix_len);
     info.field = TopicParamField::kTolerance;
   }
