@@ -20,7 +20,6 @@
 #include <chrono>
 #include <map>
 #include <memory>
-#include <mutex>
 #include <optional>
 #include <string>
 #include <thread>
@@ -76,7 +75,7 @@ private:
   rcl_interfaces::msg::SetParametersResult on_parameter_change(
     const std::vector<rclcpp::Parameter> & parameters);
 
-  void apply_topic_config_if_complete(const std::string & topic_name);
+  void apply_topic_config(const std::string & topic_name, const TopicConfig & incoming);
 
   void load_topic_parameters_from_overrides();
 
@@ -108,11 +107,8 @@ private:
   rclcpp::Service<greenwave_monitor_interfaces::srv::SetExpectedFrequency>::SharedPtr
     set_expected_frequency_service_;
 
-  std::map<std::string, TopicConfig> pending_topic_configs_;
   rclcpp::node_interfaces::OnSetParametersCallbackHandle::SharedPtr param_callback_handle_;
 
-  // Mutex protecting message_diagnostics_, subscriptions_, and pending_topic_configs_
-  mutable std::mutex state_mutex_;
   // Flag to skip parameter callback when updating params internally (avoids redundant work)
   bool updating_params_internally_ = false;
 };
