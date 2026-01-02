@@ -54,9 +54,6 @@ def generate_test_description():
     }
 
     ros2_monitor_node = create_monitor_node(
-        namespace=MONITOR_NODE_NAMESPACE,
-        node_name=MONITOR_NODE_NAME,
-        topics=[],
         topic_configs=topic_configs
     )
 

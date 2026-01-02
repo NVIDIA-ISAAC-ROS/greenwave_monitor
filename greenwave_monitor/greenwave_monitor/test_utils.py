@@ -73,14 +73,15 @@ def create_monitor_node(namespace: str = MONITOR_NODE_NAMESPACE,
                         topics: List[str] = None,
                         topic_configs: dict = None):
     """Create a greenwave_monitor node for testing."""
-    if topics is None:
-        topics = ['/test_topic']
+    params = {}
 
-    # Ensure topics list has at least one element (even if empty string)
-    if not topics:
-        topics = ['']
-
-    params = {'topics': topics}
+    # Only add topics param if explicitly provided or no topic_configs
+    if topics is not None:
+        if not topics:
+            topics = ['']
+        params['topics'] = topics
+    elif not topic_configs:
+        params['topics'] = ['/test_topic']
 
     if topic_configs:
         for topic, config in topic_configs.items():

@@ -48,7 +48,6 @@ TEST_FREQUENCY = 50.0
 def generate_test_description():
     """Test with only tolerance specified (should not monitor)."""
     params = {
-        'topics': [''],
         f'{TOPIC_PARAM_PREFIX}{TEST_TOPIC}{TOL_SUFFIX}': 15.0
     }
 

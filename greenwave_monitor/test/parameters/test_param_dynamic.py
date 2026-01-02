@@ -43,6 +43,7 @@ from rclpy.node import Node
 
 
 TEST_TOPIC = '/dynamic_param_topic'
+NEW_TOPIC = '/new_param_topic'
 TEST_FREQUENCY = 30.0
 
 
@@ -89,20 +90,23 @@ def make_tol_param(topic: str) -> str:
 def generate_test_description():
     """Test dynamic parameter changes via ros2 param set."""
     ros2_monitor_node = create_monitor_node(
-        namespace=MONITOR_NODE_NAMESPACE,
-        node_name=MONITOR_NODE_NAME,
-        topics=[TEST_TOPIC],  # Topic exists but no expected frequency
-        topic_configs={}
+        topics=[TEST_TOPIC]  # Topic exists but no expected frequency
     )
 
     publisher = create_minimal_publisher(
         TEST_TOPIC, TEST_FREQUENCY, 'imu', '_dynamic'
     )
 
+    # Publisher for topic not initially monitored
+    new_topic_publisher = create_minimal_publisher(
+        NEW_TOPIC, TEST_FREQUENCY, 'imu', '_new_dynamic'
+    )
+
     return (
         launch.LaunchDescription([
             ros2_monitor_node,
             publisher,
+            new_topic_publisher,
             launch_testing.actions.ReadyToTest()
         ]), {}
     )
@@ -192,6 +196,36 @@ class TestDynamicParameterChanges(unittest.TestCase):
         self.assertAlmostEqual(
             actual_tol, expected_tol, places=1,
             msg=f'Tolerance mismatch: expected {expected_tol}, got {actual_tol}'
+        )
+
+    def test_add_new_topic_via_param(self):
+        """Test that setting frequency param for unmonitored topic starts monitoring."""
+        time.sleep(1.0)
+
+        # Verify topic is not initially monitored
+        initial_diagnostics = collect_diagnostics_for_topic(
+            self.test_node, NEW_TOPIC, expected_count=1, timeout_sec=2.0
+        )
+        self.assertEqual(
+            len(initial_diagnostics), 0,
+            f'{NEW_TOPIC} should not be monitored initially'
+        )
+
+        # Set expected frequency for the new topic
+        freq_param = make_freq_param(NEW_TOPIC)
+        success = run_ros2_param_set(MONITOR_NODE_NAME, freq_param, TEST_FREQUENCY)
+        self.assertTrue(success, f'Failed to set {freq_param}')
+
+        time.sleep(2.0)
+
+        # Verify topic is now monitored
+        received_diagnostics = collect_diagnostics_for_topic(
+            self.test_node, NEW_TOPIC, expected_count=3, timeout_sec=10.0
+        )
+
+        self.assertGreaterEqual(
+            len(received_diagnostics), 3,
+            f'{NEW_TOPIC} should be monitored after setting frequency param'
         )
 
 

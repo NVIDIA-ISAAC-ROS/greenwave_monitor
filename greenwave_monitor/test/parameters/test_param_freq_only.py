@@ -26,7 +26,6 @@ from greenwave_monitor.test_utils import (
     collect_diagnostics_for_topic,
     create_minimal_publisher,
     create_monitor_node,
-    MONITOR_NODE_NAME,
     MONITOR_NODE_NAMESPACE
 )
 import launch
@@ -51,9 +50,6 @@ def generate_test_description():
     }
 
     ros2_monitor_node = create_monitor_node(
-        namespace=MONITOR_NODE_NAMESPACE,
-        node_name=MONITOR_NODE_NAME,
-        topics=[],
         topic_configs=topic_configs
     )
 

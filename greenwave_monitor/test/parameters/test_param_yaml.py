@@ -39,22 +39,28 @@ from rclpy.node import Node
 
 
 YAML_TOPIC = '/yaml_config_topic'
+NESTED_TOPIC = '/nested_yaml_topic'
 TEST_FREQUENCY = 50.0
+NESTED_FREQUENCY = 25.0
 TEST_TOLERANCE = 10.0
 
 
 @pytest.mark.launch_test
 def generate_test_description():
     """Test loading parameters from a YAML file."""
-    # Write YAML manually with proper quoting (yaml.dump doesn't quote keys with dots)
-    # Use /** to apply to all nodes, or use full namespace path
+    # Write YAML manually - demonstrates both flat dotted keys and nested dict formats
+    # Use full namespace path for node parameters
     yaml_content = (
         f'/{MONITOR_NODE_NAMESPACE}/{MONITOR_NODE_NAME}:\n'
         f'  ros__parameters:\n'
-        f'    topics:\n'
-        f"      - ''\n"
+        f'    # Flat dotted key format (requires quotes)\n'
         f'    "topics.{YAML_TOPIC}.expected_frequency": {TEST_FREQUENCY}\n'
         f'    "topics.{YAML_TOPIC}.tolerance": {TEST_TOLERANCE}\n'
+        f'    # Nested dictionary format\n'
+        f'    topics:\n'
+        f'      {NESTED_TOPIC}:\n'
+        f'        expected_frequency: {NESTED_FREQUENCY}\n'
+        f'        tolerance: {TEST_TOLERANCE}\n'
     )
 
     yaml_dir = tempfile.mkdtemp()
@@ -75,10 +81,15 @@ def generate_test_description():
         YAML_TOPIC, TEST_FREQUENCY, 'imu', '_yaml'
     )
 
+    nested_publisher = create_minimal_publisher(
+        NESTED_TOPIC, NESTED_FREQUENCY, 'imu', '_nested_yaml'
+    )
+
     return (
         launch.LaunchDescription([
             ros2_monitor_node,
             publisher,
+            nested_publisher,
             launch_testing.actions.ReadyToTest()
         ]), {}
     )
@@ -126,6 +137,34 @@ class TestYamlParameterFile(unittest.TestCase):
                 break
 
         self.assertTrue(has_valid_rate, 'Should have valid frame rate from YAML config')
+
+    def test_nested_dict_topic_configured_via_yaml(self):
+        """Test that topic configured via nested YAML dict is monitored."""
+        time.sleep(2.0)
+
+        received_diagnostics = collect_diagnostics_for_topic(
+            self.test_node, NESTED_TOPIC, expected_count=3, timeout_sec=10.0
+        )
+
+        self.assertGreaterEqual(
+            len(received_diagnostics), 3,
+            'Expected diagnostics from nested YAML-configured topic'
+        )
+
+        has_valid_rate = False
+        for status in received_diagnostics:
+            for kv in status.values:
+                if kv.key == 'frame_rate_node':
+                    try:
+                        if float(kv.value) > 0:
+                            has_valid_rate = True
+                            break
+                    except ValueError:
+                        continue
+            if has_valid_rate:
+                break
+
+        self.assertTrue(has_valid_rate, 'Should have valid frame rate from nested YAML config')
 
 
 if __name__ == '__main__':

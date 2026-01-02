@@ -53,9 +53,9 @@ def generate_launch_description():
             parameters=[
                 {
                     'topics': {
-                        '/imu_topic': {'expected_frequency': 100.0},
-                        '/image_topic': {'expected_frequency': 30.0},
-                        '/string_topic': {'expected_frequency': 1000.0}
+                        '/imu_topic': {'expected_frequency': 100.0, 'tolerance': 5.0},
+                        '/image_topic': {'expected_frequency': 30.0, 'tolerance': 5.0},
+                        '/string_topic': {'expected_frequency': 1000.0, 'tolerance': 5.0}
                     },
                 }
             ]

@@ -64,12 +64,7 @@ def make_freq_param(topic: str) -> str:
 @pytest.mark.launch_test
 def generate_test_description():
     """Test adding a new topic via ros2 param set."""
-    ros2_monitor_node = create_monitor_node(
-        namespace=MONITOR_NODE_NAMESPACE,
-        node_name=MONITOR_NODE_NAME,
-        topics=[''],  # Empty - no initial topics
-        topic_configs={}
-    )
+    ros2_monitor_node = create_monitor_node()
 
     publisher = create_minimal_publisher(
         NEW_TOPIC, TEST_FREQUENCY, 'imu', '_new_dynamic'
