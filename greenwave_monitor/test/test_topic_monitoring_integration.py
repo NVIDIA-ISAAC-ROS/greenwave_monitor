@@ -132,10 +132,18 @@ class TestTopicMonitoringIntegration(unittest.TestCase):
         if hasattr(self, 'diagnostics_monitor'):
             # Clean up ROS components
             try:
+                timer = self.diagnostics_monitor._initial_params_timer
+                if timer is not None:
+                    timer.cancel()
+                    self.test_node.destroy_timer(timer)
                 self.test_node.destroy_subscription(self.diagnostics_monitor.subscription)
+                self.test_node.destroy_subscription(
+                    self.diagnostics_monitor.param_events_subscription)
                 self.test_node.destroy_client(self.diagnostics_monitor.manage_topic_client)
                 self.test_node.destroy_client(
                     self.diagnostics_monitor.set_expected_frequency_client)
+                self.test_node.destroy_client(self.diagnostics_monitor.list_params_client)
+                self.test_node.destroy_client(self.diagnostics_monitor.get_params_client)
             except Exception:
                 pass  # Ignore cleanup errors
 

@@ -116,6 +116,17 @@ if(BUILD_TESTING)
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
   )
 
+  # Add parameter-based topic configuration tests (in test/parameters/)
+  # Automatically discover and add all test_*.py files in the parameters directory
+  file(GLOB PARAM_TEST_FILES "${CMAKE_SOURCE_DIR}/test/parameters/test_*.py")
+  foreach(TEST_FILE ${PARAM_TEST_FILES})
+    get_filename_component(TEST_NAME ${TEST_FILE} NAME_WE)
+    ament_add_pytest_test(${TEST_NAME} test/parameters/${TEST_NAME}.py
+      TIMEOUT 120
+      WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    )
+  endforeach()
+
   # Add gtests
   ament_add_gtest(test_message_diagnostics test/test_message_diagnostics.cpp
     TIMEOUT 60
