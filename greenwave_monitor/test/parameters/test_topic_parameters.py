@@ -28,7 +28,6 @@ from greenwave_monitor.test_utils import (
     create_monitor_node,
     find_best_diagnostic,
     MONITOR_NODE_NAME,
-    MONITOR_NODE_NAMESPACE,
     RosNodeTestCase,
 )
 import launch
@@ -36,8 +35,6 @@ import launch_testing
 from launch_testing import post_shutdown_test
 from launch_testing.asserts import assertExitCodes
 import pytest
-import rclpy
-from rclpy.node import Node
 
 
 TEST_TOPIC = '/param_test_topic'

@@ -20,6 +20,7 @@
 """Test: only expected_frequency specified, tolerance defaults to 5%."""
 
 import time
+import unittest
 
 from greenwave_monitor.test_utils import (
     collect_diagnostics_for_topic,

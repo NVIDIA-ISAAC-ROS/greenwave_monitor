@@ -377,14 +377,6 @@ class RosNodeTestCase(unittest.TestCase, ABC):
 
     Subclasses must define the TEST_NODE_NAME class attribute to specify
     the unique name for the test node.
-
-    Example:
-        class TestMyFeature(RosNodeTestCase):
-            TEST_NODE_NAME = 'my_feature_test_node'
-
-            def test_something(self):
-                # self.test_node is available
-                ...
     """
 
     TEST_NODE_NAME: str = None

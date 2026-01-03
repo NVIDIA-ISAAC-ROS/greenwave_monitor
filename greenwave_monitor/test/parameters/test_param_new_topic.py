@@ -20,6 +20,7 @@
 """Test: add new topic to monitoring via ros2 param set."""
 
 import time
+import unittest
 
 from greenwave_monitor.test_utils import (
     collect_diagnostics_for_topic,

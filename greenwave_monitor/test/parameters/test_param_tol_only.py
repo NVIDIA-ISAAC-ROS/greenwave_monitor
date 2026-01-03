@@ -20,6 +20,7 @@
 """Test: only tolerance specified - should NOT start monitoring."""
 
 import time
+import unittest
 
 from greenwave_monitor.test_utils import (
     collect_diagnostics_for_topic,

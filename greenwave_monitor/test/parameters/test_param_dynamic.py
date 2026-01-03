@@ -20,6 +20,7 @@
 """Test: dynamic parameter changes via ros2 param set."""
 
 import time
+import unittest
 
 from greenwave_monitor.test_utils import (
     collect_diagnostics_for_topic,
@@ -143,11 +144,64 @@ class TestDynamicParameterChanges(RosNodeTestCase):
 
         # Check that at least one diagnostic has ERROR level (frequency outside 0% tolerance)
         has_error = any(
-            d.level != 0 for d in diagnostics_with_zero_tol
+            ord(d.level) != 0 for d in diagnostics_with_zero_tol
         )
         self.assertTrue(
             has_error,
             'Expected ERROR diagnostics with 0% tolerance'
+        )
+
+        # Reset tolerance to 10% - should no longer error
+        success = set_parameter(self.test_node, tol_param, 10.0)
+        self.assertTrue(success, f'Failed to reset {tol_param}')
+
+        # Wait for diagnostics to stabilize after tolerance change
+        time.sleep(3.0)
+        diagnostics_after_reset = collect_diagnostics_for_topic(
+            self.test_node, TEST_TOPIC, expected_count=3, timeout_sec=10.0
+        )
+        self.assertGreaterEqual(
+            len(diagnostics_after_reset), 3,
+            'Expected diagnostics after resetting tolerance'
+        )
+
+        # Verify most recent diagnostic is OK after resetting tolerance
+        last_diagnostic = diagnostics_after_reset[-1]
+        self.assertEqual(
+            ord(last_diagnostic.level), 0,
+            'Expected OK diagnostic after resetting tolerance to 10%'
+        )
+
+        # 5. Update expected frequency to mismatched value - should cause error
+        # Publisher is still at 30 Hz, tolerance is 10%, but we set expected to 1 Hz
+        mismatched_frequency = 1.0
+        success = set_parameter(self.test_node, freq_param, mismatched_frequency)
+        self.assertTrue(success, f'Failed to update {freq_param}')
+
+        success, actual_freq = get_parameter(self.test_node, freq_param)
+        self.assertTrue(success, f'Failed to get updated {freq_param}')
+        self.assertAlmostEqual(
+            actual_freq, mismatched_frequency, places=1,
+            msg=f'Frequency mismatch: expected {mismatched_frequency}, got {actual_freq}'
+        )
+
+        time.sleep(2.0)
+        diagnostics_mismatched = collect_diagnostics_for_topic(
+            self.test_node, TEST_TOPIC, expected_count=3, timeout_sec=10.0
+        )
+        self.assertGreaterEqual(
+            len(diagnostics_mismatched), 3,
+            'Should still receive diagnostics after frequency update'
+        )
+
+        # Verify diagnostics show error due to frequency mismatch
+        has_error = any(
+            ord(d.level) != 0 for d in diagnostics_mismatched
+        )
+        self.assertTrue(
+            has_error,
+            'Expected ERROR diagnostics when actual frequency (30 Hz) '
+            'does not match expected (1 Hz)'
         )
 
     def test_set_frequency_for_nonexistent_topic(self):
