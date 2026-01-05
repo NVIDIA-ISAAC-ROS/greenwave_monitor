@@ -69,18 +69,7 @@ def make_tol_param(topic: str) -> str:
 def set_parameter(test_node: Node, param_name: str, value,
                   node_name: str = MONITOR_NODE_NAME,
                   timeout_sec: float = 10.0) -> bool:
-    """Set a parameter on the monitor node using rclpy service client.
-
-    Args:
-        test_node: The ROS node to use for the service client.
-        param_name: The name of the parameter to set.
-        value: The value to set (float, int, or str).
-        node_name: The name of the target node.
-        timeout_sec: Timeout for the service call.
-
-    Returns:
-        True if the parameter was set successfully, False otherwise.
-    """
+    """Set a parameter on the monitor node using rclpy service client."""
     full_node_name = f'/{MONITOR_NODE_NAMESPACE}/{node_name}'
     service_name = f'{full_node_name}/set_parameters'
 
