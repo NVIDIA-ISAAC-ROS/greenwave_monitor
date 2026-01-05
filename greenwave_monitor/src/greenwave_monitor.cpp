@@ -19,6 +19,7 @@
 
 #include <cstring>
 
+#include "rcl_interfaces/msg/parameter_descriptor.hpp"
 #include "rcl_interfaces/srv/list_parameters.hpp"
 #include "rosidl_typesupport_introspection_cpp/message_introspection.hpp"
 
@@ -321,10 +322,7 @@ rcl_interfaces::msg::SetParametersResult GreenwaveMonitor::on_parameter_change(
 
     auto value_opt = param_to_double(param);
     if (!value_opt.has_value()) {
-      RCLCPP_WARN(
-        this->get_logger(),
-        "Parameter '%s' is not a numeric type, skipping",
-        param.get_name().c_str());
+      errors.push_back(param.get_name() + ": must be a numeric type (int or double)");
       continue;
     }
 
@@ -386,6 +384,11 @@ rcl_interfaces::msg::SetParametersResult GreenwaveMonitor::on_parameter_change(
         "Could not apply monitoring config for topic '%s': %s",
         topic_name.c_str(), message.c_str());
     }
+  }
+
+  if (!errors.empty()) {
+    result.successful = false;
+    result.reason = "Invalid parameters: " + rcpputils::join(errors, ", ");
   }
 
   return result;
@@ -509,7 +512,10 @@ void GreenwaveMonitor::try_undeclare_parameter(const std::string & param_name)
 void GreenwaveMonitor::declare_or_set_parameter(const std::string & param_name, double value)
 {
   if (!this->has_parameter(param_name)) {
-    this->declare_parameter(param_name, value);
+    // Allow both integer and double types for numeric parameters
+    rcl_interfaces::msg::ParameterDescriptor descriptor;
+    descriptor.dynamic_typing = true;
+    this->declare_parameter(param_name, value, descriptor);
   } else {
     this->set_parameter(rclcpp::Parameter(param_name, value));
   }
