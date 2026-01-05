@@ -80,7 +80,7 @@ private:
   // Callback for handling deletions of parameters (across all nodes)
   void on_parameter_event(const rcl_interfaces::msg::ParameterEvent::SharedPtr msg);
 
-  // Read all parameters from node at startup and ensure they are applied. on_paramter_change
+  // Read all parameters from node at startup and ensure they are applied. on_parameter_change
   // is not called at startup.
   void load_topic_parameters_from_overrides();
 
