@@ -349,6 +349,20 @@ class GreenwaveUiAdaptor:
                     if current[0] > 0:  # Only update if frequency is set
                         self.expected_frequencies[topic_name] = (current[0], value)
 
+        for param in msg.deleted_parameters:
+            topic_name, field = parse_topic_param_name(param.name)
+            if not topic_name or field == TopicParamField.NONE:
+                continue
+
+            with self.data_lock:
+                if field == TopicParamField.FREQUENCY:
+                    self.expected_frequencies.pop(topic_name, None)
+                elif field == TopicParamField.TOLERANCE:
+                    current = self.expected_frequencies.get(topic_name)
+                    if current and current[0] > 0:
+                        self.expected_frequencies[topic_name] = (
+                            current[0], DEFAULT_TOLERANCE_PERCENT)
+
     def toggle_topic_monitoring(self, topic_name: str):
         """Toggle monitoring for a topic."""
         if not self.manage_topic_client.wait_for_service(timeout_sec=1.0):

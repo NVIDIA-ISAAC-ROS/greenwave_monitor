@@ -17,10 +17,7 @@
 
 #include "greenwave_monitor.hpp"
 
-#include <algorithm>
 #include <cstring>
-#include <mutex>
-#include <unordered_map>
 
 #include "rcl_interfaces/srv/list_parameters.hpp"
 #include "rosidl_typesupport_introspection_cpp/message_introspection.hpp"
@@ -94,29 +91,6 @@ std::optional<double> param_to_double(const rclcpp::Parameter & param)
   return std::nullopt;
 }
 
-const char * get_field_name(TopicParamField field)
-{
-  if (field == TopicParamField::kNone) {
-    return "none";
-  } else if (field == TopicParamField::kFrequency) {
-    return "expected_frequency";
-  } else if (field == TopicParamField::kTolerance) {
-    return "tolerance";
-  }
-  return "unknown";
-}
-
-const char * get_field_unit(TopicParamField field)
-{
-  if (field == TopicParamField::kNone) {
-    return "";
-  } else if (field == TopicParamField::kFrequency) {
-    return "Hz";
-  } else if (field == TopicParamField::kTolerance) {
-    return "%";
-  }
-  return "unknown";
-}
 }  // namespace
 
 GreenwaveMonitor::GreenwaveMonitor(const rclcpp::NodeOptions & options)
@@ -148,6 +122,11 @@ GreenwaveMonitor::GreenwaveMonitor(const rclcpp::NodeOptions & options)
   // Register parameter callback for dynamic topic configuration
   param_callback_handle_ = this->add_on_set_parameters_callback(
     std::bind(&GreenwaveMonitor::on_parameter_change, this, std::placeholders::_1));
+
+  // Subscribe to parameter events to handle parameter deletions
+  param_event_subscription_ = this->create_subscription<rcl_interfaces::msg::ParameterEvent>(
+    "/parameter_events", 10,
+    std::bind(&GreenwaveMonitor::on_parameter_event, this, std::placeholders::_1));
 
   // Process any topic parameters passed at startup
   load_topic_parameters_from_overrides();
@@ -272,6 +251,15 @@ bool GreenwaveMonitor::set_topic_expected_frequency(
   std::string & message,
   bool update_parameters)
 {
+  if (expected_hz <= 0.0) {
+    message = "Invalid expected frequency, must be set to a positive value";
+    return false;
+  }
+  if (tolerance_percent < 0.0) {
+    message = "Invalid tolerance, must be a non-negative percentage";
+    return false;
+  }
+
   auto it = message_diagnostics_.find(topic_name);
 
   if (it == message_diagnostics_.end()) {
@@ -284,15 +272,6 @@ bool GreenwaveMonitor::set_topic_expected_frequency(
       return false;
     }
     it = message_diagnostics_.find(topic_name);
-  }
-
-  if (expected_hz <= 0.0) {
-    message = "Invalid expected frequency, must be set to a positive value";
-    return false;
-  }
-  if (tolerance_percent < 0.0) {
-    message = "Invalid tolerance, must be a non-negative percentage";
-    return false;
   }
 
   message_diagnostics::MessageDiagnostics & msg_diagnostics_obj = *(it->second);
@@ -323,9 +302,11 @@ rcl_interfaces::msg::SetParametersResult GreenwaveMonitor::on_parameter_change(
     return result;
   }
 
-  // Build a local map of incoming topic configs from this callback
+  // Collect validation errors and valid configs
+  std::vector<std::string> errors;
   std::map<std::string, TopicConfig> incoming_configs;
 
+  // Construct expected frequency and tolerance pairs from parameter changes
   for (const auto & param : parameters) {
     auto info = parse_topic_param_name(param.get_name());
     if (info.field == TopicParamField::kNone || info.topic_name.empty()) {
@@ -345,64 +326,101 @@ rcl_interfaces::msg::SetParametersResult GreenwaveMonitor::on_parameter_change(
     TopicConfig & config = incoming_configs[info.topic_name];
 
     if (info.field == TopicParamField::kFrequency) {
+      if (value <= 0.0) {
+        errors.push_back(
+          param.get_name() + ": Invalid frequency, must be positive");
+        continue;
+      }
       config.expected_frequency = value;
     } else {
+      if (value < 0.0) {
+        errors.push_back(
+          param.get_name() + ": Invalid tolerance, must be non-negative");
+        continue;
+      }
       config.tolerance = value;
     }
-
-    RCLCPP_INFO(
-      this->get_logger(),
-      "Parameter set: %s for topic '%s' = %.2f %s",
-      get_field_name(info.field), info.topic_name.c_str(), value, get_field_unit(info.field));
   }
 
-  // Apply configs for each topic affected by this parameter change
+  // Iterate over incoming configs and set expected frequencies/tolerances
   for (const auto & [topic_name, incoming] : incoming_configs) {
-    apply_topic_config(topic_name, incoming);
+    // Get expected frequency: prefer incoming, fall back to existing parameter
+    double expected_freq = 0.0;
+    if (incoming.expected_frequency.has_value()) {
+      expected_freq = incoming.expected_frequency.value();
+    } else {
+      auto freq_opt = get_numeric_parameter(make_freq_param_name(topic_name));
+      if (freq_opt.has_value()) {
+        expected_freq = freq_opt.value();
+      } else {
+        // Tolerance set without frequency - nothing to apply yet
+        continue;
+      }
+    }
+
+    // Get tolerance: prefer incoming, then existing parameter, then default
+    double tolerance = incoming.tolerance.value_or(
+      get_numeric_parameter(make_tol_param_name(topic_name)).value_or(kDefaultTolerancePercent)
+    );
+
+    std::string message;
+    bool success = set_topic_expected_frequency(
+      topic_name,
+      expected_freq,
+      tolerance,
+      true,
+      message,
+      false);  // don't update parameters - called from parameter change
+
+    // Log warning if the topic is not up yet or an error occurs while trying to monitor it
+    // Still errors if parameter is invalid value since that is redundantly checked earlier
+    if (!success) {
+      RCLCPP_WARN(
+        this->get_logger(),
+        "Could not apply monitoring config for topic '%s': %s",
+        topic_name.c_str(), message.c_str());
+    }
   }
 
   return result;
 }
 
-void GreenwaveMonitor::apply_topic_config(
-  const std::string & topic_name, const TopicConfig & incoming)
+void GreenwaveMonitor::on_parameter_event(
+  const rcl_interfaces::msg::ParameterEvent::SharedPtr msg)
 {
-  // Get expected frequency: prefer incoming, fall back to existing parameter
-  double expected_freq = 0.0;
-  if (incoming.expected_frequency.has_value()) {
-    expected_freq = incoming.expected_frequency.value();
-  } else {
-    auto freq_opt = get_numeric_parameter(make_freq_param_name(topic_name));
-    if (freq_opt.has_value()) {
-      expected_freq = freq_opt.value();
-    } else {
-      // No frequency available yet, nothing to do
-      return;
-    }
+  // Only process events from this node
+  if (msg->node != this->get_fully_qualified_name()) {
+    return;
   }
 
-  // Get tolerance: prefer incoming, then existing parameter, then default
-  double tolerance = incoming.tolerance.value_or(
-    get_numeric_parameter(make_tol_param_name(topic_name)).value_or(kDefaultTolerancePercent)
-  );
+  for (const auto & param : msg->deleted_parameters) {
+    auto info = parse_topic_param_name(param.name);
+    if (info.field == TopicParamField::kNone || info.topic_name.empty()) {
+      continue;
+    }
 
-  std::string message;
-  bool success = set_topic_expected_frequency(
-    topic_name,
-    expected_freq,
-    tolerance,
-    true,
-    message,
-    false);  // don't update parameters - called from parameter change
+    auto it = message_diagnostics_.find(info.topic_name);
+    if (it == message_diagnostics_.end()) {
+      continue;
+    }
 
-  if (success) {
-    RCLCPP_INFO(this->get_logger(), "%s", message.c_str());
-  } else {
-    RCLCPP_WARN(
-      this->get_logger(),
-      "Could not apply config for topic '%s': %s. "
-      "Use manage_topic service to add the topic first.",
-      topic_name.c_str(), message.c_str());
+    if (info.field == TopicParamField::kFrequency) {
+      it->second->clearExpectedDt();
+      RCLCPP_DEBUG(
+        this->get_logger(),
+        "Cleared expected frequency for topic '%s' (parameter deleted)",
+        info.topic_name.c_str());
+    } else if (info.field == TopicParamField::kTolerance) {
+      // Reset tolerance to default if frequency is still set
+      auto freq_opt = get_numeric_parameter(make_freq_param_name(info.topic_name));
+      if (freq_opt.has_value() && freq_opt.value() > 0) {
+        it->second->setExpectedDt(freq_opt.value(), kDefaultTolerancePercent);
+        RCLCPP_DEBUG(
+          this->get_logger(),
+          "Reset tolerance to default (%.1f%%) for topic '%s' (parameter deleted)",
+          kDefaultTolerancePercent, info.topic_name.c_str());
+      }
+    }
   }
 }
 
@@ -417,6 +435,7 @@ void GreenwaveMonitor::load_topic_parameters_from_overrides()
   // Build a local map of topic configs from startup parameters
   std::map<std::string, TopicConfig> startup_configs;
 
+  // Construct expected frequency and tolerance pairs from startup parameters
   for (const auto & name : all_params.names) {
     auto info = parse_topic_param_name(name);
     if (info.field == TopicParamField::kNone || info.topic_name.empty()) {
@@ -436,15 +455,11 @@ void GreenwaveMonitor::load_topic_parameters_from_overrides()
     } else {
       config.tolerance = value;
     }
-
-    RCLCPP_INFO(
-      this->get_logger(),
-      "Initial parameter: %s for topic '%s' = %.2f %s",
-      get_field_name(info.field), info.topic_name.c_str(), value, get_field_unit(info.field));
   }
 
-  // Apply all configs that have frequency set
+  // Iterate over starting config and add topics/set expected frequencies
   for (const auto & [topic, config] : startup_configs) {
+    // Topics will only be added if frequency is set
     if (config.expected_frequency.has_value()) {
       double tolerance = config.tolerance.value_or(kDefaultTolerancePercent);
 
@@ -457,9 +472,7 @@ void GreenwaveMonitor::load_topic_parameters_from_overrides()
         message,
         false);  // don't update parameters
 
-      if (success) {
-        RCLCPP_INFO(this->get_logger(), "%s", message.c_str());
-      } else {
+      if (!success) {
         RCLCPP_WARN(this->get_logger(), "%s", message.c_str());
       }
     }
@@ -623,6 +636,14 @@ bool GreenwaveMonitor::add_topic(const std::string & topic, std::string & messag
   message_diagnostics_.emplace(
     topic,
     std::make_unique<message_diagnostics::MessageDiagnostics>(*this, topic, diagnostics_config));
+
+  // If parameters are set, use them to set the expected frequency and tolerance
+  auto freq_opt = get_numeric_parameter(make_freq_param_name(topic));
+  auto tol_opt = get_numeric_parameter(make_tol_param_name(topic));
+  double tolerance = tol_opt.value_or(kDefaultTolerancePercent);
+  if (freq_opt.has_value() && tolerance >= 0.0 && freq_opt.value() > 0.0) {
+    message_diagnostics_[topic]->setExpectedDt(freq_opt.value(), tolerance);
+  }
 
   message = "Successfully added topic";
   return true;

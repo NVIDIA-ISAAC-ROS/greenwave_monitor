@@ -26,6 +26,7 @@
 #include <vector>
 
 #include "rclcpp/rclcpp.hpp"
+#include "rcl_interfaces/msg/parameter_event.hpp"
 #include "rcl_interfaces/msg/set_parameters_result.hpp"
 #include "std_msgs/msg/string.hpp"
 #include "diagnostic_msgs/msg/diagnostic_array.hpp"
@@ -72,11 +73,15 @@ private:
     std::string & message,
     bool update_parameters = true);
 
+  // Callback for this nodes parameter changes + additions
   rcl_interfaces::msg::SetParametersResult on_parameter_change(
     const std::vector<rclcpp::Parameter> & parameters);
 
-  void apply_topic_config(const std::string & topic_name, const TopicConfig & incoming);
+  // Callback for handling deletions of parameters (across all nodes)
+  void on_parameter_event(const rcl_interfaces::msg::ParameterEvent::SharedPtr msg);
 
+  // Read all parameters from node at startup and ensure they are applied. on_paramter_change
+  // is not called at startup.
   void load_topic_parameters_from_overrides();
 
   std::optional<double> get_numeric_parameter(const std::string & param_name);
@@ -108,6 +113,7 @@ private:
     set_expected_frequency_service_;
 
   rclcpp::node_interfaces::OnSetParametersCallbackHandle::SharedPtr param_callback_handle_;
+  rclcpp::Subscription<rcl_interfaces::msg::ParameterEvent>::SharedPtr param_event_subscription_;
 
   // Flag to skip parameter callback when updating params internally (avoids redundant work)
   bool updating_params_internally_ = false;
