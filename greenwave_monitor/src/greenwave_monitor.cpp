@@ -280,8 +280,14 @@ bool GreenwaveMonitor::set_topic_expected_frequency(
   // Sync parameters with the new values
   if (update_parameters) {
     updating_params_internally_ = true;
-    declare_or_set_parameter(make_freq_param_name(topic_name), expected_hz);
-    declare_or_set_parameter(make_tol_param_name(topic_name), tolerance_percent);
+    try {
+      declare_or_set_parameter(make_freq_param_name(topic_name), expected_hz);
+      declare_or_set_parameter(make_tol_param_name(topic_name), tolerance_percent);
+    } catch (const std::exception & e) {
+      message = "Could not set parameters for topic '" + topic_name + "': " + e.what();
+      updating_params_internally_ = false;
+      return false;
+    }
     updating_params_internally_ = false;
   }
 
