@@ -17,6 +17,8 @@
 
 #include "greenwave_monitor.hpp"
 
+#include <sys/stat.h>
+#include <yaml-cpp/yaml.h>
 #include <algorithm>
 #include <cstring>
 #include <mutex>
@@ -26,6 +28,19 @@
 
 using namespace std::chrono_literals;
 
+namespace
+{
+
+// Check if a file exists and is a regular file
+bool is_valid_file(const std::string & path)
+{
+  struct stat st;
+  if (stat(path.c_str(), &st) != 0) {return false;}
+  return static_cast<bool>(st.st_mode & S_IFREG);
+}
+
+}  // anonymous namespace
+
 GreenwaveMonitor::GreenwaveMonitor(const rclcpp::NodeOptions & options)
 : Node("greenwave_monitor", options)
 {
@@ -34,6 +49,19 @@ GreenwaveMonitor::GreenwaveMonitor(const rclcpp::NodeOptions & options)
   // Declare and get the topics parameter
   this->declare_parameter<std::vector<std::string>>("topics", {""});
   auto topics = this->get_parameter("topics").as_string_array();
+
+  // Declare and get the type registry path parameter
+  this->declare_parameter<std::string>("type_registry_path", "");
+  type_registry_path_ = this->get_parameter("type_registry_path").as_string();
+
+  // Check if the type registry path is valid
+  if (!type_registry_path_.empty() && !is_valid_file(type_registry_path_)) {
+    RCLCPP_WARN(
+      this->get_logger(), "Type registry path '%s' is not a valid file."
+      "Falling back to build-in type registry.",
+      type_registry_path_.c_str());
+    type_registry_path_.clear();
+  }
 
   message_diagnostics::MessageDiagnosticsConfig diagnostics_config;
   diagnostics_config.enable_all_topic_diagnostics = true;
@@ -241,17 +269,63 @@ bool GreenwaveMonitor::has_header_from_type(const std::string & type_name)
   auto it = known_header_types.find(type_name);
   bool has_header = (it != known_header_types.end()) ? it->second : false;
 
-  type_has_header_cache[type_name] = has_header;
+  // In case the type is not in the known list, attempt to read from type registry
+  if (it == known_header_types.end() && !type_registry_path_.empty()) {
+    has_header = has_header_from_type_registry(type_name);
+  }
 
   // Fallback of no header in case of unknown type, log for reference
-  if (it == known_header_types.end()) {
+  if (it == known_header_types.end() && !has_header) {
     RCLCPP_WARN_ONCE(
       this->get_logger(),
       "Unknown message type '%s' - assuming no header. Consider adding to registry.",
       type_name.c_str());
   }
 
+  // Cache the result for future lookups
+  type_has_header_cache[type_name] = has_header;
+
   return has_header;
+}
+
+bool GreenwaveMonitor::has_header_from_type_registry(const std::string & type_name)
+{
+  try {
+    YAML::Node config = YAML::LoadFile(type_registry_path_);
+    if (config["has_header"]) {
+      // Check if 'has_header' is a sequence (list)
+      if (config["has_header"].IsSequence()) {
+        for (const auto & type_node : config["has_header"]) {
+          if (type_node.IsScalar()) {
+            // Check if the type matches
+            if (type_node.as<std::string>() == type_name) {
+              return true;
+            }
+          } else {
+            RCLCPP_WARN(
+              this->get_logger(),
+              "Found a non-string value in the registry: %s. Skipping.",
+              type_node.as<std::string>().c_str());
+          }
+        }
+      } else {
+        RCLCPP_ERROR(
+          this->get_logger(),
+          "'has_header' key is not a sequence in the YAML file.");
+      }
+    } else {
+      RCLCPP_ERROR(
+        this->get_logger(),
+        "'has_header' key is not found in the YAML file.");
+    }
+  } catch (const YAML::BadFile & e) {
+    RCLCPP_ERROR(this->get_logger(), "Error reading YAML file: %s", e.what());
+  } catch (const YAML::ParserException & e) {
+    RCLCPP_ERROR(this->get_logger(), "Error parsing YAML string: %s", e.what());
+  } catch (const std::exception & e) {
+    RCLCPP_ERROR(this->get_logger(), "An unexpected error occurred: %s", e.what());
+  }
+  return false;
 }
 
 bool GreenwaveMonitor::add_topic(const std::string & topic, std::string & message)

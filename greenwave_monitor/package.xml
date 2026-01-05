@@ -37,6 +37,7 @@
   <depend>sensor_msgs</depend>
   <depend>greenwave_monitor_interfaces</depend>
   <depend>rclpy</depend>
+  <depend>yaml_cpp_vendor</depend>
 
   <exec_depend>launch</exec_depend>
   <exec_depend>launch_ros</exec_depend>
