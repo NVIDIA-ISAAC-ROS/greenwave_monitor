@@ -66,10 +66,21 @@ def make_tol_param(topic: str) -> str:
     return f'{TOPIC_PARAM_PREFIX}{topic}{TOL_SUFFIX}'
 
 
-def set_parameter(test_node: Node, param_name: str, value: float,
+def set_parameter(test_node: Node, param_name: str, value,
                   node_name: str = MONITOR_NODE_NAME,
                   timeout_sec: float = 10.0) -> bool:
-    """Set a parameter on the monitor node using rclpy service client."""
+    """Set a parameter on the monitor node using rclpy service client.
+
+    Args:
+        test_node: The ROS node to use for the service client.
+        param_name: The name of the parameter to set.
+        value: The value to set (float, int, or str).
+        node_name: The name of the target node.
+        timeout_sec: Timeout for the service call.
+
+    Returns:
+        True if the parameter was set successfully, False otherwise.
+    """
     full_node_name = f'/{MONITOR_NODE_NAMESPACE}/{node_name}'
     service_name = f'{full_node_name}/set_parameters'
 
@@ -80,8 +91,19 @@ def set_parameter(test_node: Node, param_name: str, value: float,
     param = Parameter()
     param.name = param_name
     param.value = ParameterValue()
-    param.value.type = ParameterType.PARAMETER_DOUBLE
-    param.value.double_value = float(value)
+
+    if isinstance(value, str):
+        param.value.type = ParameterType.PARAMETER_STRING
+        param.value.string_value = value
+    elif isinstance(value, bool):
+        param.value.type = ParameterType.PARAMETER_BOOL
+        param.value.bool_value = value
+    elif isinstance(value, int):
+        param.value.type = ParameterType.PARAMETER_INTEGER
+        param.value.integer_value = value
+    else:
+        param.value.type = ParameterType.PARAMETER_DOUBLE
+        param.value.double_value = float(value)
 
     request = SetParameters.Request()
     request.parameters = [param]
@@ -123,6 +145,35 @@ def get_parameter(test_node: Node, param_name: str,
     elif param_value.type == ParameterType.PARAMETER_INTEGER:
         return True, float(param_value.integer_value)
     return False, None
+
+
+def delete_parameter(test_node: Node, param_name: str,
+                     node_name: str = MONITOR_NODE_NAME,
+                     timeout_sec: float = 10.0) -> bool:
+    """Delete a parameter from the monitor node using rclpy service client."""
+    full_node_name = f'/{MONITOR_NODE_NAMESPACE}/{node_name}'
+    service_name = f'{full_node_name}/set_parameters'
+
+    client = test_node.create_client(SetParameters, service_name)
+    if not client.wait_for_service(timeout_sec=5.0):
+        return False
+
+    param = Parameter()
+    param.name = param_name
+    param.value = ParameterValue()
+    param.value.type = ParameterType.PARAMETER_NOT_SET
+
+    request = SetParameters.Request()
+    request.parameters = [param]
+
+    future = client.call_async(request)
+    rclpy.spin_until_future_complete(test_node, future, timeout_sec=timeout_sec)
+
+    test_node.destroy_client(client)
+
+    if future.result() is None:
+        return False
+    return all(r.successful for r in future.result().results)
 
 
 def create_minimal_publisher(

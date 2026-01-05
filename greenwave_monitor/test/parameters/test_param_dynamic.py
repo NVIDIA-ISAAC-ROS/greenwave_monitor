@@ -26,6 +26,7 @@ from greenwave_monitor.test_utils import (
     collect_diagnostics_for_topic,
     create_minimal_publisher,
     create_monitor_node,
+    delete_parameter,
     get_parameter,
     make_freq_param,
     make_tol_param,
@@ -38,6 +39,8 @@ import pytest
 
 
 TEST_TOPIC = '/dynamic_param_topic'
+TEST_TOPIC_SET_PARAMS = '/dynamic_param_topic_set_params'
+TEST_TOPIC_DELETE_PARAM = '/dynamic_param_topic_delete_param'
 TEST_FREQUENCY = 30.0
 TEST_TOLERANCE = 20.0
 NONEXISTENT_TOPIC = '/topic_that_does_not_exist'
@@ -52,10 +55,20 @@ def generate_test_description():
         TEST_TOPIC, TEST_FREQUENCY, 'imu', '_dynamic'
     )
 
+    publisher_set_params = create_minimal_publisher(
+        TEST_TOPIC_SET_PARAMS, TEST_FREQUENCY, 'imu', '_set_params'
+    )
+
+    publisher_delete_param = create_minimal_publisher(
+        TEST_TOPIC_DELETE_PARAM, TEST_FREQUENCY, 'imu', '_delete_param'
+    )
+
     return (
         launch.LaunchDescription([
             ros2_monitor_node,
             publisher,
+            publisher_set_params,
+            publisher_delete_param,
             launch_testing.actions.ReadyToTest()
         ]), {}
     )
@@ -70,19 +83,19 @@ class TestDynamicParameterChanges(RosNodeTestCase):
         """Test setting frequency and tolerance parameters in sequence."""
         time.sleep(2.0)
 
-        freq_param = make_freq_param(TEST_TOPIC)
-        tol_param = make_tol_param(TEST_TOPIC)
+        freq_param = make_freq_param(TEST_TOPIC_SET_PARAMS)
+        tol_param = make_tol_param(TEST_TOPIC_SET_PARAMS)
 
         # 1. Verify topic is not monitored initially
         initial_diagnostics = collect_diagnostics_for_topic(
-            self.test_node, TEST_TOPIC, expected_count=1, timeout_sec=2.0
+            self.test_node, TEST_TOPIC_SET_PARAMS, expected_count=1, timeout_sec=2.0
         )
         self.assertEqual(
             len(initial_diagnostics), 0,
-            f'{TEST_TOPIC} should not be monitored initially'
+            f'{TEST_TOPIC_SET_PARAMS} should not be monitored initially'
         )
 
-        # 2. Set tolerance before frequency - topic should remain unmonitored
+        # 2. Set tolerance before frequency - should succeed but not start monitoring
         success = set_parameter(self.test_node, tol_param, TEST_TOLERANCE)
         self.assertTrue(success, f'Failed to set {tol_param}')
 
@@ -95,14 +108,14 @@ class TestDynamicParameterChanges(RosNodeTestCase):
 
         time.sleep(1.0)
         diagnostics_after_tol = collect_diagnostics_for_topic(
-            self.test_node, TEST_TOPIC, expected_count=1, timeout_sec=2.0
+            self.test_node, TEST_TOPIC_SET_PARAMS, expected_count=1, timeout_sec=2.0
         )
         self.assertEqual(
             len(diagnostics_after_tol), 0,
-            f'{TEST_TOPIC} should remain unmonitored after setting only tolerance'
+            f'{TEST_TOPIC_SET_PARAMS} should remain unmonitored after setting only tolerance'
         )
 
-        # 3. Set frequency - topic should become monitored
+        # 3. Set frequency - topic should have frequency checking enabled
         success = set_parameter(self.test_node, freq_param, TEST_FREQUENCY)
         self.assertTrue(success, f'Failed to set {freq_param}')
 
@@ -115,7 +128,7 @@ class TestDynamicParameterChanges(RosNodeTestCase):
 
         time.sleep(1.0)
         diagnostics_after_freq = collect_diagnostics_for_topic(
-            self.test_node, TEST_TOPIC, expected_count=3, timeout_sec=10.0
+            self.test_node, TEST_TOPIC_SET_PARAMS, expected_count=3, timeout_sec=10.0
         )
         self.assertGreaterEqual(
             len(diagnostics_after_freq), 3,
@@ -135,7 +148,7 @@ class TestDynamicParameterChanges(RosNodeTestCase):
 
         time.sleep(2.0)
         diagnostics_with_zero_tol = collect_diagnostics_for_topic(
-            self.test_node, TEST_TOPIC, expected_count=2, timeout_sec=5.0
+            self.test_node, TEST_TOPIC_SET_PARAMS, expected_count=2, timeout_sec=5.0
         )
         self.assertGreaterEqual(
             len(diagnostics_with_zero_tol), 2,
@@ -158,7 +171,7 @@ class TestDynamicParameterChanges(RosNodeTestCase):
         # Wait for diagnostics to stabilize after tolerance change
         time.sleep(3.0)
         diagnostics_after_reset = collect_diagnostics_for_topic(
-            self.test_node, TEST_TOPIC, expected_count=3, timeout_sec=10.0
+            self.test_node, TEST_TOPIC_SET_PARAMS, expected_count=3, timeout_sec=10.0
         )
         self.assertGreaterEqual(
             len(diagnostics_after_reset), 3,
@@ -187,7 +200,7 @@ class TestDynamicParameterChanges(RosNodeTestCase):
 
         time.sleep(2.0)
         diagnostics_mismatched = collect_diagnostics_for_topic(
-            self.test_node, TEST_TOPIC, expected_count=3, timeout_sec=10.0
+            self.test_node, TEST_TOPIC_SET_PARAMS, expected_count=3, timeout_sec=10.0
         )
         self.assertGreaterEqual(
             len(diagnostics_mismatched), 3,
@@ -227,6 +240,98 @@ class TestDynamicParameterChanges(RosNodeTestCase):
         self.assertEqual(
             len(diagnostics), 0,
             f'{NONEXISTENT_TOPIC} should not appear in diagnostics'
+        )
+
+    def test_non_numeric_parameter_rejected(self):
+        """Test that non-numeric parameter values are rejected."""
+        time.sleep(1.0)
+
+        freq_param = make_freq_param(TEST_TOPIC)
+        success = set_parameter(self.test_node, freq_param, 'not_a_number')
+        self.assertFalse(success, 'Non-numeric frequency parameter should be rejected')
+
+        tol_param = make_tol_param(TEST_TOPIC)
+        success = set_parameter(self.test_node, tol_param, 'invalid')
+        self.assertFalse(success, 'Non-numeric tolerance parameter should be rejected')
+
+    def test_non_positive_frequency_rejected(self):
+        """Test that non-positive frequency values are rejected."""
+        time.sleep(1.0)
+
+        freq_param = make_freq_param(TEST_TOPIC)
+
+        # Test zero frequency
+        success = set_parameter(self.test_node, freq_param, 0.0)
+        self.assertFalse(success, 'Zero frequency should be rejected')
+
+        # Test negative frequency
+        success = set_parameter(self.test_node, freq_param, -10.0)
+        self.assertFalse(success, 'Negative frequency should be rejected')
+
+    def test_negative_tolerance_rejected(self):
+        """Test that negative tolerance values are rejected."""
+        time.sleep(1.0)
+
+        tol_param = make_tol_param(TEST_TOPIC)
+        success = set_parameter(self.test_node, tol_param, -5.0)
+        self.assertFalse(success, 'Negative tolerance should be rejected')
+
+    def test_delete_parameter_clears_error(self):
+        """Test that deleting a parameter clears the error state."""
+        time.sleep(2.0)
+
+        freq_param = make_freq_param(TEST_TOPIC_DELETE_PARAM)
+        tol_param = make_tol_param(TEST_TOPIC_DELETE_PARAM)
+
+        # Set up monitoring with correct frequency (publisher is at 30 Hz)
+        success = set_parameter(self.test_node, freq_param, TEST_FREQUENCY)
+        self.assertTrue(success, f'Failed to set {freq_param}')
+
+        success = set_parameter(self.test_node, tol_param, 10.0)
+        self.assertTrue(success, f'Failed to set {tol_param}')
+
+        time.sleep(2.0)
+
+        # Verify initial diagnostics are OK
+        diagnostics = collect_diagnostics_for_topic(
+            self.test_node, TEST_TOPIC_DELETE_PARAM, expected_count=3, timeout_sec=10.0
+        )
+        self.assertGreaterEqual(len(diagnostics), 1, 'Should have diagnostics')
+        self.assertEqual(
+            ord(diagnostics[-1].level), 0,
+            'Initial diagnostics should be OK'
+        )
+
+        # Set mismatched frequency to cause error (expect 1 Hz but publisher is 30 Hz)
+        success = set_parameter(self.test_node, freq_param, 1.0)
+        self.assertTrue(success, 'Failed to set mismatched frequency')
+
+        time.sleep(2.0)
+
+        # Verify diagnostics show error
+        diagnostics_error = collect_diagnostics_for_topic(
+            self.test_node, TEST_TOPIC_DELETE_PARAM, expected_count=3, timeout_sec=10.0
+        )
+        self.assertGreaterEqual(len(diagnostics_error), 1, 'Should have diagnostics')
+        has_error = any(ord(d.level) != 0 for d in diagnostics_error)
+        self.assertTrue(has_error, 'Should have error diagnostics with mismatched frequency')
+
+        # Delete the frequency parameter to clear expected frequency
+        success = delete_parameter(self.test_node, freq_param)
+        self.assertTrue(success, f'Failed to delete {freq_param}')
+
+        time.sleep(2.0)
+
+        # Verify diagnostics are OK again (no expected frequency = no error)
+        diagnostics_after_delete = collect_diagnostics_for_topic(
+            self.test_node, TEST_TOPIC_DELETE_PARAM, expected_count=3, timeout_sec=10.0
+        )
+        self.assertGreaterEqual(
+            len(diagnostics_after_delete), 1, 'Should have diagnostics after delete'
+        )
+        self.assertEqual(
+            ord(diagnostics_after_delete[-1].level), 0,
+            'Diagnostics should be OK after deleting frequency parameter'
         )
 
 

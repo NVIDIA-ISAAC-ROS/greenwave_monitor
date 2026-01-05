@@ -320,6 +320,11 @@ rcl_interfaces::msg::SetParametersResult GreenwaveMonitor::on_parameter_change(
       continue;
     }
 
+    // Allow PARAMETER_NOT_SET for parameter deletion
+    if (param.get_type() == rclcpp::ParameterType::PARAMETER_NOT_SET) {
+      continue;
+    }
+
     auto value_opt = param_to_double(param);
     if (!value_opt.has_value()) {
       errors.push_back(param.get_name() + ": must be a numeric type (int or double)");
