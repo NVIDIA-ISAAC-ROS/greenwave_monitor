@@ -87,6 +87,10 @@ def param_value_to_float(value: ParameterValue) -> float | None:
         return value.double_value
     elif value.type == ParameterType.PARAMETER_INTEGER:
         return float(value.integer_value)
+    elif value.type == ParameterType.PARAMETER_STRING:
+        str_value = value.string_value
+        if str_value == 'nan' or str_value == 'NaN' or str_value == 'NAN':
+            return float('nan')
     return None
 
 
@@ -383,10 +387,6 @@ class GreenwaveUiAdaptor:
 
     def _on_parameter_event(self, msg: ParameterEvent):
         """Process parameter change events from the monitor node."""
-        # Only process events from the monitor node
-        if self.monitor_node_name not in msg.node:
-            return
-
         # Process changed and new parameters
         for param in msg.changed_parameters + msg.new_parameters:
             value = param_value_to_float(param.value)
@@ -402,10 +402,8 @@ class GreenwaveUiAdaptor:
 
                 if field == TopicParamField.FREQUENCY:
                     # Treat NaN or non-positive as "cleared"
-                    if value > 0 and not math.isnan(value):
+                    if value > 0 or math.isnan(value):
                         self.expected_frequencies[topic_name] = (value, current[1])
-                    elif topic_name in self.expected_frequencies:
-                        del self.expected_frequencies[topic_name]
 
                 elif field == TopicParamField.TOLERANCE:
                     if current[0] > 0:  # Only update if frequency is set
@@ -457,9 +455,8 @@ class GreenwaveUiAdaptor:
                     return
 
                 if not request.add_topic and topic_name in self.ui_diagnostics:
+                    # Remove the topic from the UI diagnostics, but keep its settings
                     del self.ui_diagnostics[topic_name]
-                    if topic_name in self.expected_frequencies:
-                        del self.expected_frequencies[topic_name]
 
         except Exception as e:
             action = 'start' if request.add_topic else 'stop'
@@ -612,7 +609,7 @@ class GreenwaveUiAdaptor:
     def get_expected_frequency_str(self, topic_name: str) -> str:
         """Get expected frequency as formatted string with tolerance (e.g., '30.0Hz ±5%')."""
         freq, tol = self.get_expected_frequency(topic_name)
-        if freq <= 0.0:
+        if freq <= 0.0 or math.isnan(freq):
             return '-'
         if tol > 0.0:
             return f'{freq:.1f}Hz±{tol:.0f}%'

@@ -56,9 +56,6 @@ inline constexpr const char * kTopicParamPrefix = "greenwave_diagnostics.";
 inline constexpr const char * kFreqSuffix = ".expected_frequency";
 inline constexpr const char * kTolSuffix = ".tolerance";
 inline constexpr const char * kEnabledSuffix = ".enabled";
-inline constexpr const char * kEnableNodeTimeSuffix = ".enable_node_time";
-inline constexpr const char * kEnableMsgTimeSuffix = ".enable_msg_time";
-inline constexpr const char * kEnableIncreasingMsgTimeSuffix = ".enable_increasing_msg_time";
 inline constexpr double kDefaultTolerancePercent = 5.0;
 inline constexpr double kDefaultFrequencyHz = std::numeric_limits<double>::quiet_NaN();
 inline constexpr bool kDefaultEnabled = true;
@@ -130,13 +127,6 @@ public:
       constants::kTolSuffix;
     enabled_param_name_ = std::string(constants::kTopicParamPrefix) + topic_name_ +
       constants::kEnabledSuffix;
-    enable_node_time_param_name_ = std::string(constants::kTopicParamPrefix) + topic_name_ +
-      constants::kEnableNodeTimeSuffix;
-    enable_msg_time_param_name_ = std::string(constants::kTopicParamPrefix) + topic_name_ +
-      constants::kEnableMsgTimeSuffix;
-    enable_increasing_msg_time_param_name_ = std::string(constants::kTopicParamPrefix) +
-      topic_name_ +
-      constants::kEnableIncreasingMsgTimeSuffix;
 
     // Register parameter callback for this topic's parameters
     param_callback_handle_ = node_.add_on_set_parameters_callback(
@@ -160,12 +150,6 @@ public:
     if (!auto_declare) {
       rcl_interfaces::msg::ParameterDescriptor descriptor;
       descriptor.dynamic_typing = true;
-      node_.declare_parameter(enable_node_time_param_name_,
-          diagnostics_config_.enable_node_time_diagnostics);
-      node_.declare_parameter(enable_msg_time_param_name_,
-          diagnostics_config_.enable_msg_time_diagnostics);
-      node_.declare_parameter(enable_increasing_msg_time_param_name_,
-          diagnostics_config_.enable_increasing_msg_time_diagnostics);
       node_.declare_parameter(enabled_param_name_, constants::kDefaultEnabled);
       node_.declare_parameter(tol_param_name_, constants::kDefaultTolerancePercent, descriptor);
       node_.declare_parameter(freq_param_name_, default_freq, descriptor);
@@ -173,12 +157,6 @@ public:
       // Parameters declared via launch/YAML/constructor are ignored by onParameterChange()
       // Re-set parameters to their current value to trigger callbacks. If
       // the parameter fails to set, use defaults.
-      setParameterOrDefault(enable_node_time_param_name_,
-          diagnostics_config_.enable_node_time_diagnostics);
-      setParameterOrDefault(enable_msg_time_param_name_,
-          diagnostics_config_.enable_msg_time_diagnostics);
-      setParameterOrDefault(enable_increasing_msg_time_param_name_,
-          diagnostics_config_.enable_increasing_msg_time_diagnostics);
       setParameterOrDefault(enabled_param_name_, constants::kDefaultEnabled);
       setParameterOrDefault(freq_param_name_, default_freq);
       setParameterOrDefault(tol_param_name_, constants::kDefaultTolerancePercent);
@@ -393,9 +371,9 @@ public:
       (tolerance_percent / 100.0));
     diagnostics_config_.jitter_tolerance_us = tolerance_us;
 
-    // Automatically enable node and msg time diagnostics when expected frequency is set
-    node_.set_parameter(rclcpp::Parameter(enable_node_time_param_name_, true));
-    node_.set_parameter(rclcpp::Parameter(enable_msg_time_param_name_, true));
+    // Enable node and msg time diagnostics when expected frequency is set
+    diagnostics_config_.enable_node_time_diagnostics = true;
+    diagnostics_config_.enable_msg_time_diagnostics = true;
   }
 
   void clearExpectedDt()
@@ -405,8 +383,8 @@ public:
     diagnostics_config_.jitter_tolerance_us = 0;
 
     // Disable node and msg time diagnostics when expected frequency is cleared
-    node_.set_parameter(rclcpp::Parameter(enable_node_time_param_name_, false));
-    node_.set_parameter(rclcpp::Parameter(enable_msg_time_param_name_, false));
+    diagnostics_config_.enable_node_time_diagnostics = false;
+    diagnostics_config_.enable_msg_time_diagnostics = false;
   }
 
 private:
@@ -612,9 +590,6 @@ private:
     std::optional<double> new_freq;
     std::optional<double> new_tol;
     std::optional<bool> new_enabled;
-    std::optional<bool> new_enable_node_time;
-    std::optional<bool> new_enable_msg_time;
-    std::optional<bool> new_enable_increasing_msg_time;
     std::vector<std::string> error_reasons;
 
     //////////////////////////////////////////////////////////////////////////////
@@ -623,16 +598,15 @@ private:
     for (const auto & param : parameters) {
       // Only handle parameters for this topic
       if (param.get_name() != freq_param_name_ && param.get_name() != tol_param_name_ &&
-        param.get_name() != enabled_param_name_ &&
-        param.get_name() != enable_node_time_param_name_ &&
-        param.get_name() != enable_msg_time_param_name_ &&
-        param.get_name() != enable_increasing_msg_time_param_name_)
+        param.get_name() != enabled_param_name_)
       {
         continue;
       }
 
-      // Allow PARAMETER_NOT_SET for parameter deletion
+      // Reject parameter deletion attempts
       if (param.get_type() == rclcpp::ParameterType::PARAMETER_NOT_SET) {
+        result.successful = false;
+        error_reasons.push_back(param.get_name() + ": parameter deletion not supported");
         continue;
       }
 
@@ -641,7 +615,8 @@ private:
         auto value_opt = paramToDouble(param);
         if (!value_opt.has_value()) {
           result.successful = false;
-          error_reasons.push_back(param.get_name() + ": must be a numeric type (int or double)");
+          error_reasons.push_back(param.get_name() +
+              ": must be a numeric type (int or double or NaN)");
           continue;
         }
 
@@ -659,22 +634,16 @@ private:
           }
           new_tol = value;
         }
-      // Handle boolean types together
+      // Handle boolean types
       } else if (param.get_name() == enabled_param_name_) {
         new_enabled = param.as_bool();
-      } else if (param.get_name() == enable_node_time_param_name_) {
-        new_enable_node_time = param.as_bool();
-      } else if (param.get_name() == enable_msg_time_param_name_) {
-        new_enable_msg_time = param.as_bool();
-      } else if (param.get_name() == enable_increasing_msg_time_param_name_) {
-        new_enable_increasing_msg_time = param.as_bool();
       }
     }
 
     // Exit early if any parameters are invalid. No half changes.
     if (!error_reasons.empty()) {
       result.successful = false;
-      result.reason = "Invalid parameters: " + rcpputils::join(error_reasons, "; ");
+      result.reason = rcpputils::join(error_reasons, "; ");
     }
 
     // Execution of changes happens in onParameterEvent after parameters are committed
@@ -718,27 +687,6 @@ private:
         setExpectedDt(freq, tol);
       }
     }
-
-    // Process deleted parameters
-    for (const auto & param : msg->deleted_parameters) {
-      if (param.name == freq_param_name_) {
-        clearExpectedDt();
-        RCLCPP_DEBUG(
-          node_.get_logger(),
-          "Cleared expected frequency for topic '%s' (parameter deleted)",
-          topic_name_.c_str());
-      } else if (param.name == tol_param_name_) {
-        // Reset tolerance to default if frequency is still set
-        auto freq_opt = getNumericParameter(freq_param_name_);
-        if (freq_opt.has_value() && freq_opt.value() > 0) {
-          setExpectedDt(freq_opt.value(), constants::kDefaultTolerancePercent);
-          RCLCPP_DEBUG(
-            node_.get_logger(),
-            "Reset tolerance to default (%.1f%%) for topic '%s' (parameter deleted)",
-            constants::kDefaultTolerancePercent, topic_name_.c_str());
-        }
-      }
-    }
   }
 
   void applyParameterChange(const rcl_interfaces::msg::Parameter & param)
@@ -754,12 +702,6 @@ private:
         prev_timestamp_msg_us_ = std::numeric_limits<uint64_t>::min();
       }
       enabled_ = new_enabled;
-    } else if (param.name == enable_node_time_param_name_) {
-      diagnostics_config_.enable_node_time_diagnostics = param.value.bool_value;
-    } else if (param.name == enable_msg_time_param_name_) {
-      diagnostics_config_.enable_msg_time_diagnostics = param.value.bool_value;
-    } else if (param.name == enable_increasing_msg_time_param_name_) {
-      diagnostics_config_.enable_increasing_msg_time_diagnostics = param.value.bool_value;
     }
   }
 
@@ -777,21 +719,13 @@ private:
       return param.as_double();
     } else if (param.get_type() == rclcpp::ParameterType::PARAMETER_INTEGER) {
       return static_cast<double>(param.as_int());
+    } else if (param.get_type() == rclcpp::ParameterType::PARAMETER_STRING) {
+      std::string str = param.as_string();
+      if (str == "nan" || str == "NaN" || str == "NAN") {
+        return std::numeric_limits<double>::quiet_NaN();
+      }
     }
     return std::nullopt;
-  }
-
-  void tryUndeclareParameter(const std::string & param_name)
-  {
-    try {
-      if (node_.has_parameter(param_name)) {
-        node_.undeclare_parameter(param_name);
-      }
-    } catch (const std::exception & e) {
-      RCLCPP_WARN(
-        node_.get_logger(), "Could not undeclare %s: %s",
-        param_name.c_str(), e.what());
-    }
   }
 
   template<typename T>
@@ -820,19 +754,10 @@ private:
     }
   }
 
-  void undeclareParameters()
-  {
-    tryUndeclareParameter(freq_param_name_);
-    tryUndeclareParameter(tol_param_name_);
-  }
-
   // Parameter names for this topic
   std::string freq_param_name_;
   std::string tol_param_name_;
   std::string enabled_param_name_;
-  std::string enable_node_time_param_name_;
-  std::string enable_msg_time_param_name_;
-  std::string enable_increasing_msg_time_param_name_;
 
   // Parameter callback handle
   rclcpp::node_interfaces::OnSetParametersCallbackHandle::SharedPtr param_callback_handle_;

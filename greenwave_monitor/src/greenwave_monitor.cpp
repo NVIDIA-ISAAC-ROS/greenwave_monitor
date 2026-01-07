@@ -226,82 +226,21 @@ bool GreenwaveMonitor::add_topic(
   // Get the message type from the first publisher
   const std::string type = publishers[0].topic_type();
 
-  // Check if any publisher node already has the enabled parameter for this topic
-  std::string enabled_param_name =
-    std::string(greenwave_diagnostics::constants::kTopicParamPrefix) +
-    topic + greenwave_diagnostics::constants::kEnabledSuffix;
-
-  // Try to find an existing node with the enabled parameter
-  // We use list_parameters via a temporary node to avoid executor deadlock
+  // Try to enable monitoring on an existing node with the parameter
   try {
-    // Get our own node's full name to skip self-reference
-    std::string our_ns = this->get_namespace();
-    std::string our_name = this->get_name();
-    std::string our_full_name = (our_ns == "/") ?
-      ("/" + our_name) : (our_ns + "/" + our_name);
-
-    // Create a single temporary node for parameter operations
-    static std::atomic<uint64_t> temp_node_counter{0};
-    rclcpp::NodeOptions temp_options;
-    temp_options.start_parameter_services(false);
-    temp_options.start_parameter_event_publisher(false);
-    auto temp_node = std::make_shared<rclcpp::Node>(
-      "_gw_param_" + std::to_string(temp_node_counter++),
-      "/_greenwave_internal",
-      temp_options);
-
-    for (const auto & pub_info : publishers) {
-      std::string node_name = pub_info.node_name();
-      std::string node_namespace = pub_info.node_namespace();
-      std::string full_node_name = (node_namespace == "/") ?
-        ("/" + node_name) : (node_namespace + "/" + node_name);
-
-      // Skip if this is our own node (avoid self-reference)
-      if (full_node_name == our_full_name) {
-        continue;
-      }
-
-      auto param_client = std::make_shared<rclcpp::SyncParametersClient>(
-        temp_node, full_node_name);
-      if (!param_client->wait_for_service(std::chrono::milliseconds(500))) {
-        continue;
-      }
-
-      if (param_client->has_parameter(enabled_param_name)) {
-        // Check if already enabled - can't add twice
-        auto current_params = param_client->get_parameters({enabled_param_name});
-        if (!current_params.empty() &&
-          current_params[0].get_type() == rclcpp::ParameterType::PARAMETER_BOOL &&
-          current_params[0].as_bool())
-        {
-          message = "Topic already being monitored on node: " + full_node_name;
-          return false;
-        }
-
-        auto results = param_client->set_parameters({
-          rclcpp::Parameter(enabled_param_name, true)
-        });
-        if (!results.empty() && results[0].successful) {
-          RCLCPP_INFO(
-            this->get_logger(),
-            "Enabled monitoring via parameter on node '%s' for topic '%s'",
-            full_node_name.c_str(), topic.c_str());
-          message = "Enabled monitoring on existing node: " + full_node_name;
-          return true;
-        }
-      }
+    if (try_set_external_enabled_param(topic, true, message)) {
+      return true;
     }
-    // Explicitly clear temp_node before proceeding to avoid any lingering async operations
-    temp_node.reset();
+    // If already monitored externally, return false
+    if (message.find("already being monitored") != std::string::npos) {
+      return false;
+    }
   } catch (const std::exception & e) {
     RCLCPP_WARN(
       this->get_logger(),
       "Exception while checking for existing monitoring on topic '%s': %s",
       topic.c_str(), e.what());
   }
-
-  // Small delay to ensure any async cleanup from temp_node is complete
-  std::this_thread::sleep_for(std::chrono::milliseconds(50));
 
   // No existing node with the parameter found, create local GreenwaveDiagnostics
   auto sub = this->create_generic_subscription(
@@ -331,79 +270,16 @@ bool GreenwaveMonitor::remove_topic(const std::string & topic, std::string & mes
   auto diag_it = greenwave_diagnostics_.find(topic);
   if (diag_it == greenwave_diagnostics_.end()) {
     // Topic not monitored locally, try to find a publisher node with the enabled parameter
-    std::string enabled_param_name =
-      std::string(greenwave_diagnostics::constants::kTopicParamPrefix) +
-      topic + greenwave_diagnostics::constants::kEnabledSuffix;
-
-    auto publishers = this->get_publishers_info_by_topic(topic);
-
     try {
-      // Get our own node's full name to skip self-reference
-      std::string our_ns = this->get_namespace();
-      std::string our_name = this->get_name();
-      std::string our_full_name = (our_ns == "/") ?
-        ("/" + our_name) : (our_ns + "/" + our_name);
-
-      // Create a single temporary node for parameter operations
-      static std::atomic<uint64_t> temp_node_counter{0};
-      rclcpp::NodeOptions temp_options;
-      temp_options.start_parameter_services(false);
-      temp_options.start_parameter_event_publisher(false);
-      auto temp_node = std::make_shared<rclcpp::Node>(
-        "_gw_param_" + std::to_string(temp_node_counter++),
-        "/_greenwave_internal",
-        temp_options);
-
-      for (const auto & pub_info : publishers) {
-        std::string node_name = pub_info.node_name();
-        std::string node_namespace = pub_info.node_namespace();
-        std::string full_node_name = (node_namespace == "/") ?
-          ("/" + node_name) : (node_namespace + "/" + node_name);
-
-        // Skip if this is our own node
-        if (full_node_name == our_full_name) {
-          continue;
-        }
-
-        auto param_client = std::make_shared<rclcpp::SyncParametersClient>(
-          temp_node, full_node_name);
-        if (!param_client->wait_for_service(std::chrono::milliseconds(500))) {
-          continue;
-        }
-
-        if (param_client->has_parameter(enabled_param_name)) {
-          // Check if already disabled - can't remove twice
-          auto current_params = param_client->get_parameters({enabled_param_name});
-          if (!current_params.empty() &&
-            current_params[0].get_type() == rclcpp::ParameterType::PARAMETER_BOOL &&
-            !current_params[0].as_bool())
-          {
-            message = "Topic already disabled on node: " + full_node_name;
-            return false;
-          }
-
-          auto results = param_client->set_parameters({
-            rclcpp::Parameter(enabled_param_name, false)
-          });
-          if (!results.empty() && results[0].successful) {
-            RCLCPP_INFO(
-              this->get_logger(),
-              "Disabled monitoring via parameter on node '%s' for topic '%s'",
-              full_node_name.c_str(), topic.c_str());
-            message = "Disabled monitoring on existing node: " + full_node_name;
-            return true;
-          }
-        }
-      }
+      return try_set_external_enabled_param(topic, false, message);
     } catch (const std::exception & e) {
       RCLCPP_WARN(
         this->get_logger(),
         "Exception while checking for existing monitoring on topic '%s': %s",
         topic.c_str(), e.what());
+      message = "Exception while checking external nodes";
+      return false;
     }
-
-    message = "No parameter " + enabled_param_name + " found on global parameter server";
-    return false;
   }
 
   // Find and remove the subscription
@@ -423,6 +299,83 @@ bool GreenwaveMonitor::remove_topic(const std::string & topic, std::string & mes
 
   message = "Successfully removed topic";
   return true;
+}
+
+bool GreenwaveMonitor::try_set_external_enabled_param(
+  const std::string & topic, bool enabled, std::string & message)
+{
+  std::string enabled_param_name =
+    std::string(greenwave_diagnostics::constants::kTopicParamPrefix) +
+    topic + greenwave_diagnostics::constants::kEnabledSuffix;
+
+  auto publishers = this->get_publishers_info_by_topic(topic);
+  if (publishers.empty()) {
+    message = "No publishers found for topic";
+    return false;
+  }
+
+  std::string our_ns = this->get_namespace();
+  std::string our_name = this->get_name();
+  std::string our_full_name = (our_ns == "/") ?
+    ("/" + our_name) : (our_ns + "/" + our_name);
+
+  static std::atomic<uint64_t> temp_node_counter{0};
+  rclcpp::NodeOptions temp_options;
+  temp_options.start_parameter_services(false);
+  temp_options.start_parameter_event_publisher(false);
+  auto temp_node = std::make_shared<rclcpp::Node>(
+    "_gw_param_" + std::to_string(temp_node_counter++),
+    "/_greenwave_internal",
+    temp_options);
+
+  for (const auto & pub_info : publishers) {
+    std::string node_name = pub_info.node_name();
+    std::string node_namespace = pub_info.node_namespace();
+    std::string full_node_name = (node_namespace == "/") ?
+      ("/" + node_name) : (node_namespace + "/" + node_name);
+
+    if (full_node_name == our_full_name) {
+      continue;
+    }
+
+    auto param_client = std::make_shared<rclcpp::SyncParametersClient>(
+      temp_node, full_node_name);
+    if (!param_client->wait_for_service(std::chrono::milliseconds(500))) {
+      continue;
+    }
+
+    if (!param_client->has_parameter(enabled_param_name)) {
+      continue;
+    }
+
+    auto current_params = param_client->get_parameters({enabled_param_name});
+    if (!current_params.empty() &&
+      current_params[0].get_type() == rclcpp::ParameterType::PARAMETER_BOOL &&
+      current_params[0].as_bool() == enabled)
+    {
+      message = enabled ?
+        "Topic already being monitored on node: " + full_node_name :
+        "Topic already disabled on node: " + full_node_name;
+      return false;
+    }
+
+    auto results = param_client->set_parameters({
+      rclcpp::Parameter(enabled_param_name, enabled)
+    });
+    if (!results.empty() && results[0].successful) {
+      RCLCPP_INFO(
+        this->get_logger(),
+        "%s monitoring via parameter on node '%s' for topic '%s'",
+        enabled ? "Enabled" : "Disabled",
+        full_node_name.c_str(), topic.c_str());
+      message = (enabled ? std::string("Enabled") : std::string("Disabled")) +
+        " monitoring on existing node: " + full_node_name;
+      return true;
+    }
+  }
+
+  message = "No external node with parameter " + enabled_param_name + " found";
+  return false;
 }
 
 std::set<std::string> GreenwaveMonitor::get_topics_from_parameters()

@@ -278,63 +278,15 @@ class TestDynamicParameterChanges(RosNodeTestCase):
         success = set_parameter(self.test_node, tol_param, -5.0)
         self.assertFalse(success, 'Negative tolerance should be rejected')
 
-    def test_delete_parameter_clears_error(self):
-        """Test that deleting a parameter clears the error state."""
+    def test_delete_parameter_rejected(self):
+        """Test that deleting a parameter is rejected."""
         time.sleep(2.0)
 
         freq_param = make_freq_param(TEST_TOPIC_DELETE_PARAM)
-        tol_param = make_tol_param(TEST_TOPIC_DELETE_PARAM)
 
-        # Set up monitoring with correct frequency (publisher is at 30 Hz)
-        success = set_parameter(self.test_node, freq_param, TEST_FREQUENCY)
-        self.assertTrue(success, f'Failed to set {freq_param}')
-
-        success = set_parameter(self.test_node, tol_param, 10.0)
-        self.assertTrue(success, f'Failed to set {tol_param}')
-
-        time.sleep(2.0)
-
-        # Verify initial diagnostics are OK
-        diagnostics = collect_diagnostics_for_topic(
-            self.test_node, TEST_TOPIC_DELETE_PARAM, expected_count=3, timeout_sec=10.0
-        )
-        self.assertGreaterEqual(len(diagnostics), 1, 'Should have diagnostics')
-        self.assertEqual(
-            ord(diagnostics[-1].level), 0,
-            'Initial diagnostics should be OK'
-        )
-
-        # Set mismatched frequency to cause error (expect 1 Hz but publisher is 30 Hz)
-        success = set_parameter(self.test_node, freq_param, 1.0)
-        self.assertTrue(success, 'Failed to set mismatched frequency')
-
-        time.sleep(2.0)
-
-        # Verify diagnostics show error
-        diagnostics_error = collect_diagnostics_for_topic(
-            self.test_node, TEST_TOPIC_DELETE_PARAM, expected_count=3, timeout_sec=10.0
-        )
-        self.assertGreaterEqual(len(diagnostics_error), 1, 'Should have diagnostics')
-        has_error = any(ord(d.level) != 0 for d in diagnostics_error)
-        self.assertTrue(has_error, 'Should have error diagnostics with mismatched frequency')
-
-        # Delete the frequency parameter to clear expected frequency
+        # Attempt to delete the frequency parameter - should be rejected
         success = delete_parameter(self.test_node, freq_param)
-        self.assertTrue(success, f'Failed to delete {freq_param}')
-
-        time.sleep(2.0)
-
-        # Verify diagnostics are OK again (no expected frequency = no error)
-        diagnostics_after_delete = collect_diagnostics_for_topic(
-            self.test_node, TEST_TOPIC_DELETE_PARAM, expected_count=3, timeout_sec=10.0
-        )
-        self.assertGreaterEqual(
-            len(diagnostics_after_delete), 1, 'Should have diagnostics after delete'
-        )
-        self.assertEqual(
-            ord(diagnostics_after_delete[-1].level), 0,
-            'Diagnostics should be OK after deleting frequency parameter'
-        )
+        self.assertFalse(success, 'Parameter deletion should be rejected')
 
 
 if __name__ == '__main__':

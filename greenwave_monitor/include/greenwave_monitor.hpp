@@ -54,6 +54,9 @@ private:
 
   bool remove_topic(const std::string & topic, std::string & message);
 
+  bool try_set_external_enabled_param(
+    const std::string & topic, bool enabled, std::string & message);
+
   bool has_header_from_type(const std::string & type_name);
 
   std::set<std::string> get_topics_from_parameters();
