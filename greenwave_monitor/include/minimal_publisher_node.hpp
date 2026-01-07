@@ -25,7 +25,7 @@
 #include "sensor_msgs/msg/image.hpp"
 #include "sensor_msgs/msg/imu.hpp"
 #include "std_msgs/msg/string.hpp"
-#include "message_diagnostics.hpp"
+#include "greenwave_diagnostics.hpp"
 #include "rclcpp/subscription_options.hpp"
 
 using std::chrono_literals::operator""ms;
@@ -41,7 +41,7 @@ private:
   rclcpp::TimerBase::SharedPtr timer_;
   rclcpp::PublisherBase::SharedPtr publisher_;
   rclcpp::SubscriptionBase::SharedPtr subscription_;
-  std::unique_ptr<message_diagnostics::MessageDiagnostics> message_diagnostics_;
+  std::unique_ptr<greenwave_diagnostics::GreenwaveDiagnostics> greenwave_diagnostics_;
   size_t count_;
   std::string message_type_;
 

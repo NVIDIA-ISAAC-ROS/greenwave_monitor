@@ -18,10 +18,12 @@
 #pragma once
 
 #include <algorithm>
+#include <cstring>
 #include <limits>
 #include <cinttypes>
 #include <cmath>
 #include <mutex>
+#include <optional>
 #include <queue>
 #include <string>
 #include <vector>
@@ -31,9 +33,12 @@
 #include "diagnostic_msgs/msg/key_value.hpp"
 #include "std_msgs/msg/header.hpp"
 #include "builtin_interfaces/msg/time.hpp"
+#include "rcl_interfaces/msg/parameter_descriptor.hpp"
+#include "rcl_interfaces/msg/parameter_event.hpp"
+#include "rcl_interfaces/msg/set_parameters_result.hpp"
 #include "rclcpp/rclcpp.hpp"
 
-namespace message_diagnostics
+namespace greenwave_diagnostics
 {
 namespace constants
 {
@@ -46,10 +51,21 @@ inline constexpr uint64_t kMillisecondsToSeconds = 1000ULL;
 inline constexpr int64_t kDropWarnTimeoutSeconds = 5LL;
 // Cutoff where we consider latency to be nonsense
 inline constexpr int64_t kNonsenseLatencyMs = 365LL * 24LL * 60LL * 60LL * 1000LL;
+// Parameter constants
+inline constexpr const char * kTopicParamPrefix = "greenwave_diagnostics.";
+inline constexpr const char * kFreqSuffix = ".expected_frequency";
+inline constexpr const char * kTolSuffix = ".tolerance";
+inline constexpr const char * kEnabledSuffix = ".enabled";
+inline constexpr const char * kEnableNodeTimeSuffix = ".enable_node_time";
+inline constexpr const char * kEnableMsgTimeSuffix = ".enable_msg_time";
+inline constexpr const char * kEnableIncreasingMsgTimeSuffix = ".enable_increasing_msg_time";
+inline constexpr double kDefaultTolerancePercent = 5.0;
+inline constexpr double kDefaultFrequencyHz = std::numeric_limits<double>::quiet_NaN();
+inline constexpr bool kDefaultEnabled = true;
 }  // namespace constants
 
 // Configurations for a message diagnostics
-struct MessageDiagnosticsConfig
+struct GreenwaveDiagnosticsConfig
 {
   // diagnostics toggle
   bool enable_diagnostics{false};
@@ -73,13 +89,13 @@ struct MessageDiagnosticsConfig
   int64_t jitter_tolerance_us{0LL};
 };
 
-class MessageDiagnostics
+class GreenwaveDiagnostics
 {
 public:
-  MessageDiagnostics(
+  GreenwaveDiagnostics(
     rclcpp::Node & node,
     const std::string & topic_name,
-    const MessageDiagnosticsConfig & diagnostics_config)
+    const GreenwaveDiagnosticsConfig & diagnostics_config)
   : node_(node), topic_name_(topic_name), diagnostics_config_(diagnostics_config)
   {
     clock_ = node_.get_clock();
@@ -106,14 +122,89 @@ public:
     diagnostic_publisher_ =
       node_.create_publisher<diagnostic_msgs::msg::DiagnosticArray>(
       "/diagnostics", 10);
+
+    // Build parameter names for this topic
+    freq_param_name_ = std::string(constants::kTopicParamPrefix) + topic_name_ +
+      constants::kFreqSuffix;
+    tol_param_name_ = std::string(constants::kTopicParamPrefix) + topic_name_ +
+      constants::kTolSuffix;
+    enabled_param_name_ = std::string(constants::kTopicParamPrefix) + topic_name_ +
+      constants::kEnabledSuffix;
+    enable_node_time_param_name_ = std::string(constants::kTopicParamPrefix) + topic_name_ +
+      constants::kEnableNodeTimeSuffix;
+    enable_msg_time_param_name_ = std::string(constants::kTopicParamPrefix) + topic_name_ +
+      constants::kEnableMsgTimeSuffix;
+    enable_increasing_msg_time_param_name_ = std::string(constants::kTopicParamPrefix) +
+      topic_name_ +
+      constants::kEnableIncreasingMsgTimeSuffix;
+
+    // Register parameter callback for this topic's parameters
+    param_callback_handle_ = node_.add_on_set_parameters_callback(
+      std::bind(&GreenwaveDiagnostics::onParameterChange, this, std::placeholders::_1));
+
+    // Subscribe to parameter events
+    param_event_subscription_ = node_.create_subscription<rcl_interfaces::msg::ParameterEvent>(
+      "/parameter_events", 10,
+      std::bind(&GreenwaveDiagnostics::onParameterEvent, this, std::placeholders::_1));
+
+    // Convert config's expected_dt_us to frequency if set
+    double default_freq = constants::kDefaultFrequencyHz;
+    if (diagnostics_config_.expected_dt_us > 0) {
+      default_freq = static_cast<double>(constants::kSecondsToMicroseconds) /
+        static_cast<double>(diagnostics_config_.expected_dt_us);
+    }
+
+    // Declare frequency, tolerance, and enabled parameters if they won't automatically be declared
+    // from overrides. Declared parameters cannot be deleted. Use passed DiagnosticsConfig values.
+    bool auto_declare = node_.get_node_options().automatically_declare_parameters_from_overrides();
+    if (!auto_declare) {
+      rcl_interfaces::msg::ParameterDescriptor descriptor;
+      descriptor.dynamic_typing = true;
+      node_.declare_parameter(enable_node_time_param_name_,
+          diagnostics_config_.enable_node_time_diagnostics);
+      node_.declare_parameter(enable_msg_time_param_name_,
+          diagnostics_config_.enable_msg_time_diagnostics);
+      node_.declare_parameter(enable_increasing_msg_time_param_name_,
+          diagnostics_config_.enable_increasing_msg_time_diagnostics);
+      node_.declare_parameter(enabled_param_name_, constants::kDefaultEnabled);
+      node_.declare_parameter(tol_param_name_, constants::kDefaultTolerancePercent, descriptor);
+      node_.declare_parameter(freq_param_name_, default_freq, descriptor);
+    } else {
+      // Parameters declared via launch/YAML/constructor are ignored by onParameterChange()
+      // Re-set parameters to their current value to trigger callbacks. If
+      // the parameter fails to set, use defaults.
+      setParameterOrDefault(enable_node_time_param_name_,
+          diagnostics_config_.enable_node_time_diagnostics);
+      setParameterOrDefault(enable_msg_time_param_name_,
+          diagnostics_config_.enable_msg_time_diagnostics);
+      setParameterOrDefault(enable_increasing_msg_time_param_name_,
+          diagnostics_config_.enable_increasing_msg_time_diagnostics);
+      setParameterOrDefault(enabled_param_name_, constants::kDefaultEnabled);
+      setParameterOrDefault(freq_param_name_, default_freq);
+      setParameterOrDefault(tol_param_name_, constants::kDefaultTolerancePercent);
+    }
+  }
+
+  ~GreenwaveDiagnostics()
+  {
+    // Unregister parameter callback to avoid dangling references
+    if (param_callback_handle_) {
+      node_.remove_on_set_parameters_callback(param_callback_handle_.get());
+    }
   }
 
   // Update diagnostics numbers. To be called in Subscriber and Publisher
   void updateDiagnostics(uint64_t msg_timestamp_ns)
   {
+    // If the topic is not enabled, skip updating diagnostics
+    if (!enabled_) {
+      RCLCPP_DEBUG_THROTTLE(node_.get_logger(), *clock_, 1000,
+          "Topic %s is not enabled, skipping update diagnostics", topic_name_.c_str());
+      return;
+    }
     // Mutex lock to prevent simultaneous access of common parameters
     // used by updateDiagnostics() and publishDiagnostics()
-    const std::lock_guard<std::mutex> lock(message_diagnostics_mutex_);
+    const std::lock_guard<std::mutex> lock(greenwave_diagnostics_mutex_);
     // Message diagnostics checks message intervals both using the node clock
     // and the message timestamp.
     // All variables name _node refers to the node timestamp checks.
@@ -123,9 +214,9 @@ public:
 
     // Get the current timestamps in microseconds
     uint64_t current_timestamp_msg_us =
-      msg_timestamp_ns / message_diagnostics::constants::kMicrosecondsToNanoseconds;
+      msg_timestamp_ns / greenwave_diagnostics::constants::kMicrosecondsToNanoseconds;
     uint64_t current_timestamp_node_us = static_cast<uint64_t>(clock_->now().nanoseconds() /
-      message_diagnostics::constants::kMicrosecondsToNanoseconds);
+      greenwave_diagnostics::constants::kMicrosecondsToNanoseconds);
 
     // we can only calculate frame rate after 2 messages have been received
     if (prev_timestamp_node_us_ != std::numeric_limits<uint64_t>::min()) {
@@ -138,11 +229,11 @@ public:
 
     const rclcpp::Time time_from_node = node_.get_clock()->now();
     uint64_t ros_node_system_time_us = time_from_node.nanoseconds() /
-      message_diagnostics::constants::kMicrosecondsToNanoseconds;
+      greenwave_diagnostics::constants::kMicrosecondsToNanoseconds;
 
     const double latency_wrt_current_timestamp_node_ms =
       static_cast<double>(ros_node_system_time_us - current_timestamp_msg_us) /
-      message_diagnostics::constants::kMillisecondsToMicroseconds;
+      greenwave_diagnostics::constants::kMillisecondsToMicroseconds;
 
     if (prev_timestamp_msg_us_ != std::numeric_limits<uint64_t>::min()) {
       const int64_t timestamp_diff_msg_us = current_timestamp_msg_us - prev_timestamp_msg_us_;
@@ -161,7 +252,7 @@ public:
 
     // calculate key values for diagnostics status (computed on publish/getters)
     message_latency_msg_ms_ = latency_wrt_current_timestamp_node_ms;
-    if (message_latency_msg_ms_ > message_diagnostics::constants::kNonsenseLatencyMs) {
+    if (message_latency_msg_ms_ > greenwave_diagnostics::constants::kNonsenseLatencyMs) {
       message_latency_msg_ms_ = std::numeric_limits<double>::quiet_NaN();
     }
 
@@ -176,9 +267,15 @@ public:
   // Function to publish diagnostics to a ROS topic
   void publishDiagnostics()
   {
+    // If the topic is not enabled, skip publishing diagnostics
+    if (!enabled_) {
+      RCLCPP_DEBUG_THROTTLE(node_.get_logger(), *clock_, 1000,
+          "Topic %s is not enabled, skipping publish diagnostics", topic_name_.c_str());
+      return;
+    }
     // Mutex lock to prevent simultaneous access of common parameters
     // used by updateDiagnostics() and publishDiagnostics()
-    const std::lock_guard<std::mutex> lock(message_diagnostics_mutex_);
+    const std::lock_guard<std::mutex> lock(greenwave_diagnostics_mutex_);
 
     std::vector<diagnostic_msgs::msg::KeyValue> values;
     // publish diagnostics stale if message has not been updated since the last call
@@ -238,9 +335,9 @@ public:
     // timestamp from std::chrono (steady clock); split into sec/nanosec correctly
     const uint64_t elapsed_ns = static_cast<uint64_t>((clock_->now() - t_start_).nanoseconds());
     const uint32_t time_seconds = static_cast<uint32_t>(
-      elapsed_ns / static_cast<uint64_t>(message_diagnostics::constants::kSecondsToNanoseconds));
+      elapsed_ns / static_cast<uint64_t>(greenwave_diagnostics::constants::kSecondsToNanoseconds));
     const uint32_t time_ns = static_cast<uint32_t>(
-      elapsed_ns % static_cast<uint64_t>(message_diagnostics::constants::kSecondsToNanoseconds));
+      elapsed_ns % static_cast<uint64_t>(greenwave_diagnostics::constants::kSecondsToNanoseconds));
 
     diagnostic_msgs::msg::DiagnosticArray diagnostic_msg;
     std_msgs::msg::Header header;
@@ -272,9 +369,7 @@ public:
 
   void setExpectedDt(double expected_hz, double tolerance_percent)
   {
-    const std::lock_guard<std::mutex> lock(message_diagnostics_mutex_);
-    diagnostics_config_.enable_node_time_diagnostics = true;
-    diagnostics_config_.enable_msg_time_diagnostics = true;
+    const std::lock_guard<std::mutex> lock(greenwave_diagnostics_mutex_);
 
     // This prevents accidental 0 division in the calculations in case of
     // a direct function call (not from service in greenwave_monitor.cpp)
@@ -290,23 +385,28 @@ public:
     }
 
     const int64_t expected_dt_us =
-      static_cast<int64_t>(message_diagnostics::constants::kSecondsToMicroseconds / expected_hz);
+      static_cast<int64_t>(greenwave_diagnostics::constants::kSecondsToMicroseconds / expected_hz);
     diagnostics_config_.expected_dt_us = expected_dt_us;
 
     const int tolerance_us =
-      static_cast<int>((message_diagnostics::constants::kSecondsToMicroseconds / expected_hz) *
+      static_cast<int>((greenwave_diagnostics::constants::kSecondsToMicroseconds / expected_hz) *
       (tolerance_percent / 100.0));
     diagnostics_config_.jitter_tolerance_us = tolerance_us;
+
+    // Automatically enable node and msg time diagnostics when expected frequency is set
+    node_.set_parameter(rclcpp::Parameter(enable_node_time_param_name_, true));
+    node_.set_parameter(rclcpp::Parameter(enable_msg_time_param_name_, true));
   }
 
   void clearExpectedDt()
   {
-    const std::lock_guard<std::mutex> lock(message_diagnostics_mutex_);
-    diagnostics_config_.enable_node_time_diagnostics = false;
-    diagnostics_config_.enable_msg_time_diagnostics = false;
-
+    const std::lock_guard<std::mutex> lock(greenwave_diagnostics_mutex_);
     diagnostics_config_.expected_dt_us = 0;
     diagnostics_config_.jitter_tolerance_us = 0;
+
+    // Disable node and msg time diagnostics when expected frequency is cleared
+    node_.set_parameter(rclcpp::Parameter(enable_node_time_param_name_, false));
+    node_.set_parameter(rclcpp::Parameter(enable_msg_time_param_name_, false));
   }
 
 private:
@@ -352,7 +452,7 @@ private:
       if (sum_interarrival_us == 0 || interarrival_us.empty()) {
         return 0.0;
       }
-      return static_cast<double>(message_diagnostics::constants::kSecondsToMicroseconds) /
+      return static_cast<double>(greenwave_diagnostics::constants::kSecondsToMicroseconds) /
              (static_cast<double>(sum_interarrival_us) /
              static_cast<double>(interarrival_us.size()));
     }
@@ -364,14 +464,24 @@ private:
       }
       return sum_jitter_abs_us / static_cast<int64_t>(jitter_abs_us.size());
     }
+
+    void clear()
+    {
+      interarrival_us = std::queue<int64_t>();
+      sum_interarrival_us = 0;
+      jitter_abs_us = std::queue<int64_t>();
+      sum_jitter_abs_us = 0;
+      max_abs_jitter_us = 0;
+      outlier_count = 0;
+    }
   };
   // Mutex lock to prevent simultaneous access of common parameters
   // used by updateDiagnostics() and publishDiagnostics()
-  std::mutex message_diagnostics_mutex_;
+  std::mutex greenwave_diagnostics_mutex_;
 
   rclcpp::Node & node_;
   std::string topic_name_;
-  MessageDiagnosticsConfig diagnostics_config_;
+  GreenwaveDiagnosticsConfig diagnostics_config_;
   std::vector<diagnostic_msgs::msg::DiagnosticStatus> status_vec_;
   rclcpp::Clock::SharedPtr clock_;
   rclcpp::Time t_start_;
@@ -390,7 +500,8 @@ private:
   {
     if (status.message.empty()) {
       status.message = update;
-    } else {
+    } else if (status.message.find(update) == std::string::npos) {
+      // Only append if not already present
       status.message.append(", ").append(update);
     }
   }
@@ -412,7 +523,7 @@ private:
     if (missed_deadline_node) {
       RCLCPP_DEBUG(
         node_.get_logger(),
-        "[MessageDiagnostics Node Time]"
+        "[GreenwaveDiagnostics Node Time]"
         " Difference of time between messages(%" PRId64 ") and expected time between"
         " messages(%" PRId64 ") is out of tolerance(%" PRId64 ") by %" PRId64 " for topic %s."
         " Units are microseconds.",
@@ -442,7 +553,7 @@ private:
       prev_drop_ts_ = clock_->now();
       RCLCPP_DEBUG(
         node_.get_logger(),
-        "[MessageDiagnostics Message Timestamp]"
+        "[GreenwaveDiagnostics Message Timestamp]"
         " Difference of time between messages(%" PRId64 ") and expected "
         "time between"
         " messages(%" PRId64 ") is out of tolerance(%" PRId64 ") by %" PRId64 " for topic %s. "
@@ -455,7 +566,7 @@ private:
 
     if (prev_drop_ts_.nanoseconds() != 0) {
       auto time_since_drop = (clock_->now() - prev_drop_ts_).seconds();
-      if (time_since_drop < message_diagnostics::constants::kDropWarnTimeoutSeconds) {
+      if (time_since_drop < greenwave_diagnostics::constants::kDropWarnTimeoutSeconds) {
         error_found = true;
         status_vec_[0].level = diagnostic_msgs::msg::DiagnosticStatus::ERROR;
         deadlines_missed_since_last_pub_ = 0;
@@ -475,14 +586,14 @@ private:
       prev_noninc_msg_ts_ = clock_->now();
       RCLCPP_WARN(
         node_.get_logger(),
-        "[MessageDiagnostics Message Timestamp Non Increasing]"
+        "[GreenwaveDiagnostics Message Timestamp Non Increasing]"
         " Message timestamp is not increasing. Current timestamp: %" PRIu64 ", "
         " Previous timestamp: %" PRIu64 " for topic %s. Units are microseconds.",
         current_timestamp_msg_us, prev_timestamp_msg_us_, topic_name_.c_str());
     }
     if (prev_noninc_msg_ts_.nanoseconds() != 0) {
       auto time_since_noninc = (clock_->now() - prev_noninc_msg_ts_).seconds();
-      if (time_since_noninc < message_diagnostics::constants::kDropWarnTimeoutSeconds) {
+      if (time_since_noninc < greenwave_diagnostics::constants::kDropWarnTimeoutSeconds) {
         error_found = true;
         status_vec_[0].level = diagnostic_msgs::msg::DiagnosticStatus::ERROR;
         deadlines_missed_since_last_pub_ = 0;
@@ -491,6 +602,244 @@ private:
     }
     return error_found;
   }
+
+  rcl_interfaces::msg::SetParametersResult onParameterChange(
+    const std::vector<rclcpp::Parameter> & parameters)
+  {
+    rcl_interfaces::msg::SetParametersResult result;
+    result.successful = true;
+
+    std::optional<double> new_freq;
+    std::optional<double> new_tol;
+    std::optional<bool> new_enabled;
+    std::optional<bool> new_enable_node_time;
+    std::optional<bool> new_enable_msg_time;
+    std::optional<bool> new_enable_increasing_msg_time;
+    std::vector<std::string> error_reasons;
+
+    //////////////////////////////////////////////////////////////////////////////
+    // Validate parameters
+    //////////////////////////////////////////////////////////////////////////////
+    for (const auto & param : parameters) {
+      // Only handle parameters for this topic
+      if (param.get_name() != freq_param_name_ && param.get_name() != tol_param_name_ &&
+        param.get_name() != enabled_param_name_ &&
+        param.get_name() != enable_node_time_param_name_ &&
+        param.get_name() != enable_msg_time_param_name_ &&
+        param.get_name() != enable_increasing_msg_time_param_name_)
+      {
+        continue;
+      }
+
+      // Allow PARAMETER_NOT_SET for parameter deletion
+      if (param.get_type() == rclcpp::ParameterType::PARAMETER_NOT_SET) {
+        continue;
+      }
+
+      // Handle numeric types together
+      if (param.get_name() == freq_param_name_ || param.get_name() == tol_param_name_) {
+        auto value_opt = paramToDouble(param);
+        if (!value_opt.has_value()) {
+          result.successful = false;
+          error_reasons.push_back(param.get_name() + ": must be a numeric type (int or double)");
+          continue;
+        }
+
+        double value = value_opt.value();
+        if (param.get_name() == freq_param_name_) {
+          if (value <= 0.0 && !std::isnan(value)) {
+            result.successful = false;
+            error_reasons.push_back(param.get_name() + ": must be positive or NaN");
+          }
+          new_freq = value;
+        } else if (param.get_name() == tol_param_name_) {
+          if (value < 0.0) {
+            result.successful = false;
+            error_reasons.push_back(param.get_name() + ": must be non-negative");
+          }
+          new_tol = value;
+        }
+      // Handle boolean types together
+      } else if (param.get_name() == enabled_param_name_) {
+        new_enabled = param.as_bool();
+      } else if (param.get_name() == enable_node_time_param_name_) {
+        new_enable_node_time = param.as_bool();
+      } else if (param.get_name() == enable_msg_time_param_name_) {
+        new_enable_msg_time = param.as_bool();
+      } else if (param.get_name() == enable_increasing_msg_time_param_name_) {
+        new_enable_increasing_msg_time = param.as_bool();
+      }
+    }
+
+    // Exit early if any parameters are invalid. No half changes.
+    if (!error_reasons.empty()) {
+      result.successful = false;
+      result.reason = "Invalid parameters: " + rcpputils::join(error_reasons, "; ");
+    }
+
+    // Execution of changes happens in onParameterEvent after parameters are committed
+    return result;
+  }
+
+  void onParameterEvent(const rcl_interfaces::msg::ParameterEvent::SharedPtr msg)
+  {
+    // Only process events from this node
+    if (msg->node != node_.get_fully_qualified_name()) {
+      return;
+    }
+
+    // Process changed and new parameters
+    bool freq_changed = false;
+    bool tol_changed = false;
+
+    auto process_params = [&](const auto & params) {
+        for (const auto & param : params) {
+          applyParameterChange(param);
+          if (param.name == freq_param_name_) {
+            freq_changed = true;
+          } else if (param.name == tol_param_name_) {
+            tol_changed = true;
+          }
+        }
+      };
+    process_params(msg->changed_parameters);
+    process_params(msg->new_parameters);
+
+    // Update expected dt only if frequency or tolerance was explicitly changed
+    if (freq_changed || tol_changed) {
+      auto freq_opt = getNumericParameter(freq_param_name_);
+      auto tol_opt = getNumericParameter(tol_param_name_);
+      double freq = freq_opt.value_or(std::numeric_limits<double>::quiet_NaN());
+      double tol = tol_opt.value_or(constants::kDefaultTolerancePercent);
+
+      if (std::isnan(freq) || freq <= 0.0) {
+        clearExpectedDt();
+      } else {
+        setExpectedDt(freq, tol);
+      }
+    }
+
+    // Process deleted parameters
+    for (const auto & param : msg->deleted_parameters) {
+      if (param.name == freq_param_name_) {
+        clearExpectedDt();
+        RCLCPP_DEBUG(
+          node_.get_logger(),
+          "Cleared expected frequency for topic '%s' (parameter deleted)",
+          topic_name_.c_str());
+      } else if (param.name == tol_param_name_) {
+        // Reset tolerance to default if frequency is still set
+        auto freq_opt = getNumericParameter(freq_param_name_);
+        if (freq_opt.has_value() && freq_opt.value() > 0) {
+          setExpectedDt(freq_opt.value(), constants::kDefaultTolerancePercent);
+          RCLCPP_DEBUG(
+            node_.get_logger(),
+            "Reset tolerance to default (%.1f%%) for topic '%s' (parameter deleted)",
+            constants::kDefaultTolerancePercent, topic_name_.c_str());
+        }
+      }
+    }
+  }
+
+  void applyParameterChange(const rcl_interfaces::msg::Parameter & param)
+  {
+    if (param.name == enabled_param_name_) {
+      bool new_enabled = param.value.bool_value;
+      if (!new_enabled) {
+        // Clear windows when disabling diagnostics
+        const std::lock_guard<std::mutex> lock(greenwave_diagnostics_mutex_);
+        node_window_.clear();
+        msg_window_.clear();
+        prev_timestamp_node_us_ = std::numeric_limits<uint64_t>::min();
+        prev_timestamp_msg_us_ = std::numeric_limits<uint64_t>::min();
+      }
+      enabled_ = new_enabled;
+    } else if (param.name == enable_node_time_param_name_) {
+      diagnostics_config_.enable_node_time_diagnostics = param.value.bool_value;
+    } else if (param.name == enable_msg_time_param_name_) {
+      diagnostics_config_.enable_msg_time_diagnostics = param.value.bool_value;
+    } else if (param.name == enable_increasing_msg_time_param_name_) {
+      diagnostics_config_.enable_increasing_msg_time_diagnostics = param.value.bool_value;
+    }
+  }
+
+  std::optional<double> getNumericParameter(const std::string & param_name)
+  {
+    if (!node_.has_parameter(param_name)) {
+      return std::nullopt;
+    }
+    return paramToDouble(node_.get_parameter(param_name));
+  }
+
+  static std::optional<double> paramToDouble(const rclcpp::Parameter & param)
+  {
+    if (param.get_type() == rclcpp::ParameterType::PARAMETER_DOUBLE) {
+      return param.as_double();
+    } else if (param.get_type() == rclcpp::ParameterType::PARAMETER_INTEGER) {
+      return static_cast<double>(param.as_int());
+    }
+    return std::nullopt;
+  }
+
+  void tryUndeclareParameter(const std::string & param_name)
+  {
+    try {
+      if (node_.has_parameter(param_name)) {
+        node_.undeclare_parameter(param_name);
+      }
+    } catch (const std::exception & e) {
+      RCLCPP_WARN(
+        node_.get_logger(), "Could not undeclare %s: %s",
+        param_name.c_str(), e.what());
+    }
+  }
+
+  template<typename T>
+  void setParameterOrDefault(const std::string & param_name, const T & default_value)
+  {
+    if (node_.has_parameter(param_name)) {
+      auto current_param = node_.get_parameter(param_name);
+      if (current_param.get_type() != rclcpp::ParameterType::PARAMETER_NOT_SET) {
+        auto result = node_.set_parameter(current_param);
+        if (result.successful) {
+          return;
+        } else {
+          RCLCPP_WARN(
+            node_.get_logger(),
+            "Iniital parameter %s failed to set for topic %s: %s",
+            param_name.c_str(), topic_name_.c_str(), result.reason.c_str());
+        }
+      }
+    }
+    auto result = node_.set_parameter(rclcpp::Parameter(param_name, default_value));
+    if (!result.successful) {
+      RCLCPP_ERROR(
+        node_.get_logger(),
+        "Failed to set default value for parameter %s for topic %s",
+        param_name.c_str(), topic_name_.c_str());
+    }
+  }
+
+  void undeclareParameters()
+  {
+    tryUndeclareParameter(freq_param_name_);
+    tryUndeclareParameter(tol_param_name_);
+  }
+
+  // Parameter names for this topic
+  std::string freq_param_name_;
+  std::string tol_param_name_;
+  std::string enabled_param_name_;
+  std::string enable_node_time_param_name_;
+  std::string enable_msg_time_param_name_;
+  std::string enable_increasing_msg_time_param_name_;
+
+  // Parameter callback handle
+  rclcpp::node_interfaces::OnSetParametersCallbackHandle::SharedPtr param_callback_handle_;
+  rclcpp::Subscription<rcl_interfaces::msg::ParameterEvent>::SharedPtr param_event_subscription_;
+
+  // Flag for indicating if message diagnostics are enabled for this topic
+  bool enabled_{true};
 };
 
-}  // namespace message_diagnostics
+}  // namespace greenwave_diagnostics

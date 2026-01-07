@@ -59,9 +59,12 @@ def generate_test_description(message_type, expected_frequency, tolerance_hz):
     publishers = [
         # Main test topic publisher with parametrized frequency
         create_minimal_publisher('/test_topic', expected_frequency, message_type),
-        # Additional publishers for topic management tests
-        create_minimal_publisher('/test_topic1', expected_frequency, message_type, '1'),
-        create_minimal_publisher('/test_topic2', expected_frequency, message_type, '2')
+        # Additional publishers for topic management tests (start with diagnostics disabled
+        # so add_topic can enable them)
+        create_minimal_publisher(
+            '/test_topic1', expected_frequency, message_type, '1', enable_diagnostics=False),
+        create_minimal_publisher(
+            '/test_topic2', expected_frequency, message_type, '2', enable_diagnostics=False)
     ]
 
     context = {
@@ -119,7 +122,7 @@ class TestGreenwaveMonitor(unittest.TestCase):
         """Test that the node launches without errors."""
         # Create a service client to check if the node is ready
         # Service discovery is more reliable than node discovery in launch_testing
-        manage_client, set_freq_client = create_service_clients(
+        manage_client = create_service_clients(
             self.test_node, MONITOR_NODE_NAMESPACE, MONITOR_NODE_NAME
         )
         service_available = wait_for_service_connection(
@@ -188,7 +191,7 @@ class TestGreenwaveMonitor(unittest.TestCase):
             add=False, topic=TEST_TOPIC, service_client=service_client)
         self.assertTrue(response.success)
 
-        # 2. Removing the same topic again should fail because it no longer exists.
+        # 2. Removing the same topic again should fail because it's already disabled.
         response = self.call_manage_topic(
             add=False, topic=TEST_TOPIC, service_client=service_client)
         self.assertFalse(response.success)
@@ -201,7 +204,7 @@ class TestGreenwaveMonitor(unittest.TestCase):
         # Verify diagnostics after adding the topic back
         self.verify_diagnostics(TEST_TOPIC, expected_frequency, message_type, tolerance_hz)
 
-        # 4. Adding the same topic again should fail because it's already monitored.
+        # 4. Adding the same topic again should fail because it's already enabled.
         response = self.call_manage_topic(
             add=True, topic=TEST_TOPIC, service_client=service_client)
         self.assertFalse(response.success)

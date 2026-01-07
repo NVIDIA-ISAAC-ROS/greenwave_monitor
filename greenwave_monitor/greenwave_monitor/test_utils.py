@@ -29,7 +29,7 @@ from greenwave_monitor.ui_adaptor import (
     TOL_SUFFIX,
     TOPIC_PARAM_PREFIX,
 )
-from greenwave_monitor_interfaces.srv import ManageTopic, SetExpectedFrequency
+from greenwave_monitor_interfaces.srv import ManageTopic
 import launch_ros
 from rcl_interfaces.msg import Parameter, ParameterType, ParameterValue
 from rcl_interfaces.srv import GetParameters, SetParameters
@@ -166,7 +166,8 @@ def delete_parameter(test_node: Node, param_name: str,
 
 
 def create_minimal_publisher(
-        topic: str, frequency_hz: float, message_type: str, id_suffix: str = ''):
+        topic: str, frequency_hz: float, message_type: str, id_suffix: str = '',
+        enable_diagnostics: bool = True):
     """Create a minimal publisher node with the given parameters."""
     return launch_ros.actions.Node(
         package='greenwave_monitor',
@@ -175,7 +176,8 @@ def create_minimal_publisher(
         parameters=[{
             'topic': topic,
             'frequency_hz': frequency_hz,
-            'message_type': message_type
+            'message_type': message_type,
+            'enable_greenwave_diagnostics': enable_diagnostics
         }],
         output='screen'
     )
@@ -238,33 +240,6 @@ def call_manage_topic_service(node: Node,
     request.topic_name = topic
     future = service_client.call_async(request)
 
-    rclpy.spin_until_future_complete(node, future, timeout_sec=timeout_sec)
-
-    if future.result() is None:
-        node.get_logger().error('Service call failed or timed out')
-        return None
-
-    return future.result()
-
-
-def call_set_frequency_service(node: Node,
-                               service_client,
-                               topic_name: str,
-                               expected_hz: float = 0.0,
-                               tolerance_percent: float = 0.0,
-                               clear: bool = False,
-                               add_if_missing: bool = True,
-                               timeout_sec: float = 8.0
-                               ) -> Optional[SetExpectedFrequency.Response]:
-    """Call the set_expected_frequency service with given parameters."""
-    request = SetExpectedFrequency.Request()
-    request.topic_name = topic_name
-    request.expected_hz = expected_hz
-    request.tolerance_percent = tolerance_percent
-    request.clear_expected = clear
-    request.add_topic_if_missing = add_if_missing
-
-    future = service_client.call_async(request)
     rclpy.spin_until_future_complete(node, future, timeout_sec=timeout_sec)
 
     if future.result() is None:
@@ -404,11 +379,7 @@ def create_service_clients(node: Node, namespace: str = MONITOR_NODE_NAMESPACE,
         ManageTopic, f'/{namespace}/{node_name}/manage_topic'
     )
 
-    set_frequency_client = node.create_client(
-        SetExpectedFrequency, f'/{namespace}/{node_name}/set_expected_frequency'
-    )
-
-    return manage_topic_client, set_frequency_client
+    return manage_topic_client
 
 
 class RosNodeTestCase(unittest.TestCase, ABC):

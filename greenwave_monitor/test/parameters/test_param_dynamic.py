@@ -56,11 +56,13 @@ def generate_test_description():
     )
 
     publisher_set_params = create_minimal_publisher(
-        TEST_TOPIC_SET_PARAMS, TEST_FREQUENCY, 'imu', '_set_params'
+        TEST_TOPIC_SET_PARAMS, TEST_FREQUENCY, 'imu', '_set_params',
+        enable_diagnostics=False
     )
 
     publisher_delete_param = create_minimal_publisher(
-        TEST_TOPIC_DELETE_PARAM, TEST_FREQUENCY, 'imu', '_delete_param'
+        TEST_TOPIC_DELETE_PARAM, TEST_FREQUENCY, 'imu', '_delete_param',
+        enable_diagnostics=False
     )
 
     return (

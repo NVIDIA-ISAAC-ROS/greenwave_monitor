@@ -335,10 +335,10 @@ def curses_main(stdscr, node):
                         diag.latency.ljust(REALTIME_DELAY_WIDTH)
                         if diag.latency != '-' else 'N/A'.ljust(REALTIME_DELAY_WIDTH))
 
-                # Get expected frequency
-                expected_hz, tolerance = node.ui_adaptor.get_expected_frequency(topic_name)
-                if expected_hz > 0:
-                    expected_freq_display = f'{expected_hz:.1f}Hz'.ljust(12)
+                # Get expected frequency with tolerance
+                expected_freq_str = node.ui_adaptor.get_expected_frequency_str(topic_name)
+                if expected_freq_str != '-':
+                    expected_freq_display = expected_freq_str.ljust(14)
 
             # Color coding based on status
             if is_monitored:

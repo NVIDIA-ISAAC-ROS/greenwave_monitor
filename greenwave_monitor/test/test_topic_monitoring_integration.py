@@ -140,10 +140,9 @@ class TestTopicMonitoringIntegration(unittest.TestCase):
                 self.test_node.destroy_subscription(
                     self.diagnostics_monitor.param_events_subscription)
                 self.test_node.destroy_client(self.diagnostics_monitor.manage_topic_client)
-                self.test_node.destroy_client(
-                    self.diagnostics_monitor.set_expected_frequency_client)
                 self.test_node.destroy_client(self.diagnostics_monitor.list_params_client)
                 self.test_node.destroy_client(self.diagnostics_monitor.get_params_client)
+                self.test_node.destroy_client(self.diagnostics_monitor.set_params_client)
             except Exception:
                 pass  # Ignore cleanup errors
 
@@ -155,17 +154,17 @@ class TestTopicMonitoringIntegration(unittest.TestCase):
 
         # The monitor should discover the services automatically
         self.assertIsNotNone(self.diagnostics_monitor.manage_topic_client)
-        self.assertIsNotNone(self.diagnostics_monitor.set_expected_frequency_client)
+        self.assertIsNotNone(self.diagnostics_monitor.set_params_client)
 
         # Verify services are available
         manage_available = self.diagnostics_monitor.manage_topic_client.wait_for_service(
             timeout_sec=5.0)
-        set_freq_available = (
-            self.diagnostics_monitor.set_expected_frequency_client
+        set_params_available = (
+            self.diagnostics_monitor.set_params_client
             .wait_for_service(timeout_sec=5.0))
 
         self.assertTrue(manage_available, 'ManageTopic service should be available')
-        self.assertTrue(set_freq_available, 'SetExpectedFrequency service should be available')
+        self.assertTrue(set_params_available, 'SetParameters service should be available')
 
     def test_diagnostic_data_conversion(self, expected_frequency, message_type, tolerance_hz):
         """Test conversion from DiagnosticStatus to UiDiagnosticData."""

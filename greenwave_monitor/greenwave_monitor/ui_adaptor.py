@@ -26,32 +26,33 @@ messages on `/diagnostics`. `GreenwaveUiAdaptor` subscribes to that topic and ma
 thread-safe, easy-to-consume view (`UiDiagnosticData`) per monitored topic, including the
 timestamp of the last update for each topic.
 
-In addition to passively subscribing, `GreenwaveUiAdaptor` exposes clients for two
-services on the monitor node:
-- ManageTopic: start/stop monitoring a topic (`toggle_topic_monitoring`).
-- SetExpectedFrequency: set/clear the expected publish rate and tolerance for a topic
-  (`set_expected_frequency`). Expected rates are also cached locally in
-  `expected_frequencies` as `(expected_hz, tolerance_percent)` so UIs can display the
-  configured values alongside live diagnostics.
+In addition to passively subscribing, `GreenwaveUiAdaptor` exposes:
+- ManageTopic service client: start/stop monitoring a topic (`toggle_topic_monitoring`).
+- Parameter-based frequency configuration: set/clear the expected publish rate and tolerance
+  for a topic (`set_expected_frequency`) via ROS parameters. Expected rates are also cached
+  locally in `expected_frequencies` as `(expected_hz, tolerance_percent)` so UIs can display
+  the configured values alongside live diagnostics.
 """
 
 from dataclasses import dataclass
 from enum import Enum
+import math
 import threading
 import time
 from typing import Dict
 
 from diagnostic_msgs.msg import DiagnosticArray, DiagnosticStatus
-from greenwave_monitor_interfaces.srv import ManageTopic, SetExpectedFrequency
-from rcl_interfaces.msg import ParameterEvent, ParameterType, ParameterValue
-from rcl_interfaces.srv import GetParameters, ListParameters
+from greenwave_monitor_interfaces.srv import ManageTopic
+from rcl_interfaces.msg import Parameter, ParameterEvent, ParameterType, ParameterValue
+from rcl_interfaces.srv import GetParameters, ListParameters, SetParameters
 import rclpy
 from rclpy.node import Node
 
 # Parameter name constants
-TOPIC_PARAM_PREFIX = 'topics.'
+TOPIC_PARAM_PREFIX = 'greenwave_diagnostics.'
 FREQ_SUFFIX = '.expected_frequency'
 TOL_SUFFIX = '.tolerance'
+ENABLED_SUFFIX = '.enabled'
 DEFAULT_TOLERANCE_PERCENT = 5.0
 
 
@@ -137,7 +138,7 @@ class GreenwaveUiAdaptor:
 
     Designed for UI frontends, this class keeps per-topic `UiDiagnosticData` up to date,
     provides a toggle for monitoring via `ManageTopic`, and exposes helpers to set/clear
-    expected frequencies via `SetExpectedFrequency`. Service names may be discovered
+    expected frequencies via ROS parameters. Service names may be discovered
     dynamically or constructed from an optional namespace and node name.
 
     """
@@ -170,7 +171,6 @@ class GreenwaveUiAdaptor:
         )
 
         manage_service_name = f'{self.monitor_node_name}/manage_topic'
-        set_freq_service_name = f'{self.monitor_node_name}/set_expected_frequency'
 
         self.node.get_logger().info(f'Connecting to monitor service: {manage_service_name}')
 
@@ -179,12 +179,7 @@ class GreenwaveUiAdaptor:
             manage_service_name
         )
 
-        self.set_expected_frequency_client = self.node.create_client(
-            SetExpectedFrequency,
-            set_freq_service_name
-        )
-
-        # Parameter service clients for querying initial state
+        # Parameter service clients for querying and setting parameters
         self.list_params_client = self.node.create_client(
             ListParameters,
             f'{self.monitor_node_name}/list_parameters'
@@ -193,66 +188,121 @@ class GreenwaveUiAdaptor:
             GetParameters,
             f'{self.monitor_node_name}/get_parameters'
         )
+        self.set_params_client = self.node.create_client(
+            SetParameters,
+            f'{self.monitor_node_name}/set_parameters'
+        )
 
-        # Query initial parameters after a short delay to let services come up
+        # Track pending node queries to prevent garbage collection
+        self._pending_node_queries: Dict[str, dict] = {}
+
+        # Query initial parameters after a short delay to let nodes come up
         self._initial_params_timer = self.node.create_timer(
-            0.1, self._fetch_initial_parameters_callback)
+            2.0, self._fetch_initial_parameters_callback)
 
     def _fetch_initial_parameters_callback(self):
-        """Timer callback to fetch initial parameters (retries until services ready)."""
-        # Check if services are available (non-blocking)
-        if not self.list_params_client.service_is_ready():
-            return  # Timer will retry
-
-        if not self.get_params_client.service_is_ready():
-            return  # Timer will retry
-
-        # Cancel timer now that services are ready
+        """Timer callback to fetch initial parameters from all nodes."""
+        # Cancel timer - we only run once
         if self._initial_params_timer is not None:
             self._initial_params_timer.cancel()
             self._initial_params_timer = None
 
-        # List all parameters (prefixes filter is unreliable with nested names)
+        # Get all nodes in the system
+        node_names_and_namespaces = self.node.get_node_names_and_namespaces()
+
+        for node_name, node_namespace in node_names_and_namespaces:
+            # Skip our own node
+            if node_name == self.node.get_name():
+                continue
+
+            if node_namespace == '/':
+                full_node_name = f'/{node_name}'
+            else:
+                full_node_name = f'{node_namespace}/{node_name}'
+
+            self._query_node_parameters(full_node_name)
+
+    def _query_node_parameters(self, full_node_name: str):
+        """Start async query for topic parameters on a specific node."""
+        list_client = self.node.create_client(
+            ListParameters, f'{full_node_name}/list_parameters')
+
+        # Check if service exists (non-blocking)
+        if not list_client.service_is_ready():
+            self.node.destroy_client(list_client)
+            return
+
+        # Store client to prevent garbage collection
+        query_id = full_node_name
+        self._pending_node_queries[query_id] = {
+            'node_name': full_node_name,
+            'list_client': list_client,
+            'get_client': None,
+            'param_names': []
+        }
+
         list_request = ListParameters.Request()
-        list_request.prefixes = ['topics']
+        list_request.prefixes = ['greenwave_diagnostics']
         list_request.depth = 10
 
-        list_future = self.list_params_client.call_async(list_request)
-        list_future.add_done_callback(self._on_list_parameters_response)
+        list_future = list_client.call_async(list_request)
+        list_future.add_done_callback(
+            lambda f, qid=query_id: self._on_node_list_response(f, qid))
 
-    def _on_list_parameters_response(self, future):
-        """Handle response from list_parameters service."""
+    def _on_node_list_response(self, future, query_id: str):
+        """Handle list_parameters response from a node."""
         try:
+            query = self._pending_node_queries.get(query_id)
+            if not query:
+                return
+
             if future.result() is None:
+                self._cleanup_node_query(query_id)
                 return
 
             all_param_names = future.result().result.names
-
-            # Filter to only topic parameters (prefixes filter is unreliable)
             param_names = [n for n in all_param_names if n.startswith(TOPIC_PARAM_PREFIX)]
 
             if not param_names:
+                self._cleanup_node_query(query_id)
                 return
 
-            # Store for use in get callback
-            self._pending_param_names = param_names
+            # Create get_parameters client
+            full_node_name = query['node_name']
+            get_client = self.node.create_client(
+                GetParameters, f'{full_node_name}/get_parameters')
 
-            # Get values for topic parameters only
+            if not get_client.service_is_ready():
+                self.node.destroy_client(get_client)
+                self._cleanup_node_query(query_id)
+                return
+
+            query['get_client'] = get_client
+            query['param_names'] = param_names
+
             get_request = GetParameters.Request()
             get_request.names = param_names
 
-            get_future = self.get_params_client.call_async(get_request)
-            get_future.add_done_callback(self._on_get_parameters_response)
+            get_future = get_client.call_async(get_request)
+            get_future.add_done_callback(
+                lambda f, qid=query_id: self._on_node_get_response(f, qid))
+
         except Exception as e:
             self.node.get_logger().debug(f'Error listing parameters: {e}')
+            self._cleanup_node_query(query_id)
 
-    def _on_get_parameters_response(self, future):
-        """Handle response from get_parameters service."""
+    def _on_node_get_response(self, future, query_id: str):
+        """Handle get_parameters response from a node."""
         try:
-            if future.result() is None:
+            query = self._pending_node_queries.get(query_id)
+            if not query:
                 return
 
-            param_names = getattr(self, '_pending_param_names', [])
+            if future.result() is None:
+                self._cleanup_node_query(query_id)
+                return
+
+            param_names = query['param_names']
             values = future.result().values
 
             # Parse parameters into expected_frequencies
@@ -280,11 +330,22 @@ class GreenwaveUiAdaptor:
                 for topic_name, config in topic_configs.items():
                     freq = config.get('freq', 0.0)
                     tol = config.get('tol', DEFAULT_TOLERANCE_PERCENT)
-                    if freq > 0:
+                    if freq > 0 and not math.isnan(freq):
                         self.expected_frequencies[topic_name] = (freq, tol)
 
         except Exception as e:
             self.node.get_logger().debug(f'Error fetching parameters: {e}')
+        finally:
+            self._cleanup_node_query(query_id)
+
+    def _cleanup_node_query(self, query_id: str):
+        """Clean up clients for a completed node query."""
+        query = self._pending_node_queries.pop(query_id, None)
+        if query:
+            if query.get('list_client'):
+                self.node.destroy_client(query['list_client'])
+            if query.get('get_client'):
+                self.node.destroy_client(query['get_client'])
 
     def _extract_topic_name(self, diagnostic_name: str) -> str:
         """
@@ -340,7 +401,8 @@ class GreenwaveUiAdaptor:
                 current = self.expected_frequencies.get(topic_name, (0.0, 0.0))
 
                 if field == TopicParamField.FREQUENCY:
-                    if value > 0:
+                    # Treat NaN or non-positive as "cleared"
+                    if value > 0 and not math.isnan(value):
                         self.expected_frequencies[topic_name] = (value, current[1])
                     elif topic_name in self.expected_frequencies:
                         del self.expected_frequencies[topic_name]
@@ -403,27 +465,107 @@ class GreenwaveUiAdaptor:
             action = 'start' if request.add_topic else 'stop'
             self.node.get_logger().error(f'Failed to {action} monitoring: {e}')
 
+    def _find_node_with_topic_param(self, topic_name: str) -> str:
+        """
+        Find a node that has the frequency parameter for this topic.
+
+        Searches all nodes in the system for the parameter. Falls back to the
+        monitor node if no node is found with the parameter.
+        """
+        freq_param_name = f'{TOPIC_PARAM_PREFIX}{topic_name}{FREQ_SUFFIX}'
+
+        # Get all nodes in the system
+        node_names_and_namespaces = self.node.get_node_names_and_namespaces()
+
+        for node_name, node_namespace in node_names_and_namespaces:
+            # Skip our own node
+            if node_name == self.node.get_name():
+                continue
+
+            if node_namespace == '/':
+                full_node_name = f'/{node_name}'
+            else:
+                full_node_name = f'{node_namespace}/{node_name}'
+
+            # Check if this node has the frequency parameter
+            list_client = self.node.create_client(
+                ListParameters, f'{full_node_name}/list_parameters')
+            if not list_client.wait_for_service(timeout_sec=0.5):
+                self.node.destroy_client(list_client)
+                continue
+
+            list_request = ListParameters.Request()
+            list_request.prefixes = [freq_param_name]
+            list_request.depth = 1
+
+            future = list_client.call_async(list_request)
+            rclpy.spin_until_future_complete(self.node, future, timeout_sec=1.0)
+            self.node.destroy_client(list_client)
+
+            if future.result() is not None:
+                if freq_param_name in future.result().result.names:
+                    return full_node_name
+
+        # Fall back to the monitor node
+        return self.monitor_node_name
+
     def set_expected_frequency(self,
                                topic_name: str,
                                expected_hz: float = 0.0,
                                tolerance_percent: float = 0.0,
                                clear: bool = False
                                ) -> tuple[bool, str]:
-        """Set or clear the expected frequency for a topic."""
-        if not self.set_expected_frequency_client.wait_for_service(timeout_sec=1.0):
-            return False, 'Could not connect to set_expected_frequency service.'
+        """Set or clear the expected frequency for a topic via parameters."""
+        # Find a node that has the parameter, or fall back to monitor node
+        target_node = self._find_node_with_topic_param(topic_name)
 
-        request = SetExpectedFrequency.Request()
-        request.topic_name = topic_name
-        request.expected_hz = expected_hz
-        request.tolerance_percent = tolerance_percent
-        request.clear_expected = clear
-        request.add_topic_if_missing = True
+        # Create a client to the target node's set_parameters service
+        set_params_client = self.node.create_client(
+            SetParameters, f'{target_node}/set_parameters')
+        if not set_params_client.wait_for_service(timeout_sec=1.0):
+            self.node.destroy_client(set_params_client)
+            return False, f'Could not connect to {target_node}/set_parameters service.'
 
-        # Use asynchronous service call to prevent deadlock
+        freq_param_name = f'{TOPIC_PARAM_PREFIX}{topic_name}{FREQ_SUFFIX}'
+        tol_param_name = f'{TOPIC_PARAM_PREFIX}{topic_name}{TOL_SUFFIX}'
+
+        request = SetParameters.Request()
+
+        if clear:
+            # Clear by setting frequency to NaN and tolerance to default
+            freq_param = Parameter()
+            freq_param.name = freq_param_name
+            freq_param.value = ParameterValue()
+            freq_param.value.type = ParameterType.PARAMETER_DOUBLE
+            freq_param.value.double_value = float('nan')
+
+            tol_param = Parameter()
+            tol_param.name = tol_param_name
+            tol_param.value = ParameterValue()
+            tol_param.value.type = ParameterType.PARAMETER_DOUBLE
+            tol_param.value.double_value = DEFAULT_TOLERANCE_PERCENT
+
+            request.parameters = [freq_param, tol_param]
+        else:
+            # Set frequency and tolerance parameters
+            freq_param = Parameter()
+            freq_param.name = freq_param_name
+            freq_param.value = ParameterValue()
+            freq_param.value.type = ParameterType.PARAMETER_DOUBLE
+            freq_param.value.double_value = expected_hz
+
+            tol_param = Parameter()
+            tol_param.name = tol_param_name
+            tol_param.value = ParameterValue()
+            tol_param.value.type = ParameterType.PARAMETER_DOUBLE
+            tol_param.value.double_value = tolerance_percent
+
+            request.parameters = [freq_param, tol_param]
+
         try:
-            future = self.set_expected_frequency_client.call_async(request)
+            future = set_params_client.call_async(request)
             rclpy.spin_until_future_complete(self.node, future, timeout_sec=3.0)
+            self.node.destroy_client(set_params_client)
 
             if future.result() is None:
                 action = 'clear' if clear else 'set'
@@ -431,21 +573,27 @@ class GreenwaveUiAdaptor:
                 self.node.get_logger().error(error_msg)
                 return False, error_msg
 
-            response = future.result()
+            results = future.result().results
+            all_successful = all(r.successful for r in results)
 
-            if not response.success:
+            if not all_successful:
                 action = 'clear' if clear else 'set'
-                self.node.get_logger().error(
-                    f'Failed to {action} expected frequency: {response.message}')
-                return False, response.message
-            else:
-                with self.data_lock:
-                    if clear:
-                        self.expected_frequencies.pop(topic_name, None)
-                    else:
-                        self.expected_frequencies[topic_name] = (expected_hz, tolerance_percent)
-                return True, response.message
+                reasons = [r.reason for r in results if not r.successful and r.reason]
+                error_msg = f'Failed to {action} expected frequency: {"; ".join(reasons)}'
+                self.node.get_logger().error(error_msg)
+                return False, error_msg
+
+            with self.data_lock:
+                if clear:
+                    self.expected_frequencies.pop(topic_name, None)
+                else:
+                    self.expected_frequencies[topic_name] = (expected_hz, tolerance_percent)
+
+            action = 'Cleared' if clear else 'Set'
+            return True, f'{action} expected frequency for {topic_name}'
+
         except Exception as e:
+            self.node.destroy_client(set_params_client)
             action = 'clear' if clear else 'set'
             error_msg = f'Failed to {action} expected frequency: {e}'
             self.node.get_logger().error(error_msg)
@@ -460,3 +608,12 @@ class GreenwaveUiAdaptor:
         """Get monitoring settings for a topic. Returns (0.0, 0.0) if not set."""
         with self.data_lock:
             return self.expected_frequencies.get(topic_name, (0.0, 0.0))
+
+    def get_expected_frequency_str(self, topic_name: str) -> str:
+        """Get expected frequency as formatted string with tolerance (e.g., '30.0Hz ±5%')."""
+        freq, tol = self.get_expected_frequency(topic_name)
+        if freq <= 0.0:
+            return '-'
+        if tol > 0.0:
+            return f'{freq:.1f}Hz±{tol:.0f}%'
+        return f'{freq:.1f}Hz'

@@ -1,0 +1,9 @@
+/**:
+  ros__parameters:
+    # All topics declared in greenwave_diagnostics will be automatically monitored
+    #  if detected at startup.
+    greenwave_diagnostics:
+      /params_from_yaml_topic:
+        enabled: true
+        expected_frequency: 10.0
+        tolerance: 5.0
