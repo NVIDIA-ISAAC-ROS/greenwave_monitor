@@ -409,7 +409,25 @@ std::set<std::string> GreenwaveMonitor::get_topics_from_parameters()
     }
   }
 
-  return topics;
+  // Filter out topics with enabled=false
+  std::set<std::string> filtered_topics;
+  for (const auto & topic : topics) {
+    std::string enabled_param =
+      std::string(greenwave_diagnostics::constants::kTopicParamPrefix) +
+      topic + greenwave_diagnostics::constants::kEnabledSuffix;
+
+    if (this->has_parameter(enabled_param)) {
+      auto param = this->get_parameter(enabled_param);
+      if (param.get_type() == rclcpp::ParameterType::PARAMETER_BOOL &&
+        !param.as_bool())
+      {
+        continue;
+      }
+    }
+    filtered_topics.insert(topic);
+  }
+
+  return filtered_topics;
 }
 
 // From ros2_benchmark monitor_node.cpp

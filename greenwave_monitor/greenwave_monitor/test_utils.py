@@ -25,6 +25,7 @@ import unittest
 
 from diagnostic_msgs.msg import DiagnosticArray, DiagnosticStatus
 from greenwave_monitor.ui_adaptor import (
+    ENABLED_SUFFIX,
     FREQ_SUFFIX,
     TOL_SUFFIX,
     TOPIC_PARAM_PREFIX,
@@ -66,11 +67,20 @@ def make_tol_param(topic: str) -> str:
     return f'{TOPIC_PARAM_PREFIX}{topic}{TOL_SUFFIX}'
 
 
+def make_enabled_param(topic: str) -> str:
+    """Build enabled parameter name for a topic."""
+    return f'{TOPIC_PARAM_PREFIX}{topic}{ENABLED_SUFFIX}'
+
+
 def set_parameter(test_node: Node, param_name: str, value,
                   node_name: str = MONITOR_NODE_NAME,
+                  node_namespace: str = MONITOR_NODE_NAMESPACE,
                   timeout_sec: float = 10.0) -> bool:
-    """Set a parameter on the monitor node using rclpy service client."""
-    full_node_name = f'/{MONITOR_NODE_NAMESPACE}/{node_name}'
+    """Set a parameter on a node using rclpy service client."""
+    if node_namespace:
+        full_node_name = f'/{node_namespace}/{node_name}'
+    else:
+        full_node_name = f'/{node_name}'
     service_name = f'{full_node_name}/set_parameters'
 
     client = test_node.create_client(SetParameters, service_name)
@@ -108,9 +118,13 @@ def set_parameter(test_node: Node, param_name: str, value,
 
 
 def get_parameter(test_node: Node, param_name: str,
-                  node_name: str = MONITOR_NODE_NAME) -> Tuple[bool, Optional[float]]:
-    """Get a parameter from the monitor node using rclpy service client."""
-    full_node_name = f'/{MONITOR_NODE_NAMESPACE}/{node_name}'
+                  node_name: str = MONITOR_NODE_NAME,
+                  node_namespace: str = MONITOR_NODE_NAMESPACE) -> Tuple[bool, Optional[float]]:
+    """Get a parameter from a node using rclpy service client."""
+    if node_namespace:
+        full_node_name = f'/{node_namespace}/{node_name}'
+    else:
+        full_node_name = f'/{node_name}'
     service_name = f'{full_node_name}/get_parameters'
 
     client = test_node.create_client(GetParameters, service_name)
@@ -138,9 +152,13 @@ def get_parameter(test_node: Node, param_name: str,
 
 def delete_parameter(test_node: Node, param_name: str,
                      node_name: str = MONITOR_NODE_NAME,
+                     node_namespace: str = MONITOR_NODE_NAMESPACE,
                      timeout_sec: float = 10.0) -> bool:
-    """Delete a parameter from the monitor node using rclpy service client."""
-    full_node_name = f'/{MONITOR_NODE_NAMESPACE}/{node_name}'
+    """Delete a parameter from a node using rclpy service client."""
+    if node_namespace:
+        full_node_name = f'/{node_namespace}/{node_name}'
+    else:
+        full_node_name = f'/{node_name}'
     service_name = f'{full_node_name}/set_parameters'
 
     client = test_node.create_client(SetParameters, service_name)

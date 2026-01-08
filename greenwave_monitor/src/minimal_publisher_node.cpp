@@ -143,8 +143,12 @@ void MinimalPublisher::timer_callback()
   }
 
   if (greenwave_diagnostics_) {
-    const auto msg_timestamp = this->now();
-    greenwave_diagnostics_->updateDiagnostics(msg_timestamp.nanoseconds());
+    // Use actual message timestamp for types with headers, 0 for headerless types
+    uint64_t msg_timestamp_ns = 0;
+    if (message_type_ != "string") {
+      msg_timestamp_ns = this->now().nanoseconds();
+    }
+    greenwave_diagnostics_->updateDiagnostics(msg_timestamp_ns);
     greenwave_diagnostics_->publishDiagnostics();
   }
 }

@@ -109,11 +109,29 @@ class TestEnableExistingNodeParameter(RosNodeTestCase):
             'ManageTopic service not available'
         )
 
-        # Call add_topic for the test topic
+        # First, call remove_topic to disable monitoring on the publisher
+        response = call_manage_topic_service(
+            self.test_node, manage_topic_client, add=False, topic=TEST_TOPIC
+        )
+        self.assertIsNotNone(response, 'ManageTopic remove service call failed')
+        self.assertTrue(response.success, f'Failed to remove topic: {response.message}')
+
+        # Verify the enabled parameter is now false
+        request = GetParameters.Request()
+        request.names = [enabled_param_name]
+        future = get_params_client.call_async(request)
+        rclpy.spin_until_future_complete(self.test_node, future, timeout_sec=5.0)
+        self.assertIsNotNone(future.result(), 'Failed to get parameters after remove')
+        self.assertFalse(
+            future.result().values[0].bool_value,
+            'Enabled parameter should be false after remove_topic'
+        )
+
+        # Now call add_topic to re-enable monitoring
         response = call_manage_topic_service(
             self.test_node, manage_topic_client, add=True, topic=TEST_TOPIC
         )
-        self.assertIsNotNone(response, 'ManageTopic service call failed')
+        self.assertIsNotNone(response, 'ManageTopic add service call failed')
         self.assertTrue(response.success, f'Failed to add topic: {response.message}')
 
         # Verify the response message indicates it enabled monitoring on existing node

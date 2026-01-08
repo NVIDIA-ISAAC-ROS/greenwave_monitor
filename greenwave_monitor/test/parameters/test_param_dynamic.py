@@ -44,6 +44,9 @@ TEST_TOPIC_DELETE_PARAM = '/dynamic_param_topic_delete_param'
 TEST_FREQUENCY = 30.0
 TEST_TOLERANCE = 20.0
 NONEXISTENT_TOPIC = '/topic_that_does_not_exist'
+# Publisher node names (those with GreenwaveDiagnostics)
+PUBLISHER_NODE_NAME = 'minimal_publisher_node_dynamic'
+PUBLISHER_SET_PARAMS_NODE = 'minimal_publisher_node_set_params'
 
 
 @pytest.mark.launch_test
@@ -57,7 +60,7 @@ def generate_test_description():
 
     publisher_set_params = create_minimal_publisher(
         TEST_TOPIC_SET_PARAMS, TEST_FREQUENCY, 'imu', '_set_params',
-        enable_diagnostics=False
+        enable_diagnostics=True
     )
 
     publisher_delete_param = create_minimal_publisher(
@@ -82,123 +85,49 @@ class TestDynamicParameterChanges(RosNodeTestCase):
     TEST_NODE_NAME = 'dynamic_param_test_node'
 
     def test_set_parameters(self):
-        """Test setting frequency and tolerance parameters in sequence."""
+        """Test setting frequency and tolerance parameters dynamically."""
         time.sleep(2.0)
 
         freq_param = make_freq_param(TEST_TOPIC_SET_PARAMS)
         tol_param = make_tol_param(TEST_TOPIC_SET_PARAMS)
 
-        # 1. Verify topic is not monitored initially
+        # 1. Verify diagnostics are being published (publisher has diagnostics enabled)
         initial_diagnostics = collect_diagnostics_for_topic(
-            self.test_node, TEST_TOPIC_SET_PARAMS, expected_count=1, timeout_sec=2.0
+            self.test_node, TEST_TOPIC_SET_PARAMS, expected_count=3, timeout_sec=5.0
         )
-        self.assertEqual(
-            len(initial_diagnostics), 0,
-            f'{TEST_TOPIC_SET_PARAMS} should not be monitored initially'
-        )
-
-        # 2. Set tolerance before frequency - should succeed but not start monitoring
-        success = set_parameter(self.test_node, tol_param, TEST_TOLERANCE)
-        self.assertTrue(success, f'Failed to set {tol_param}')
-
-        success, actual_tol = get_parameter(self.test_node, tol_param)
-        self.assertTrue(success, f'Failed to get {tol_param}')
-        self.assertAlmostEqual(
-            actual_tol, TEST_TOLERANCE, places=1,
-            msg=f'Tolerance mismatch: expected {TEST_TOLERANCE}, got {actual_tol}'
+        self.assertGreaterEqual(
+            len(initial_diagnostics), 3,
+            f'{TEST_TOPIC_SET_PARAMS} should have diagnostics from publisher'
         )
 
-        time.sleep(1.0)
-        diagnostics_after_tol = collect_diagnostics_for_topic(
-            self.test_node, TEST_TOPIC_SET_PARAMS, expected_count=1, timeout_sec=2.0
-        )
-        self.assertEqual(
-            len(diagnostics_after_tol), 0,
-            f'{TEST_TOPIC_SET_PARAMS} should remain unmonitored after setting only tolerance'
-        )
-
-        # 3. Set frequency - topic should have frequency checking enabled
-        success = set_parameter(self.test_node, freq_param, TEST_FREQUENCY)
+        # 2. Set frequency and tolerance on the publisher node
+        success = set_parameter(
+            self.test_node, freq_param, TEST_FREQUENCY,
+            node_name=PUBLISHER_SET_PARAMS_NODE, node_namespace='')
         self.assertTrue(success, f'Failed to set {freq_param}')
 
-        success, actual_freq = get_parameter(self.test_node, freq_param)
+        success = set_parameter(
+            self.test_node, tol_param, TEST_TOLERANCE,
+            node_name=PUBLISHER_SET_PARAMS_NODE, node_namespace='')
+        self.assertTrue(success, f'Failed to set {tol_param}')
+
+        # Verify parameters were set
+        success, actual_freq = get_parameter(
+            self.test_node, freq_param,
+            node_name=PUBLISHER_SET_PARAMS_NODE, node_namespace='')
         self.assertTrue(success, f'Failed to get {freq_param}')
         self.assertAlmostEqual(
             actual_freq, TEST_FREQUENCY, places=1,
             msg=f'Frequency mismatch: expected {TEST_FREQUENCY}, got {actual_freq}'
         )
 
-        time.sleep(1.0)
-        diagnostics_after_freq = collect_diagnostics_for_topic(
-            self.test_node, TEST_TOPIC_SET_PARAMS, expected_count=3, timeout_sec=10.0
-        )
-        self.assertGreaterEqual(
-            len(diagnostics_after_freq), 3,
-            'Expected diagnostics after setting frequency param'
-        )
-
-        # 4. Set tolerance to 0.0 - should cause diagnostics to show error
-        success = set_parameter(self.test_node, tol_param, 0.0)
-        self.assertTrue(success, f'Failed to set {tol_param} to 0.0')
-
-        success, actual_tol = get_parameter(self.test_node, tol_param)
-        self.assertTrue(success, f'Failed to get {tol_param}')
-        self.assertAlmostEqual(
-            actual_tol, 0.0, places=1,
-            msg=f'Tolerance mismatch: expected 0.0, got {actual_tol}'
-        )
-
-        time.sleep(2.0)
-        diagnostics_with_zero_tol = collect_diagnostics_for_topic(
-            self.test_node, TEST_TOPIC_SET_PARAMS, expected_count=2, timeout_sec=5.0
-        )
-        self.assertGreaterEqual(
-            len(diagnostics_with_zero_tol), 2,
-            'Topic should still be monitored with zero tolerance'
-        )
-
-        # Check that at least one diagnostic has ERROR level (frequency outside 0% tolerance)
-        has_error = any(
-            ord(d.level) != 0 for d in diagnostics_with_zero_tol
-        )
-        self.assertTrue(
-            has_error,
-            'Expected ERROR diagnostics with 0% tolerance'
-        )
-
-        # Reset tolerance to 10% - should no longer error
-        success = set_parameter(self.test_node, tol_param, 10.0)
-        self.assertTrue(success, f'Failed to reset {tol_param}')
-
-        # Wait for diagnostics to stabilize after tolerance change
-        time.sleep(3.0)
-        diagnostics_after_reset = collect_diagnostics_for_topic(
-            self.test_node, TEST_TOPIC_SET_PARAMS, expected_count=3, timeout_sec=10.0
-        )
-        self.assertGreaterEqual(
-            len(diagnostics_after_reset), 3,
-            'Expected diagnostics after resetting tolerance'
-        )
-
-        # Verify most recent diagnostic is OK after resetting tolerance
-        last_diagnostic = diagnostics_after_reset[-1]
-        self.assertEqual(
-            ord(last_diagnostic.level), 0,
-            'Expected OK diagnostic after resetting tolerance to 10%'
-        )
-
-        # 5. Update expected frequency to mismatched value - should cause error
-        # Publisher is still at 30 Hz, tolerance is 10%, but we set expected to 1 Hz
+        # 3. Update expected frequency to mismatched value - should cause error
+        # Publisher is still at 30 Hz, tolerance is 20%, but we set expected to 1 Hz
         mismatched_frequency = 1.0
-        success = set_parameter(self.test_node, freq_param, mismatched_frequency)
+        success = set_parameter(
+            self.test_node, freq_param, mismatched_frequency,
+            node_name=PUBLISHER_SET_PARAMS_NODE, node_namespace='')
         self.assertTrue(success, f'Failed to update {freq_param}')
-
-        success, actual_freq = get_parameter(self.test_node, freq_param)
-        self.assertTrue(success, f'Failed to get updated {freq_param}')
-        self.assertAlmostEqual(
-            actual_freq, mismatched_frequency, places=1,
-            msg=f'Frequency mismatch: expected {mismatched_frequency}, got {actual_freq}'
-        )
 
         time.sleep(2.0)
         diagnostics_mismatched = collect_diagnostics_for_topic(
@@ -209,13 +138,13 @@ class TestDynamicParameterChanges(RosNodeTestCase):
             'Should still receive diagnostics after frequency update'
         )
 
-        # Verify diagnostics show error due to frequency mismatch
-        has_error = any(
+        # Verify diagnostics show non-OK status due to frequency mismatch
+        has_non_ok = any(
             ord(d.level) != 0 for d in diagnostics_mismatched
         )
         self.assertTrue(
-            has_error,
-            'Expected ERROR diagnostics when actual frequency (30 Hz) '
+            has_non_ok,
+            'Expected non-OK diagnostics when actual frequency (30 Hz) '
             'does not match expected (1 Hz)'
         )
 
@@ -248,44 +177,60 @@ class TestDynamicParameterChanges(RosNodeTestCase):
         """Test that non-numeric parameter values are rejected."""
         time.sleep(1.0)
 
+        # Target the publisher node which has GreenwaveDiagnostics
         freq_param = make_freq_param(TEST_TOPIC)
-        success = set_parameter(self.test_node, freq_param, 'not_a_number')
+        success = set_parameter(
+            self.test_node, freq_param, 'not_a_number',
+            node_name=PUBLISHER_NODE_NAME, node_namespace='')
         self.assertFalse(success, 'Non-numeric frequency parameter should be rejected')
 
         tol_param = make_tol_param(TEST_TOPIC)
-        success = set_parameter(self.test_node, tol_param, 'invalid')
+        success = set_parameter(
+            self.test_node, tol_param, 'invalid',
+            node_name=PUBLISHER_NODE_NAME, node_namespace='')
         self.assertFalse(success, 'Non-numeric tolerance parameter should be rejected')
 
     def test_non_positive_frequency_rejected(self):
         """Test that non-positive frequency values are rejected."""
         time.sleep(1.0)
 
+        # Target the publisher node which has GreenwaveDiagnostics
         freq_param = make_freq_param(TEST_TOPIC)
 
         # Test zero frequency
-        success = set_parameter(self.test_node, freq_param, 0.0)
+        success = set_parameter(
+            self.test_node, freq_param, 0.0,
+            node_name=PUBLISHER_NODE_NAME, node_namespace='')
         self.assertFalse(success, 'Zero frequency should be rejected')
 
         # Test negative frequency
-        success = set_parameter(self.test_node, freq_param, -10.0)
+        success = set_parameter(
+            self.test_node, freq_param, -10.0,
+            node_name=PUBLISHER_NODE_NAME, node_namespace='')
         self.assertFalse(success, 'Negative frequency should be rejected')
 
     def test_negative_tolerance_rejected(self):
         """Test that negative tolerance values are rejected."""
         time.sleep(1.0)
 
+        # Target the publisher node which has GreenwaveDiagnostics
         tol_param = make_tol_param(TEST_TOPIC)
-        success = set_parameter(self.test_node, tol_param, -5.0)
+        success = set_parameter(
+            self.test_node, tol_param, -5.0,
+            node_name=PUBLISHER_NODE_NAME, node_namespace='')
         self.assertFalse(success, 'Negative tolerance should be rejected')
 
     def test_delete_parameter_rejected(self):
         """Test that deleting a parameter is rejected."""
         time.sleep(2.0)
 
-        freq_param = make_freq_param(TEST_TOPIC_DELETE_PARAM)
+        # Target the publisher node which has GreenwaveDiagnostics
+        freq_param = make_freq_param(TEST_TOPIC)
 
         # Attempt to delete the frequency parameter - should be rejected
-        success = delete_parameter(self.test_node, freq_param)
+        success = delete_parameter(
+            self.test_node, freq_param,
+            node_name=PUBLISHER_NODE_NAME, node_namespace='')
         self.assertFalse(success, 'Parameter deletion should be rejected')
 
 

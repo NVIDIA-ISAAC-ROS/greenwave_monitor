@@ -17,7 +17,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Test: only tolerance specified - should still start monitoring."""
+"""Test: enabled=false should NOT start monitoring at startup."""
 
 import time
 import unittest
@@ -25,7 +25,8 @@ import unittest
 from greenwave_monitor.test_utils import (
     collect_diagnostics_for_topic,
     create_minimal_publisher,
-    make_tol_param,
+    make_enabled_param,
+    make_freq_param,
     MONITOR_NODE_NAME,
     MONITOR_NODE_NAMESPACE,
     RosNodeTestCase,
@@ -36,15 +37,16 @@ import launch_testing
 import pytest
 
 
-TEST_TOPIC = '/tol_only_topic'
+TEST_TOPIC = '/enabled_false_topic'
 TEST_FREQUENCY = 50.0
 
 
 @pytest.mark.launch_test
 def generate_test_description():
-    """Test with only tolerance specified (should still monitor)."""
+    """Test with enabled=false - should NOT monitor even with other params set."""
     params = {
-        make_tol_param(TEST_TOPIC): 15.0
+        make_freq_param(TEST_TOPIC): TEST_FREQUENCY,
+        make_enabled_param(TEST_TOPIC): False
     }
 
     ros2_monitor_node = launch_ros.actions.Node(
@@ -57,7 +59,7 @@ def generate_test_description():
     )
 
     publisher = create_minimal_publisher(
-        TEST_TOPIC, TEST_FREQUENCY, 'imu', '_tol_only',
+        TEST_TOPIC, TEST_FREQUENCY, 'imu', '_enabled_false',
         enable_diagnostics=False
     )
 
@@ -70,22 +72,22 @@ def generate_test_description():
     )
 
 
-class TestToleranceOnlyParameter(RosNodeTestCase):
-    """Test that specifying only tolerance still starts monitoring."""
+class TestEnabledFalseParameter(RosNodeTestCase):
+    """Test that enabled=false prevents monitoring at startup."""
 
-    TEST_NODE_NAME = 'tol_only_test_node'
+    TEST_NODE_NAME = 'enabled_false_test_node'
 
-    def test_tolerance_only_starts_monitoring(self):
-        """Test that specifying only tolerance starts monitoring (any param triggers add_topic)."""
+    def test_enabled_false_does_not_monitor(self):
+        """Test that enabled=false prevents topic monitoring even with frequency set."""
         time.sleep(2.0)
 
         received_diagnostics = collect_diagnostics_for_topic(
-            self.test_node, TEST_TOPIC, expected_count=3, timeout_sec=5.0
+            self.test_node, TEST_TOPIC, expected_count=1, timeout_sec=3.0
         )
 
-        self.assertGreaterEqual(
-            len(received_diagnostics), 3,
-            f'Should monitor topic when tolerance is set, got {len(received_diagnostics)}'
+        self.assertEqual(
+            len(received_diagnostics), 0,
+            f'Should not monitor topic with enabled=false, got {len(received_diagnostics)}'
         )
 
 
