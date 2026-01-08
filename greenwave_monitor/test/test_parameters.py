@@ -27,21 +27,24 @@ import unittest
 from greenwave_monitor.test_utils import (
     call_manage_topic_service,
     collect_diagnostics_for_topic,
+    create_manage_topic_client,
     create_minimal_publisher,
-    create_service_clients,
     delete_parameter,
     find_best_diagnostic,
     get_parameter,
     make_enabled_param,
-    make_freq_param,
-    make_tol_param,
     MONITOR_NODE_NAME,
     MONITOR_NODE_NAMESPACE,
     RosNodeTestCase,
     set_parameter,
     wait_for_service_connection,
 )
-from greenwave_monitor.ui_adaptor import ENABLED_SUFFIX, TOPIC_PARAM_PREFIX
+from greenwave_monitor.ui_adaptor import (
+    ENABLED_SUFFIX,
+    make_freq_param,
+    make_tol_param,
+    TOPIC_PARAM_PREFIX,
+)
 import launch
 import launch_ros.actions
 import launch_testing
@@ -476,7 +479,7 @@ class TestEnableExistingNode(RosNodeTestCase):
         self.assertTrue(len(future.result().values) > 0)
 
         # Create manage_topic client
-        manage_topic_client = create_service_clients(self.test_node)
+        manage_topic_client = create_manage_topic_client(self.test_node)
         self.assertTrue(
             wait_for_service_connection(
                 self.test_node, manage_topic_client,
@@ -518,4 +521,3 @@ class TestEnableExistingNode(RosNodeTestCase):
 
 if __name__ == '__main__':
     unittest.main()
-

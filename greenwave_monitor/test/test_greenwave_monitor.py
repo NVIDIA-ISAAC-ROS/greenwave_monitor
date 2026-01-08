@@ -24,9 +24,9 @@ import unittest
 from greenwave_monitor.test_utils import (
     call_manage_topic_service,
     collect_diagnostics_for_topic,
+    create_manage_topic_client,
     create_minimal_publisher,
     create_monitor_node,
-    create_service_clients,
     find_best_diagnostic,
     MANAGE_TOPIC_TEST_CONFIG,
     MONITOR_NODE_NAME,
@@ -122,7 +122,7 @@ class TestGreenwaveMonitor(unittest.TestCase):
         """Test that the node launches without errors."""
         # Create a service client to check if the node is ready
         # Service discovery is more reliable than node discovery in launch_testing
-        manage_client = create_service_clients(
+        manage_client = create_manage_topic_client(
             self.test_node, MONITOR_NODE_NAMESPACE, MONITOR_NODE_NAME
         )
         service_available = wait_for_service_connection(

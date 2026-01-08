@@ -25,15 +25,17 @@ import unittest
 
 from diagnostic_msgs.msg import DiagnosticArray, DiagnosticStatus
 from greenwave_monitor.ui_adaptor import (
+    build_full_node_name,
     ENABLED_SUFFIX,
     FREQ_SUFFIX,
+    get_ros_parameters,
+    set_ros_parameters,
     TOL_SUFFIX,
     TOPIC_PARAM_PREFIX,
 )
 from greenwave_monitor_interfaces.srv import ManageTopic
 import launch_ros
-from rcl_interfaces.msg import Parameter, ParameterType, ParameterValue
-from rcl_interfaces.srv import GetParameters, SetParameters
+from rcl_interfaces.msg import ParameterType, ParameterValue
 import rclpy
 from rclpy.node import Node
 
@@ -57,16 +59,6 @@ MONITOR_NODE_NAME = 'test_greenwave_monitor'
 MONITOR_NODE_NAMESPACE = 'test_namespace'
 
 
-def make_freq_param(topic: str) -> str:
-    """Build frequency parameter name for a topic."""
-    return f'{TOPIC_PARAM_PREFIX}{topic}{FREQ_SUFFIX}'
-
-
-def make_tol_param(topic: str) -> str:
-    """Build tolerance parameter name for a topic."""
-    return f'{TOPIC_PARAM_PREFIX}{topic}{TOL_SUFFIX}'
-
-
 def make_enabled_param(topic: str) -> str:
     """Build enabled parameter name for a topic."""
     return f'{TOPIC_PARAM_PREFIX}{topic}{ENABLED_SUFFIX}'
@@ -77,77 +69,19 @@ def set_parameter(test_node: Node, param_name: str, value,
                   node_namespace: str = MONITOR_NODE_NAMESPACE,
                   timeout_sec: float = 10.0) -> bool:
     """Set a parameter on a node using rclpy service client."""
-    if node_namespace:
-        full_node_name = f'/{node_namespace}/{node_name}'
-    else:
-        full_node_name = f'/{node_name}'
-    service_name = f'{full_node_name}/set_parameters'
-
-    client = test_node.create_client(SetParameters, service_name)
-    if not client.wait_for_service(timeout_sec=5.0):
-        return False
-
-    param = Parameter()
-    param.name = param_name
-    param.value = ParameterValue()
-
-    if isinstance(value, str):
-        param.value.type = ParameterType.PARAMETER_STRING
-        param.value.string_value = value
-    elif isinstance(value, bool):
-        param.value.type = ParameterType.PARAMETER_BOOL
-        param.value.bool_value = value
-    elif isinstance(value, int):
-        param.value.type = ParameterType.PARAMETER_INTEGER
-        param.value.integer_value = value
-    else:
-        param.value.type = ParameterType.PARAMETER_DOUBLE
-        param.value.double_value = float(value)
-
-    request = SetParameters.Request()
-    request.parameters = [param]
-
-    future = client.call_async(request)
-    rclpy.spin_until_future_complete(test_node, future, timeout_sec=timeout_sec)
-
-    test_node.destroy_client(client)
-
-    if future.result() is None:
-        return False
-    return all(r.successful for r in future.result().results)
+    full_node_name = build_full_node_name(node_name, node_namespace)
+    success, _ = set_ros_parameters(test_node, full_node_name, {param_name: value}, timeout_sec)
+    return success
 
 
 def get_parameter(test_node: Node, param_name: str,
                   node_name: str = MONITOR_NODE_NAME,
                   node_namespace: str = MONITOR_NODE_NAMESPACE) -> Tuple[bool, Optional[float]]:
     """Get a parameter from a node using rclpy service client."""
-    if node_namespace:
-        full_node_name = f'/{node_namespace}/{node_name}'
-    else:
-        full_node_name = f'/{node_name}'
-    service_name = f'{full_node_name}/get_parameters'
-
-    client = test_node.create_client(GetParameters, service_name)
-    if not client.wait_for_service(timeout_sec=5.0):
-        return False, None
-
-    request = GetParameters.Request()
-    request.names = [param_name]
-
-    future = client.call_async(request)
-    rclpy.spin_until_future_complete(test_node, future, timeout_sec=5.0)
-
-    test_node.destroy_client(client)
-
-    if future.result() is None or not future.result().values:
-        return False, None
-
-    param_value = future.result().values[0]
-    if param_value.type == ParameterType.PARAMETER_DOUBLE:
-        return True, param_value.double_value
-    elif param_value.type == ParameterType.PARAMETER_INTEGER:
-        return True, float(param_value.integer_value)
-    return False, None
+    full_node_name = build_full_node_name(node_name, node_namespace)
+    result = get_ros_parameters(test_node, full_node_name, [param_name])
+    value = result.get(param_name)
+    return (value is not None, value)
 
 
 def delete_parameter(test_node: Node, param_name: str,
@@ -155,32 +89,10 @@ def delete_parameter(test_node: Node, param_name: str,
                      node_namespace: str = MONITOR_NODE_NAMESPACE,
                      timeout_sec: float = 10.0) -> bool:
     """Delete a parameter from a node using rclpy service client."""
-    if node_namespace:
-        full_node_name = f'/{node_namespace}/{node_name}'
-    else:
-        full_node_name = f'/{node_name}'
-    service_name = f'{full_node_name}/set_parameters'
-
-    client = test_node.create_client(SetParameters, service_name)
-    if not client.wait_for_service(timeout_sec=5.0):
-        return False
-
-    param = Parameter()
-    param.name = param_name
-    param.value = ParameterValue()
-    param.value.type = ParameterType.PARAMETER_NOT_SET
-
-    request = SetParameters.Request()
-    request.parameters = [param]
-
-    future = client.call_async(request)
-    rclpy.spin_until_future_complete(test_node, future, timeout_sec=timeout_sec)
-
-    test_node.destroy_client(client)
-
-    if future.result() is None:
-        return False
-    return all(r.successful for r in future.result().results)
+    full_node_name = build_full_node_name(node_name, node_namespace)
+    not_set = ParameterValue(type=ParameterType.PARAMETER_NOT_SET)
+    success, _ = set_ros_parameters(test_node, full_node_name, {param_name: not_set}, timeout_sec)
+    return success
 
 
 def create_minimal_publisher(
@@ -390,14 +302,10 @@ def verify_diagnostic_values(status: DiagnosticStatus,
     return errors
 
 
-def create_service_clients(node: Node, namespace: str = MONITOR_NODE_NAMESPACE,
-                           node_name: str = MONITOR_NODE_NAME):
-    """Create service clients for the monitor node."""
-    manage_topic_client = node.create_client(
-        ManageTopic, f'/{namespace}/{node_name}/manage_topic'
-    )
-
-    return manage_topic_client
+def create_manage_topic_client(node: Node, namespace: str = MONITOR_NODE_NAMESPACE,
+                               node_name: str = MONITOR_NODE_NAME):
+    """Create the manage_topic service client for the monitor node."""
+    return node.create_client(ManageTopic, f'/{namespace}/{node_name}/manage_topic')
 
 
 class RosNodeTestCase(unittest.TestCase, ABC):
