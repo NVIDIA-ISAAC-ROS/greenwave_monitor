@@ -25,6 +25,7 @@
 #include <mutex>
 #include <optional>
 #include <queue>
+#include <rcpputils/join.hpp>
 #include <string>
 #include <vector>
 
@@ -744,7 +745,7 @@ private:
         } else {
           RCLCPP_WARN(
             node_.get_logger(),
-            "Iniital parameter %s failed to set for topic %s: %s",
+            "Initial parameter %s failed to set for topic %s: %s",
             param_name.c_str(), topic_name_.c_str(), result.reason.c_str());
         }
       }

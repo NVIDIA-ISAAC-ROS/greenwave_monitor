@@ -481,7 +481,7 @@ class GreenwaveUiAdaptor:
                 elif field == 'enabled' and param in msg.changed_parameters:
                     if (param.value.type == ParameterType.PARAMETER_BOOL and
                             not param.value.bool_value):
-                        del self.ui_diagnostics[topic_name]
+                        self.ui_diagnostics.pop(topic_name, None)
                     continue
 
                 value = param_value_to_python(param.value)
@@ -508,7 +508,7 @@ class GreenwaveUiAdaptor:
                 if field == 'enabled':
                     # Remove the topic in the map when there is no longer a parameter for it
                     self.topic_to_node.pop(topic_name, None)
-                    del self.ui_diagnostics[topic_name]
+                    self.ui_diagnostics.pop(topic_name, None)
                 elif field == 'freq':
                     self.expected_frequencies.pop(topic_name, None)
                 elif field == 'tol':
@@ -536,7 +536,7 @@ class GreenwaveUiAdaptor:
 
         with self.data_lock:
             if not new_enabled and topic_name in self.ui_diagnostics:
-                del self.ui_diagnostics[topic_name]
+                self.ui_diagnostics.pop(topic_name, None)
 
     def set_expected_frequency(self,
                                topic_name: str,
