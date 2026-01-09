@@ -18,18 +18,18 @@
 #pragma once
 
 #include <algorithm>
-#include <cstring>
-#include <limits>
 #include <cinttypes>
 #include <cmath>
+#include <cstring>
+#include <limits>
 #include <mutex>
 #include <optional>
 #include <queue>
-#include <rcpputils/join.hpp>
 #include <string>
 #include <vector>
 
 #include "diagnostic_msgs/msg/diagnostic_array.hpp"
+#include "rcpputils/join.hpp"
 #include "diagnostic_msgs/msg/diagnostic_status.hpp"
 #include "diagnostic_msgs/msg/key_value.hpp"
 #include "std_msgs/msg/header.hpp"

@@ -16,6 +16,7 @@ import os
 
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
+from launch.actions import LogInfo
 from launch_ros.actions import Node
 
 
@@ -98,5 +99,10 @@ def generate_launch_description():
             name='greenwave_monitor',
             output='log',
             parameters=[config_file]
+        ),
+        LogInfo(
+            msg='Follow the instructions to setup r2s_gw in the README.md, then run '
+                '`ros2 run r2s_gw r2s_gw` in another terminal to see the demo output '
+                'with the r2s dashboard.'
         )
     ])
