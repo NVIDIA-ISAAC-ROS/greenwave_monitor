@@ -151,10 +151,10 @@ jobs:
         ls -la debian_packages/${{ matrix.ros_distro }}/
 
         # Install the debian packages on top of ros-core
-        apt-get install -y ./debian_packages/${{ matrix.ros_distro }}/ros-${{ matrix.ros_distro }}-greenwave-monitor-interfaces_*.deb ./debian_packages/${{ matrix.ros_distro }}/ros-${{ matrix.ros_distro }}-greenwave-monitor_*.deb
+        apt-get install -y ./debian_packages/${{ matrix.ros_distro }}/ros-${{ matrix.ros_distro }}-greenwave-monitor_*.deb
 
         # Verify packages are installed
-        dpkg -s ros-${{ matrix.ros_distro }}-greenwave-monitor ros-${{ matrix.ros_distro }}-greenwave-monitor-interfaces
+        dpkg -s ros-${{ matrix.ros_distro }}-greenwave-monitor
       shell: bash
       env:
         DEBIAN_FRONTEND: noninteractive
