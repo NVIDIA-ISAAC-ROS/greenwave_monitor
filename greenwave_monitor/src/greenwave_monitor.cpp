@@ -39,10 +39,21 @@ GreenwaveMonitor::GreenwaveMonitor(const rclcpp::NodeOptions & options)
     this->declare_parameter<std::vector<std::string>>("topics", {""}, descriptor);
   }
 
-  // Build external topic map and collect all topics to monitor
+  // Timer callback to publish diagnostics and print feedback
+  timer_ = this->create_wall_timer(
+    1s, std::bind(&GreenwaveMonitor::timer_callback, this));
+
+  // Defer topic discovery to allow the ROS graph to settle before querying other nodes
+  init_timer_ = this->create_wall_timer(0ms, [this]() {
+    init_timer_->cancel();
+    deferred_init();
+  });
+}
+
+void GreenwaveMonitor::deferred_init()
+{
   fetch_external_topic_map();
 
-  // Merge topics into one set
   std::set<std::string> all_topics = get_topics_from_parameters();
   auto topics_param = this->get_parameter("topics").as_string_array();
   for (const auto & topic : topics_param) {
@@ -51,17 +62,12 @@ GreenwaveMonitor::GreenwaveMonitor(const rclcpp::NodeOptions & options)
     }
   }
 
-  // Add all starting topics to the monitor
   for (const auto & topic : all_topics) {
     std::string message;
     add_topic(topic, message);
   }
 
-  // Timer callback to publish diagnostics and print feedback
-  timer_ = this->create_wall_timer(
-    1s, std::bind(&GreenwaveMonitor::timer_callback, this));
-
-  // Register parameter change callback for synchronous validation
+  // Register parameter callbacks after initialization is complete
   param_callback_handle_ = this->add_on_set_parameters_callback(
     std::bind(&GreenwaveMonitor::on_parameter_change, this, std::placeholders::_1));
 
@@ -472,28 +478,12 @@ void GreenwaveMonitor::fetch_external_topic_map()
 
   auto node_names = this->get_node_names();
   for (const auto & full_name : node_names) {
-    // Parse full node name to extract name and namespace
-    std::string node_namespace, node_name;
-    size_t last_slash = full_name.rfind('/');
-    if (last_slash == std::string::npos || last_slash == 0) {
-      node_name = full_name;
-      node_namespace = "/";
-    } else {
-      node_name = full_name.substr(last_slash + 1);
-      node_namespace = full_name.substr(0, last_slash);
-      if (node_namespace.empty()) {
-        node_namespace = "/";
-      }
-    }
-
-    std::string full_node_name = full_name;
-
-    if (full_node_name == our_node) {
+    if (full_name == our_node) {
       continue;
     }
 
     auto param_client = std::make_shared<rclcpp::SyncParametersClient>(
-      temp_node, full_node_name);
+      temp_node, full_name);
     if (!param_client->wait_for_service(std::chrono::milliseconds(100))) {
       continue;
     }
@@ -510,7 +500,7 @@ void GreenwaveMonitor::fetch_external_topic_map()
       RCLCPP_DEBUG(
         this->get_logger(),
         "Failed to query parameters from node '%s': %s",
-        full_node_name.c_str(), e.what());
+        full_name.c_str(), e.what());
       continue;
     }
 
@@ -535,11 +525,11 @@ void GreenwaveMonitor::fetch_external_topic_map()
       }
 
       if (param.get_type() == rclcpp::ParameterType::PARAMETER_BOOL && param.as_bool()) {
-        external_topic_to_node_[topic] = full_node_name;
+        external_topic_to_node_[topic] = full_name;
         RCLCPP_DEBUG(
           this->get_logger(),
           "Found external monitoring for topic '%s' on node '%s'",
-          topic.c_str(), full_node_name.c_str());
+          topic.c_str(), full_name.c_str());
       }
     }
   }

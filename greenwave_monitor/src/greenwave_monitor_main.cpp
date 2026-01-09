@@ -22,7 +22,15 @@ int main(int argc, char * argv[])
   rclcpp::init(argc, argv);
   rclcpp::NodeOptions options;
   auto node = std::make_shared<GreenwaveMonitor>(options);
-  rclcpp::spin(node);
+  if (rclcpp::ok()) {
+    try {
+      rclcpp::spin(node);
+    } catch (const rclcpp::exceptions::RCLError & e) {
+      RCLCPP_DEBUG(
+        node->get_logger(),
+        "Context became invalid during spin (expected during shutdown): %s", e.what());
+    }
+  }
   rclcpp::shutdown();
   return 0;
 }

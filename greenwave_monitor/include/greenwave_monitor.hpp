@@ -47,9 +47,12 @@ public:
   explicit GreenwaveMonitor(const rclcpp::NodeOptions & options);
   ~GreenwaveMonitor()
   {
-    // Cancel timer first to stop callbacks from firing
+    // Cancel timers first to stop callbacks from firing
     if (timer_) {
       timer_->cancel();
+    }
+    if (init_timer_) {
+      init_timer_->cancel();
     }
     // Clear diagnostics before base Node destructor runs to avoid accessing invalid node state
     greenwave_diagnostics_.clear();
@@ -77,6 +80,8 @@ private:
 
   bool execute_add_topic(const TopicValidationResult & validated, std::string & message);
 
+  void deferred_init();
+
   void fetch_external_topic_map();
 
   bool add_topic(
@@ -98,6 +103,7 @@ private:
     std::unique_ptr<greenwave_diagnostics::GreenwaveDiagnostics>> greenwave_diagnostics_;
   std::vector<std::shared_ptr<rclcpp::GenericSubscription>> subscriptions_;
   rclcpp::TimerBase::SharedPtr timer_;
+  rclcpp::TimerBase::SharedPtr init_timer_;
   rclcpp::Subscription<rcl_interfaces::msg::ParameterEvent>::SharedPtr param_event_sub_;
   OnSetParametersCallbackHandle::SharedPtr param_callback_handle_;
   std::unordered_map<std::string, TopicValidationResult> pending_validations_;
