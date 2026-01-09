@@ -617,8 +617,9 @@ private:
         auto value_opt = paramToDouble(param);
         if (!value_opt.has_value()) {
           result.successful = false;
-          error_reasons.push_back(param.get_name() +
-              ": must be a numeric type (int or double or NaN)");
+          error_reasons.push_back(
+            param.get_name() +
+            ": must be a numeric type (int or double or NaN)");
           continue;
         }
 
@@ -636,7 +637,6 @@ private:
           }
           new_tol = value;
         }
-      // Handle boolean types
       } else if (param.get_name() == enabled_param_name_) {
         new_enabled = param.as_bool();
       }

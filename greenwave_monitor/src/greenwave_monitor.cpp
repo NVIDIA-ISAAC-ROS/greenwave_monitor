@@ -333,7 +333,13 @@ TopicValidationResult GreenwaveMonitor::validate_add_topic(
 
   std::vector<rclcpp::TopicEndpointInfo> publishers;
   for (int attempt = 0; attempt <= max_retries; ++attempt) {
-    publishers = this->get_publishers_info_by_topic(topic);
+    try {
+      publishers = this->get_publishers_info_by_topic(topic);
+    } catch (const rclcpp::exceptions::RCLError & e) {
+      // Context may be invalid during shutdown
+      result.error_message = "Node context invalid (shutting down)";
+      return result;
+    }
     if (!publishers.empty()) {
       break;
     }
@@ -497,7 +503,8 @@ void GreenwaveMonitor::fetch_external_topic_map()
       }
       params = param_client->get_parameters(param_names);
     } catch (const std::exception & e) {
-      RCLCPP_DEBUG(this->get_logger(),
+      RCLCPP_DEBUG(
+        this->get_logger(),
         "Failed to query parameters from node '%s': %s",
         full_node_name.c_str(), e.what());
       continue;
@@ -525,7 +532,8 @@ void GreenwaveMonitor::fetch_external_topic_map()
 
       if (param.get_type() == rclcpp::ParameterType::PARAMETER_BOOL && param.as_bool()) {
         external_topic_to_node_[topic] = full_node_name;
-        RCLCPP_DEBUG(this->get_logger(),
+        RCLCPP_DEBUG(
+          this->get_logger(),
           "Found external monitoring for topic '%s' on node '%s'",
           topic.c_str(), full_node_name.c_str());
       }
