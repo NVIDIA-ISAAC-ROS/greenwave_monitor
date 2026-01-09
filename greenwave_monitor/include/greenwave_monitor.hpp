@@ -45,6 +45,12 @@ class GreenwaveMonitor : public rclcpp::Node
 {
 public:
   explicit GreenwaveMonitor(const rclcpp::NodeOptions & options);
+  ~GreenwaveMonitor()
+  {
+    // Clear diagnostics before base Node destructor runs to avoid accessing invalid node state
+    greenwave_diagnostics_.clear();
+    subscriptions_.clear();
+  }
 
 private:
   void topic_callback(
