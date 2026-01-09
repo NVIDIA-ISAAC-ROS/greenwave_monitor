@@ -44,10 +44,11 @@ GreenwaveMonitor::GreenwaveMonitor(const rclcpp::NodeOptions & options)
     1s, std::bind(&GreenwaveMonitor::timer_callback, this));
 
   // Defer topic discovery to allow the ROS graph to settle before querying other nodes
-  init_timer_ = this->create_wall_timer(0ms, [this]() {
-    init_timer_->cancel();
-    deferred_init();
-  });
+  init_timer_ = this->create_wall_timer(
+    0ms, [this]() {
+      init_timer_->cancel();
+      deferred_init();
+    });
 }
 
 void GreenwaveMonitor::deferred_init()
