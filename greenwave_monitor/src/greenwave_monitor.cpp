@@ -156,6 +156,11 @@ rcl_interfaces::msg::SetParametersResult GreenwaveMonitor::on_parameter_change(
       }
       pending_validations_[topic] = validation;
     } else {
+      if (external_topic_to_node_.find(topic) != external_topic_to_node_.end()) {
+        result.successful = false;
+        result.reason = "Topic being monitored by external node: " + external_topic_to_node_[topic];
+        return result;
+      }
       if (greenwave_diagnostics_.find(topic) == greenwave_diagnostics_.end()) {
         result.successful = false;
         result.reason = "Topic not being monitored: " + topic;
@@ -326,6 +331,12 @@ TopicValidationResult GreenwaveMonitor::validate_add_topic(
   TopicValidationResult result;
   result.topic = topic;
 
+  auto it = external_topic_to_node_.find(topic);
+  if (it != external_topic_to_node_.end()) {
+    result.error_message = "Topic already monitored by external node: " + it->second;
+    return result;
+  }
+
   if (greenwave_diagnostics_.find(topic) != greenwave_diagnostics_.end()) {
     result.error_message = "Topic already monitored: " + topic;
     return result;
@@ -355,13 +366,6 @@ TopicValidationResult GreenwaveMonitor::validate_add_topic(
 
   if (publishers.empty()) {
     result.error_message = "No publishers found for topic: " + topic;
-    return result;
-  }
-
-  // Check if any external node already has monitoring enabled for this topic
-  auto it = external_topic_to_node_.find(topic);
-  if (it != external_topic_to_node_.end()) {
-    result.error_message = "Topic already monitored by external node: " + it->second;
     return result;
   }
 

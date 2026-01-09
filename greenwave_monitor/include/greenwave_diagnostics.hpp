@@ -163,7 +163,15 @@ public:
     }
   }
 
-  ~GreenwaveDiagnostics() = default;
+  ~GreenwaveDiagnostics()
+  {
+    if (param_callback_handle_) {
+      node_.remove_on_set_parameters_callback(param_callback_handle_.get());
+      param_callback_handle_.reset();
+    }
+    param_event_subscription_.reset();
+    diagnostic_publisher_.reset();
+  }
 
   // Update diagnostics numbers. To be called in Subscriber and Publisher
   void updateDiagnostics(uint64_t msg_timestamp_ns)

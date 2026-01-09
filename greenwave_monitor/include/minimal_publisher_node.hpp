@@ -35,6 +35,14 @@ class MinimalPublisher : public rclcpp::Node
 public:
   explicit MinimalPublisher(const rclcpp::NodeOptions & options = rclcpp::NodeOptions());
 
+  ~MinimalPublisher()
+  {
+    if (timer_) {
+      timer_->cancel();
+    }
+    greenwave_diagnostics_.reset();
+  }
+
 private:
   void timer_callback();
 

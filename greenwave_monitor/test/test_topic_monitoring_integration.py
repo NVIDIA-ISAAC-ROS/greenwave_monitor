@@ -288,11 +288,24 @@ class TestTopicMonitoringIntegration(unittest.TestCase):
         update_count = 0
         error_occurred = False
 
+        # Wait for diagnostic data to be available before starting thread safety test
+        max_wait_time = 5.0
+        start_time = time.time()
+        while time.time() - start_time < max_wait_time:
+            rclpy.spin_once(self.test_node, timeout_sec=0.1)
+            data = self.diagnostics_monitor.get_topic_diagnostics(test_topic)
+            if data.status != '-':
+                break
+            time.sleep(0.1)
+
+        self.assertNotEqual(
+            self.diagnostics_monitor.get_topic_diagnostics(test_topic).status, '-',
+            f'Diagnostics not available after {max_wait_time}s')
+
         def update_thread():
             nonlocal update_count, error_occurred
             try:
                 for _ in range(50):
-                    # Simulate concurrent diagnostic updates
                     data = self.diagnostics_monitor.get_topic_diagnostics(test_topic)
                     if data.status != '-':
                         update_count += 1
@@ -309,7 +322,6 @@ class TestTopicMonitoringIntegration(unittest.TestCase):
             except Exception:
                 error_occurred = True
 
-        # Start concurrent threads
         threads = [
             threading.Thread(target=update_thread),
             threading.Thread(target=spin_thread)
@@ -321,7 +333,6 @@ class TestTopicMonitoringIntegration(unittest.TestCase):
         for thread in threads:
             thread.join()
 
-        # Should not have encountered any thread safety issues
         self.assertFalse(error_occurred, 'Thread safety error occurred')
         self.assertGreater(update_count, 0, 'Should have received some diagnostic updates')
 

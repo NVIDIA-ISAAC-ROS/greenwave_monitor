@@ -478,6 +478,11 @@ class GreenwaveUiAdaptor:
                         # This makes it easy to set the right parameter in toggle topic monitoring
                         self.topic_to_node[topic_name] = msg.node
                     continue
+                elif field == 'enabled' and param in msg.changed_parameters:
+                    if (param.value.type == ParameterType.PARAMETER_BOOL and
+                            not param.value.bool_value):
+                        del self.ui_diagnostics[topic_name]
+                    continue
 
                 value = param_value_to_python(param.value)
                 if not isinstance(value, (int, float)):
@@ -503,6 +508,7 @@ class GreenwaveUiAdaptor:
                 if field == 'enabled':
                     # Remove the topic in the map when there is no longer a parameter for it
                     self.topic_to_node.pop(topic_name, None)
+                    del self.ui_diagnostics[topic_name]
                 elif field == 'freq':
                     self.expected_frequencies.pop(topic_name, None)
                 elif field == 'tol':
