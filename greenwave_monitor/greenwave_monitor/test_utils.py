@@ -20,7 +20,7 @@
 from abc import ABC
 import math
 import time
-from typing import List, Optional, Tuple
+from typing import Any, List, Optional, Tuple
 import unittest
 
 from diagnostic_msgs.msg import DiagnosticArray, DiagnosticStatus
@@ -33,7 +33,6 @@ from greenwave_monitor.ui_adaptor import (
     TOL_SUFFIX,
     TOPIC_PARAM_PREFIX,
 )
-from greenwave_monitor_interfaces.srv import ManageTopic
 import launch_ros
 from rcl_interfaces.msg import ParameterType, ParameterValue
 import rclpy
@@ -76,7 +75,7 @@ def set_parameter(test_node: Node, param_name: str, value,
 
 def get_parameter(test_node: Node, param_name: str,
                   node_name: str = MONITOR_NODE_NAME,
-                  node_namespace: str = MONITOR_NODE_NAMESPACE) -> Tuple[bool, Optional[float]]:
+                  node_namespace: str = MONITOR_NODE_NAMESPACE) -> Tuple[bool, Any]:
     """Get a parameter from a node using rclpy service client."""
     full_node_name = build_full_node_name(node_name, node_namespace)
     result = get_ros_parameters(test_node, full_node_name, [param_name])
@@ -156,27 +155,6 @@ def wait_for_service_connection(node: Node,
         node.get_logger().error(
             f'Service "{service_name}" not available within {timeout_sec} seconds')
     return service_available
-
-
-def call_manage_topic_service(node: Node,
-                              service_client,
-                              add: bool,
-                              topic: str,
-                              timeout_sec: float = 8.0
-                              ) -> Optional[ManageTopic.Response]:
-    """Call the manage_topic service with given parameters."""
-    request = ManageTopic.Request()
-    request.add_topic = add
-    request.topic_name = topic
-    future = service_client.call_async(request)
-
-    rclpy.spin_until_future_complete(node, future, timeout_sec=timeout_sec)
-
-    if future.result() is None:
-        node.get_logger().error('Service call failed or timed out')
-        return None
-
-    return future.result()
 
 
 def collect_diagnostics_for_topic(node: Node,
@@ -300,12 +278,6 @@ def verify_diagnostic_values(status: DiagnosticStatus,
                 f'got {reported_latency_ms}')
 
     return errors
-
-
-def create_manage_topic_client(node: Node, namespace: str = MONITOR_NODE_NAMESPACE,
-                               node_name: str = MONITOR_NODE_NAME):
-    """Create the manage_topic service client for the monitor node."""
-    return node.create_client(ManageTopic, f'/{namespace}/{node_name}/manage_topic')
 
 
 class RosNodeTestCase(unittest.TestCase, ABC):

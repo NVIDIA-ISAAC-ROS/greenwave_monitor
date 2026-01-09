@@ -34,7 +34,6 @@ ament_target_dependencies(greenwave_monitor
   rclcpp
   std_msgs
   diagnostic_msgs
-  greenwave_monitor_interfaces
 )
 target_link_libraries(greenwave_monitor greenwave_diagnostics)
 

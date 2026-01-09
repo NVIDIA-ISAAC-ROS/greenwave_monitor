@@ -25,9 +25,7 @@ import time
 import unittest
 
 from greenwave_monitor.test_utils import (
-    call_manage_topic_service,
     collect_diagnostics_for_topic,
-    create_manage_topic_client,
     create_minimal_publisher,
     delete_parameter,
     find_best_diagnostic,
@@ -37,7 +35,6 @@ from greenwave_monitor.test_utils import (
     MONITOR_NODE_NAMESPACE,
     RosNodeTestCase,
     set_parameter,
-    wait_for_service_connection,
 )
 from greenwave_monitor.ui_adaptor import (
     ENABLED_SUFFIX,
@@ -454,12 +451,12 @@ class TestDynamicParameters(RosNodeTestCase):
 
 
 class TestEnableExistingNode(RosNodeTestCase):
-    """Tests for enabling/disabling monitoring on existing nodes."""
+    """Tests for enabling/disabling monitoring via enabled parameter."""
 
     TEST_NODE_NAME = 'enable_existing_test_node'
 
-    def test_add_topic_enables_existing_node_parameter(self):
-        """Test that add_topic enables parameter on existing nodes."""
+    def test_enabled_parameter_toggles_monitoring(self):
+        """Test that setting enabled parameter toggles monitoring."""
         time.sleep(3.0)
         publisher_full_name = f'/{PUBLISHER_ENABLE_TEST}'
         enabled_param_name = f'{TOPIC_PARAM_PREFIX}{ENABLE_EXISTING_TOPIC}{ENABLED_SUFFIX}'
@@ -478,45 +475,31 @@ class TestEnableExistingNode(RosNodeTestCase):
         self.assertIsNotNone(future.result())
         self.assertTrue(len(future.result().values) > 0)
 
-        # Create manage_topic client
-        manage_topic_client = create_manage_topic_client(self.test_node)
-        self.assertTrue(
-            wait_for_service_connection(
-                self.test_node, manage_topic_client,
-                timeout_sec=5.0, service_name='manage_topic'))
+        # Disable monitoring via enabled parameter
+        success = set_parameter(
+            self.test_node, enabled_param_name, False)
+        self.assertTrue(success, 'Failed to disable monitoring')
 
-        # Remove topic to disable monitoring
-        response = call_manage_topic_service(
-            self.test_node, manage_topic_client, add=False, topic=ENABLE_EXISTING_TOPIC)
-        self.assertIsNotNone(response)
-        self.assertTrue(response.success)
+        time.sleep(0.5)
 
-        # Verify enabled=false
-        request = GetParameters.Request()
-        request.names = [enabled_param_name]
-        future = get_params_client.call_async(request)
-        rclpy.spin_until_future_complete(self.test_node, future, timeout_sec=5.0)
-        self.assertIsNotNone(future.result())
-        self.assertFalse(future.result().values[0].bool_value)
+        # Verify enabled=false on monitor node
+        success, value = get_parameter(self.test_node, enabled_param_name)
+        self.assertTrue(success)
+        self.assertFalse(value)
 
-        # Re-enable via add_topic
-        response = call_manage_topic_service(
-            self.test_node, manage_topic_client, add=True, topic=ENABLE_EXISTING_TOPIC)
-        self.assertIsNotNone(response)
-        self.assertTrue(response.success)
-        self.assertIn('Enabled monitoring on existing node', response.message)
+        # Re-enable monitoring via enabled parameter
+        success = set_parameter(
+            self.test_node, enabled_param_name, True)
+        self.assertTrue(success, 'Failed to enable monitoring')
+
+        time.sleep(0.5)
 
         # Verify enabled=true
-        request = GetParameters.Request()
-        request.names = [enabled_param_name]
-        future = get_params_client.call_async(request)
-        rclpy.spin_until_future_complete(self.test_node, future, timeout_sec=5.0)
-        self.assertIsNotNone(future.result())
-        self.assertTrue(len(future.result().values) > 0)
-        self.assertTrue(future.result().values[0].bool_value)
+        success, value = get_parameter(self.test_node, enabled_param_name)
+        self.assertTrue(success)
+        self.assertTrue(value)
 
         self.test_node.destroy_client(get_params_client)
-        self.test_node.destroy_client(manage_topic_client)
 
 
 if __name__ == '__main__':

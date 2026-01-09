@@ -22,6 +22,7 @@
 #include <memory>
 #include <set>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 #include "rclcpp/rclcpp.hpp"
@@ -29,8 +30,16 @@
 #include "diagnostic_msgs/msg/diagnostic_array.hpp"
 #include "diagnostic_msgs/msg/diagnostic_status.hpp"
 #include "diagnostic_msgs/msg/key_value.hpp"
+#include "rcl_interfaces/msg/parameter_event.hpp"
 #include "greenwave_diagnostics.hpp"
-#include "greenwave_monitor_interfaces/srv/manage_topic.hpp"
+
+struct TopicValidationResult
+{
+  bool valid = false;
+  std::string topic;
+  std::string message_type;
+  std::string error_message;
+};
 
 class GreenwaveMonitor : public rclcpp::Node
 {
@@ -44,18 +53,27 @@ private:
 
   void timer_callback();
 
-  void handle_manage_topic(
-    const std::shared_ptr<greenwave_monitor_interfaces::srv::ManageTopic::Request> request,
-    std::shared_ptr<greenwave_monitor_interfaces::srv::ManageTopic::Response> response);
+  rcl_interfaces::msg::SetParametersResult on_parameter_change(
+    const std::vector<rclcpp::Parameter> & parameters);
+
+  void on_parameter_event(const rcl_interfaces::msg::ParameterEvent::SharedPtr msg);
+
+  void internal_on_parameter_event(const rcl_interfaces::msg::ParameterEvent::SharedPtr msg);
+
+  void external_on_parameter_event(const rcl_interfaces::msg::ParameterEvent::SharedPtr msg);
+
+  TopicValidationResult validate_add_topic(
+    const std::string & topic, int max_retries = 5, double retry_period_s = 1.0);
+
+  bool execute_add_topic(const TopicValidationResult & validated, std::string & message);
+
+  void fetch_external_topic_map();
 
   bool add_topic(
     const std::string & topic, std::string & message,
     int max_retries = 5, double retry_period_s = 1.0);
 
   bool remove_topic(const std::string & topic, std::string & message);
-
-  bool try_set_external_enabled_param(
-    const std::string & topic, bool enabled, std::string & message);
 
   bool has_header_from_type(const std::string & type_name);
 
@@ -70,6 +88,8 @@ private:
     std::unique_ptr<greenwave_diagnostics::GreenwaveDiagnostics>> greenwave_diagnostics_;
   std::vector<std::shared_ptr<rclcpp::GenericSubscription>> subscriptions_;
   rclcpp::TimerBase::SharedPtr timer_;
-  rclcpp::Service<greenwave_monitor_interfaces::srv::ManageTopic>::SharedPtr
-    manage_topic_service_;
+  rclcpp::Subscription<rcl_interfaces::msg::ParameterEvent>::SharedPtr param_event_sub_;
+  OnSetParametersCallbackHandle::SharedPtr param_callback_handle_;
+  std::unordered_map<std::string, TopicValidationResult> pending_validations_;
+  std::unordered_map<std::string, std::string> external_topic_to_node_;
 };

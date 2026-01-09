@@ -35,7 +35,6 @@
   <depend>std_msgs</depend>
   <depend>diagnostic_msgs</depend>
   <depend>sensor_msgs</depend>
-  <depend>greenwave_monitor_interfaces</depend>
   <depend>rclpy</depend>
 
   <exec_depend>launch</exec_depend>

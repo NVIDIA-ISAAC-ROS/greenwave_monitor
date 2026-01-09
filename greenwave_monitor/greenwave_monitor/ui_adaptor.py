@@ -27,7 +27,8 @@ thread-safe, easy-to-consume view (`UiDiagnosticData`) per monitored topic, incl
 timestamp of the last update for each topic.
 
 In addition to passively subscribing, `GreenwaveUiAdaptor` exposes:
-- ManageTopic service client: start/stop monitoring a topic (`toggle_topic_monitoring`).
+- Parameter-based topic monitoring: start/stop monitoring a topic via the
+  `greenwave_diagnostics.<topic>.enabled` parameter (`toggle_topic_monitoring`).
 - Parameter-based frequency configuration: set/clear the expected publish rate and tolerance
   for a topic (`set_expected_frequency`) via ROS parameters. Expected rates are also cached
   locally in `expected_frequencies` as `(expected_hz, tolerance_percent)` so UIs can display
@@ -41,7 +42,6 @@ import time
 from typing import Dict
 
 from diagnostic_msgs.msg import DiagnosticArray, DiagnosticStatus
-from greenwave_monitor_interfaces.srv import ManageTopic
 from rcl_interfaces.msg import Parameter, ParameterEvent, ParameterType, ParameterValue
 from rcl_interfaces.srv import GetParameters, ListParameters, SetParameters
 import rclpy
@@ -57,9 +57,16 @@ DEFAULT_TOLERANCE_PERCENT = 5.0
 
 def build_full_node_name(node_name: str, node_namespace: str, is_client: bool = False) -> str:
     """Build full ROS node name from name and namespace."""
-    if not node_namespace or node_namespace == '/':
-        return f'/{node_name}'
-    return f'{node_namespace}/{node_name}' if is_client else f'/{node_namespace}/{node_name}'
+    join_list = []
+    # Strip leading '/' from namespace to avoid double slashes when joining
+    if node_namespace and node_namespace != '/':
+        join_list.append(node_namespace.lstrip('/'))
+    if node_name:
+        join_list.append(node_name)
+    joined = '/'.join(join_list)
+    if not is_client:
+        return f'/{joined}'
+    return joined
 
 
 def make_freq_param(topic: str) -> str:
@@ -100,15 +107,14 @@ def set_ros_parameters(node: Node, target_node: str, params: dict,
     """
     Set one or more parameters on a target node.
 
-    Args:
-        node: The ROS node to use for service calls
-        target_node: Full name of target node (e.g., '/my_node' or '/ns/my_node')
-        params: Dict mapping parameter names to values
-        timeout_sec: Service call timeout
-
-    Returns:
-        Tuple of (all_successful, list of failure reasons)
+    :param node: The ROS node to use for service calls.
+    :param target_node: Full name of target node (e.g., '/my_node' or '/ns/my_node').
+    :param params: Dict mapping parameter names to values.
+    :param timeout_sec: Service call timeout.
+    :returns: Tuple of (all_successful, list of failure reasons).
     """
+    if '/' not in target_node:
+        target_node = f'/{target_node}'
     client = node.create_client(SetParameters, f'{target_node}/set_parameters')
     if not client.wait_for_service(timeout_sec=min(timeout_sec, 5.0)):
         node.destroy_client(client)
@@ -138,14 +144,11 @@ def get_ros_parameters(node: Node, target_node: str, param_names: list,
     """
     Get parameters from a target node.
 
-    Args:
-        node: The ROS node to use for service calls
-        target_node: Full name of target node (e.g., '/my_node' or '/ns/my_node')
-        param_names: List of parameter names to retrieve
-        timeout_sec: Service call timeout
-
-    Returns:
-        Dict mapping parameter names to their values (float or None if not found/invalid)
+    :param node: The ROS node to use for service calls.
+    :param target_node: Full name of target node (e.g., '/my_node' or '/ns/my_node').
+    :param param_names: List of parameter names to retrieve.
+    :param timeout_sec: Service call timeout.
+    :returns: Dict mapping parameter names to their values (float or None if not found/invalid).
     """
     client = node.create_client(GetParameters, f'{target_node}/get_parameters')
     if not client.wait_for_service(timeout_sec=min(timeout_sec, 5.0)):
@@ -165,7 +168,7 @@ def get_ros_parameters(node: Node, target_node: str, param_names: list,
 
         result = {}
         for name, value in zip(param_names, future.result().values):
-            result[name] = param_value_to_float(value)
+            result[name] = param_value_to_python(value)
         return result
     except Exception:
         node.destroy_client(client)
@@ -173,7 +176,7 @@ def get_ros_parameters(node: Node, target_node: str, param_names: list,
 
 
 def parse_topic_param_name(param_name: str) -> tuple[str, str]:
-    """Parse parameter name to extract topic name and field type ('freq', 'tol', or '')."""
+    """Parse parameter name to extract topic name and field type."""
     if not param_name.startswith(TOPIC_PARAM_PREFIX):
         return ('', '')
 
@@ -183,20 +186,22 @@ def parse_topic_param_name(param_name: str) -> tuple[str, str]:
         return (topic_and_field[:-len(FREQ_SUFFIX)], 'freq')
     if topic_and_field.endswith(TOL_SUFFIX):
         return (topic_and_field[:-len(TOL_SUFFIX)], 'tol')
+    if topic_and_field.endswith(ENABLED_SUFFIX):
+        return (topic_and_field[:-len(ENABLED_SUFFIX)], 'enabled')
 
     return ('', '')
 
 
-def param_value_to_float(value: ParameterValue) -> float | None:
-    """Convert a ParameterValue to float if it's a numeric type."""
-    if value.type == ParameterType.PARAMETER_DOUBLE:
+def param_value_to_python(value: ParameterValue):
+    """Convert a ParameterValue to its Python equivalent."""
+    if value.type == ParameterType.PARAMETER_BOOL:
+        return value.bool_value
+    elif value.type == ParameterType.PARAMETER_DOUBLE:
         return value.double_value
     elif value.type == ParameterType.PARAMETER_INTEGER:
-        return float(value.integer_value)
+        return value.integer_value
     elif value.type == ParameterType.PARAMETER_STRING:
-        str_value = value.string_value
-        if str_value == 'nan' or str_value == 'NaN' or str_value == 'NAN':
-            return float('nan')
+        return value.string_value
     return None
 
 
@@ -245,20 +250,22 @@ class GreenwaveUiAdaptor:
     Subscribe to `/diagnostics` and manage topic monitoring for UI consumption.
 
     Designed for UI frontends, this class keeps per-topic `UiDiagnosticData` up to date,
-    provides a toggle for monitoring via `ManageTopic`, and exposes helpers to set/clear
-    expected frequencies via ROS parameters. Service names may be discovered
-    dynamically or constructed from an optional namespace and node name.
+    provides a toggle for monitoring via the `greenwave_diagnostics.<topic>.enabled` parameter,
+    and exposes helpers to set/clear expected frequencies via ROS parameters.
 
     """
 
     def __init__(self, node: Node, monitor_node_name: str = 'greenwave_monitor'):
         """Initialize the UI adaptor for subscribing to diagnostics and managing topics."""
         self.node = node
+        # Just use the bare node name - ROS will expand with the caller's namespace
         self.monitor_node_name = monitor_node_name
         self.data_lock = threading.Lock()
         self.ui_diagnostics: Dict[str, UiDiagnosticData] = {}
         # { topic_name : (expected_hz, tolerance) }
         self.expected_frequencies: Dict[str, tuple[float, float]] = {}
+        # { topic_name : node_name } - maps topics to the node that has their params
+        self.topic_to_node: Dict[str, str] = {}
 
         self._setup_ros_components()
 
@@ -276,15 +283,6 @@ class GreenwaveUiAdaptor:
             '/parameter_events',
             self._on_parameter_event,
             10
-        )
-
-        manage_service_name = f'{self.monitor_node_name}/manage_topic'
-
-        self.node.get_logger().info(f'Connecting to monitor service: {manage_service_name}')
-
-        self.manage_topic_client = self.node.create_client(
-            ManageTopic,
-            manage_service_name
         )
 
         # Track pending node queries to prevent garbage collection
@@ -377,19 +375,31 @@ class GreenwaveUiAdaptor:
                 self._cleanup_node_query(query_id)
                 return
 
+            full_node_name = query['node_name']
+
+            # Extract all topic names from param names to build topic -> node mapping
+            topics_on_this_node = set()
+            for name in query['param_names']:
+                topic_name, field = parse_topic_param_name(name)
+                if topic_name:
+                    topics_on_this_node.add(topic_name)
+
             topic_configs: Dict[str, Dict[str, float]] = {}
             for name, value in zip(query['param_names'], future.result().values):
-                numeric_value = param_value_to_float(value)
-                if numeric_value is None:
+                py_value = param_value_to_python(value)
+                if not isinstance(py_value, (int, float)):
                     continue
                 topic_name, field = parse_topic_param_name(name)
                 if not topic_name or not field:
                     continue
                 if topic_name not in topic_configs:
                     topic_configs[topic_name] = {}
-                topic_configs[topic_name][field] = numeric_value
+                topic_configs[topic_name][field] = float(py_value)
 
             with self.data_lock:
+                for topic_name in topics_on_this_node:
+                    self.topic_to_node[topic_name] = full_node_name
+
                 for topic_name, config in topic_configs.items():
                     freq = config.get('freq', 0.0)
                     tol = config.get('tol', DEFAULT_TOLERANCE_PERCENT)
@@ -454,25 +464,32 @@ class GreenwaveUiAdaptor:
                 self.ui_diagnostics[topic_name] = ui_data
 
     def _on_parameter_event(self, msg: ParameterEvent):
-        """Process parameter change events from the monitor node."""
-        # Process changed and new parameters
+        """Process parameter change events from any node."""
         for param in msg.changed_parameters + msg.new_parameters:
-            value = param_value_to_float(param.value)
-            if value is None:
-                continue
-
             topic_name, field = parse_topic_param_name(param.name)
             if not topic_name or field == '':
                 continue
 
             with self.data_lock:
+                if field == 'enabled' and param in msg.new_parameters:
+                    if (param.value.type == ParameterType.PARAMETER_BOOL and
+                            param.value.bool_value):
+                        # Keep the topic to node map up to date when new enabled parameters appear
+                        # This makes it easy to set the right parameter in toggle topic monitoring
+                        self.topic_to_node[topic_name] = msg.node
+                    continue
+
+                value = param_value_to_python(param.value)
+                if not isinstance(value, (int, float)):
+                    continue
+                value = float(value)
+
                 current = self.expected_frequencies.get(topic_name, (0.0, 0.0))
 
                 if field == 'freq':
                     # Treat NaN or non-positive as "cleared"
                     if value > 0 or math.isnan(value):
                         self.expected_frequencies[topic_name] = (value, current[1])
-
                 elif field == 'tol':
                     if current[0] > 0:  # Only update if frequency is set
                         self.expected_frequencies[topic_name] = (current[0], value)
@@ -483,7 +500,10 @@ class GreenwaveUiAdaptor:
                 continue
 
             with self.data_lock:
-                if field == 'freq':
+                if field == 'enabled':
+                    # Remove the topic in the map when there is no longer a parameter for it
+                    self.topic_to_node.pop(topic_name, None)
+                elif field == 'freq':
                     self.expected_frequencies.pop(topic_name, None)
                 elif field == 'tol':
                     current = self.expected_frequencies.get(topic_name)
@@ -492,61 +512,25 @@ class GreenwaveUiAdaptor:
                             current[0], DEFAULT_TOLERANCE_PERCENT)
 
     def toggle_topic_monitoring(self, topic_name: str):
-        """Toggle monitoring for a topic."""
-        if not self.manage_topic_client.wait_for_service(timeout_sec=1.0):
+        """Toggle monitoring for a topic via enabled parameter."""
+        with self.data_lock:
+            is_monitoring = topic_name in self.ui_diagnostics
+            target_node = self.topic_to_node.get(topic_name, self.monitor_node_name)
+        new_enabled = not is_monitoring
+        action = 'start' if new_enabled else 'stop'
+
+        enabled_param = f'{TOPIC_PARAM_PREFIX}{topic_name}{ENABLED_SUFFIX}'
+        success, failures = set_ros_parameters(
+            self.node, target_node, {enabled_param: new_enabled})
+
+        if not success:
+            self.node.get_logger().error(
+                f'Failed to {action} monitoring: {"; ".join(failures)}')
             return
 
-        request = ManageTopic.Request()
-        request.topic_name = topic_name
         with self.data_lock:
-            request.add_topic = topic_name not in self.ui_diagnostics
-
-        action = 'start' if request.add_topic else 'stop'
-        response = self._call_service(self.manage_topic_client, request)
-
-        if response is None:
-            self.node.get_logger().error(f'Failed to {action} monitoring: Service call timed out')
-            return
-
-        with self.data_lock:
-            if not response.success:
-                self.node.get_logger().error(f'Failed to {action} monitoring: {response.message}')
-                return
-            if not request.add_topic and topic_name in self.ui_diagnostics:
+            if not new_enabled and topic_name in self.ui_diagnostics:
                 del self.ui_diagnostics[topic_name]
-
-    def _find_node_with_topic_param(self, topic_name: str) -> str:
-        """
-        Find a node that has the frequency parameter for this topic.
-
-        Searches all nodes in the system for the parameter. Falls back to the
-        monitor node if no node is found with the parameter.
-        """
-        freq_param_name = make_freq_param(topic_name)
-
-        for node_name, node_namespace in self.node.get_node_names_and_namespaces():
-            if node_name == self.node.get_name():
-                continue
-
-            full_node_name = build_full_node_name(node_name, node_namespace, is_client=True)
-
-            list_client = self.node.create_client(
-                ListParameters, f'{full_node_name}/list_parameters')
-            if not list_client.wait_for_service(timeout_sec=0.5):
-                self.node.destroy_client(list_client)
-                continue
-
-            list_request = ListParameters.Request()
-            list_request.prefixes = [freq_param_name]
-            list_request.depth = 1
-
-            result = self._call_service(list_client, list_request, timeout_sec=1.0)
-            self.node.destroy_client(list_client)
-
-            if result is not None and freq_param_name in result.result.names:
-                return full_node_name
-
-        return self.monitor_node_name
 
     def set_expected_frequency(self,
                                topic_name: str,
@@ -555,7 +539,8 @@ class GreenwaveUiAdaptor:
                                clear: bool = False
                                ) -> tuple[bool, str]:
         """Set or clear the expected frequency for a topic via parameters."""
-        target_node = self._find_node_with_topic_param(topic_name)
+        with self.data_lock:
+            target_node = self.topic_to_node.get(topic_name, self.monitor_node_name)
         action = 'clear' if clear else 'set'
 
         params = {

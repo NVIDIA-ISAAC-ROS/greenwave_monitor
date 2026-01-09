@@ -19,7 +19,7 @@
 
 # Build Debian packages for greenwave_monitor
 #
-# This script builds .deb packages for greenwave_monitor_interfaces and greenwave_monitor
+# This script builds .deb packages for greenwave_monitor
 #
 # Usage: ./scripts/build_debian_packages.sh [ROS_DISTRO] [UBUNTU_DISTRO]
 # Examples:
@@ -146,10 +146,6 @@ source install/setup.bash
 echo "Setting up rosdep mappings..."
 mkdir -p ~/.ros/rosdep
 cat >~/.ros/rosdep/local.yaml <<EOF
-greenwave_monitor_interfaces:
-  ubuntu:
-    jammy: [ros-$ROS_DISTRO-greenwave-monitor-interfaces]
-    noble: [ros-$ROS_DISTRO-greenwave-monitor-interfaces]
 greenwave_monitor:
   ubuntu:
     jammy: [ros-$ROS_DISTRO-greenwave-monitor]
@@ -198,18 +194,10 @@ install_package() {
     apt-get install -y ./$DEBIAN_DIR/$package_pattern || sudo apt-get install -y ./$DEBIAN_DIR/$package_pattern
 }
 
-# Build packages in dependency order
+# Build packages
 echo "Starting Debian package generation..."
 
-# 1. Build greenwave_monitor_interfaces
-if [ -d "greenwave_monitor_interfaces" ]; then
-    build_debian_package "greenwave_monitor_interfaces" "greenwave_monitor_interfaces"
-    install_package "ros-$ROS_DISTRO-greenwave-monitor-interfaces_*.deb"
-else
-    echo "Warning: greenwave_monitor_interfaces directory not found, skipping"
-fi
-
-# 2. Build greenwave_monitor
+# Build greenwave_monitor
 if [ -d "greenwave_monitor" ]; then
     build_debian_package "greenwave_monitor" "greenwave_monitor"
     install_package "ros-$ROS_DISTRO-greenwave-monitor_*.deb"

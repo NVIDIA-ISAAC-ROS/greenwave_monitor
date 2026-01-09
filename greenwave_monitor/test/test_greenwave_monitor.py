@@ -22,18 +22,17 @@ import time
 import unittest
 
 from greenwave_monitor.test_utils import (
-    call_manage_topic_service,
     collect_diagnostics_for_topic,
-    create_manage_topic_client,
     create_minimal_publisher,
     create_monitor_node,
     find_best_diagnostic,
+    make_enabled_param,
     MANAGE_TOPIC_TEST_CONFIG,
     MONITOR_NODE_NAME,
     MONITOR_NODE_NAMESPACE,
+    set_parameter,
     TEST_CONFIGURATIONS,
     verify_diagnostic_values,
-    wait_for_service_connection
 )
 import launch
 import launch_testing
@@ -55,12 +54,12 @@ def generate_test_description(message_type, expected_frequency, tolerance_hz):
         topics=['/test_topic']
     )
 
-    # Create publishers
+    # Create publishers (all with diagnostics disabled so greenwave_monitor can add them)
     publishers = [
         # Main test topic publisher with parametrized frequency
-        create_minimal_publisher('/test_topic', expected_frequency, message_type),
-        # Additional publishers for topic management tests (start with diagnostics disabled
-        # so add_topic can enable them)
+        create_minimal_publisher(
+            '/test_topic', expected_frequency, message_type, enable_diagnostics=False),
+        # Additional publishers for topic management tests
         create_minimal_publisher(
             '/test_topic1', expected_frequency, message_type, '1', enable_diagnostics=False),
         create_minimal_publisher(
@@ -120,20 +119,19 @@ class TestGreenwaveMonitor(unittest.TestCase):
 
     def check_node_launches_successfully(self):
         """Test that the node launches without errors."""
-        # Create a service client to check if the node is ready
-        # Service discovery is more reliable than node discovery in launch_testing
-        manage_client = create_manage_topic_client(
-            self.test_node, MONITOR_NODE_NAMESPACE, MONITOR_NODE_NAME
-        )
-        service_available = wait_for_service_connection(
-            self.test_node, manage_client, timeout_sec=3.0,
-            service_name=f'/{MONITOR_NODE_NAMESPACE}/{MONITOR_NODE_NAME}/manage_topic'
-        )
-        self.assertTrue(
-            service_available,
-            f'Service "/{MONITOR_NODE_NAMESPACE}/{MONITOR_NODE_NAME}/manage_topic" '
-            'not available within timeout')
-        return manage_client
+        # Wait for the node to be discoverable
+        end_time = time.time() + 5.0
+        node_found = False
+        while time.time() < end_time:
+            rclpy.spin_once(self.test_node, timeout_sec=0.1)
+            node_names = self.test_node.get_node_names_and_namespaces()
+            for name, namespace in node_names:
+                if name == MONITOR_NODE_NAME and namespace == f'/{MONITOR_NODE_NAMESPACE}':
+                    node_found = True
+                    break
+            if node_found:
+                break
+        self.assertTrue(node_found, f'Node {MONITOR_NODE_NAME} not found within timeout')
 
     def verify_diagnostics(self, topic_name, expected_frequency, message_type, tolerance_hz):
         """Verify diagnostics for a given topic."""
@@ -169,52 +167,40 @@ class TestGreenwaveMonitor(unittest.TestCase):
         self.check_node_launches_successfully()
         self.verify_diagnostics('/test_topic', expected_frequency, message_type, tolerance_hz)
 
-    def call_manage_topic(self, add, topic, service_client):
-        """Service call helper."""
-        response = call_manage_topic_service(
-            self.test_node, service_client, add, topic, timeout_sec=8.0
-        )
-        self.assertIsNotNone(response, 'Service call failed or timed out')
-        return response
+    def set_topic_enabled(self, topic: str, enabled: bool) -> bool:
+        """Set a topic's enabled parameter."""
+        param_name = make_enabled_param(topic)
+        return set_parameter(self.test_node, param_name, enabled)
 
     def test_manage_one_topic(self, expected_frequency, message_type, tolerance_hz):
-        """Test that add_topic() and remove_topic() work correctly for one topic."""
+        """Test that add_topic() and remove_topic() work via enabled parameter."""
         if (message_type, expected_frequency, tolerance_hz) != MANAGE_TOPIC_TEST_CONFIG:
             self.skipTest('Only running manage topic tests once')
 
-        service_client = self.check_node_launches_successfully()
+        self.check_node_launches_successfully()
 
         TEST_TOPIC = '/test_topic'
 
-        # 1. Remove an existing topic – should succeed on first attempt.
-        response = self.call_manage_topic(
-            add=False, topic=TEST_TOPIC, service_client=service_client)
-        self.assertTrue(response.success)
+        # 1. Disable monitoring for the topic
+        success = self.set_topic_enabled(TEST_TOPIC, False)
+        self.assertTrue(success, 'Failed to disable topic monitoring')
 
-        # 2. Removing the same topic again should fail because it's already disabled.
-        response = self.call_manage_topic(
-            add=False, topic=TEST_TOPIC, service_client=service_client)
-        self.assertFalse(response.success)
+        # Allow time for the parameter event to be processed
+        time.sleep(0.5)
 
-        # 3. Add the topic back – should succeed now.
-        response = self.call_manage_topic(
-            add=True, topic=TEST_TOPIC, service_client=service_client)
-        self.assertTrue(response.success)
+        # 2. Re-enable monitoring for the topic
+        success = self.set_topic_enabled(TEST_TOPIC, True)
+        self.assertTrue(success, 'Failed to enable topic monitoring')
 
-        # Verify diagnostics after adding the topic back
+        # Verify diagnostics after enabling the topic
         self.verify_diagnostics(TEST_TOPIC, expected_frequency, message_type, tolerance_hz)
 
-        # 4. Adding the same topic again should fail because it's already enabled.
-        response = self.call_manage_topic(
-            add=True, topic=TEST_TOPIC, service_client=service_client)
-        self.assertFalse(response.success)
-
     def test_manage_multiple_topics(self, expected_frequency, message_type, tolerance_hz):
-        """Test that add_topic() and remove_topic() work correctly for multiple topics."""
+        """Test add_topic() and remove_topic() work via enabled parameter for multiple topics."""
         if (message_type, expected_frequency, tolerance_hz) != MANAGE_TOPIC_TEST_CONFIG:
             self.skipTest('Only running manage topic tests once for 30 hz images')
 
-        service_client = self.check_node_launches_successfully()
+        self.check_node_launches_successfully()
 
         TEST_TOPIC1 = '/test_topic1'
         TEST_TOPIC2 = '/test_topic2'
@@ -224,32 +210,23 @@ class TestGreenwaveMonitor(unittest.TestCase):
         while time.time() < end_time:
             rclpy.spin_once(self.test_node, timeout_sec=0.1)
 
-        # Try to add a non-existent topic - should fail
-        nonexistent_topic = '/test/nonexistent_topic'
-        response = self.call_manage_topic(
-            add=True, topic=nonexistent_topic, service_client=service_client)
-        self.assertFalse(response.success)
+        # 1. Enable monitoring for first topic via parameter
+        success = self.set_topic_enabled(TEST_TOPIC1, True)
+        self.assertTrue(success, 'Failed to enable first topic')
 
-        # 1. Add first topic – should succeed.
-        response = self.call_manage_topic(
-            add=True, topic=TEST_TOPIC1, service_client=service_client)
-        self.assertTrue(response.success)
-
-        # Verify diagnostics after adding the first topic
+        # Verify diagnostics after enabling the first topic
         self.verify_diagnostics(TEST_TOPIC1, expected_frequency, message_type, tolerance_hz)
 
-        # 2. Add second topic – should succeed.
-        response = self.call_manage_topic(
-            add=True, topic=TEST_TOPIC2, service_client=service_client)
-        self.assertTrue(response.success)
+        # 2. Enable monitoring for second topic via parameter
+        success = self.set_topic_enabled(TEST_TOPIC2, True)
+        self.assertTrue(success, 'Failed to enable second topic')
 
-        # Verify diagnostics after adding the second topic
+        # Verify diagnostics after enabling the second topic
         self.verify_diagnostics(TEST_TOPIC2, expected_frequency, message_type, tolerance_hz)
 
-        # 3. Remove first topic – should succeed.
-        response = self.call_manage_topic(
-            add=False, topic=TEST_TOPIC1, service_client=service_client)
-        self.assertTrue(response.success)
+        # 3. Disable first topic via parameter
+        success = self.set_topic_enabled(TEST_TOPIC1, False)
+        self.assertTrue(success, 'Failed to disable first topic')
 
 
 if __name__ == '__main__':

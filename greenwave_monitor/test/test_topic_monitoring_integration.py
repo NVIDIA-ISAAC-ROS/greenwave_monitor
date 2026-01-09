@@ -30,8 +30,7 @@ from greenwave_monitor.test_utils import (
     MONITOR_NODE_NAMESPACE,
     TEST_CONFIGURATIONS
 )
-from greenwave_monitor.ui_adaptor import GreenwaveUiAdaptor, UiDiagnosticData
-from greenwave_monitor_interfaces.srv import ManageTopic
+from greenwave_monitor.ui_adaptor import build_full_node_name, GreenwaveUiAdaptor, UiDiagnosticData
 import launch
 import launch_testing
 from launch_testing import post_shutdown_test
@@ -51,15 +50,19 @@ def generate_test_description(message_type, expected_frequency, tolerance_hz):
         topics=['/test_topic']
     )
 
-    # Create publishers for testing
+    # Create publishers for testing (diagnostics disabled so monitor can add them)
     publishers = [
         # Main test topic publisher with parametrized frequency
-        create_minimal_publisher('/test_topic', expected_frequency, message_type),
+        create_minimal_publisher(
+            '/test_topic', expected_frequency, message_type, enable_diagnostics=False),
         # Additional publishers for topic management tests
-        create_minimal_publisher('/test_topic1', expected_frequency, message_type, '1'),
-        create_minimal_publisher('/test_topic2', expected_frequency, message_type, '2'),
+        create_minimal_publisher(
+            '/test_topic1', expected_frequency, message_type, '1', enable_diagnostics=False),
+        create_minimal_publisher(
+            '/test_topic2', expected_frequency, message_type, '2', enable_diagnostics=False),
         # Publisher for service discovery tests
-        create_minimal_publisher('/discovery_test_topic', 50.0, 'imu', '_discovery')
+        create_minimal_publisher(
+            '/discovery_test_topic', 50.0, 'imu', '_discovery', enable_diagnostics=False)
     ]
 
     context = {
@@ -120,7 +123,7 @@ class TestTopicMonitoringIntegration(unittest.TestCase):
         # Create a fresh GreenwaveUiAdaptor instance for each test with proper namespace
         self.diagnostics_monitor = GreenwaveUiAdaptor(
             self.test_node,
-            monitor_node_name=MONITOR_NODE_NAME
+            monitor_node_name=build_full_node_name(MONITOR_NODE_NAME, MONITOR_NODE_NAMESPACE)
         )
 
         # Allow time for service discovery in test environment (reduced from 2.0s)
@@ -139,10 +142,6 @@ class TestTopicMonitoringIntegration(unittest.TestCase):
                 self.test_node.destroy_subscription(self.diagnostics_monitor.subscription)
                 self.test_node.destroy_subscription(
                     self.diagnostics_monitor.param_events_subscription)
-                self.test_node.destroy_client(self.diagnostics_monitor.manage_topic_client)
-                self.test_node.destroy_client(self.diagnostics_monitor.list_params_client)
-                self.test_node.destroy_client(self.diagnostics_monitor.get_params_client)
-                self.test_node.destroy_client(self.diagnostics_monitor.set_params_client)
             except Exception:
                 pass  # Ignore cleanup errors
 
@@ -152,19 +151,11 @@ class TestTopicMonitoringIntegration(unittest.TestCase):
         if (message_type, expected_frequency, tolerance_hz) != MANAGE_TOPIC_TEST_CONFIG:
             self.skipTest('Only running service discovery tests once')
 
-        # The monitor should discover the services automatically
-        self.assertIsNotNone(self.diagnostics_monitor.manage_topic_client)
-        self.assertIsNotNone(self.diagnostics_monitor.set_params_client)
-
-        # Verify services are available
-        manage_available = self.diagnostics_monitor.manage_topic_client.wait_for_service(
-            timeout_sec=5.0)
-        set_params_available = (
-            self.diagnostics_monitor.set_params_client
-            .wait_for_service(timeout_sec=5.0))
-
-        self.assertTrue(manage_available, 'ManageTopic service should be available')
-        self.assertTrue(set_params_available, 'SetParameters service should be available')
+        # The monitor should be able to set parameters on the discovered node
+        # Test by setting and then clearing an expected frequency
+        self.diagnostics_monitor.set_expected_frequency('/test_topic', 50.0, 10.0)
+        time.sleep(0.5)
+        self.diagnostics_monitor.set_expected_frequency('/test_topic', float('nan'), 0.0)
 
     def test_diagnostic_data_conversion(self, expected_frequency, message_type, tolerance_hz):
         """Test conversion from DiagnosticStatus to UiDiagnosticData."""
@@ -371,26 +362,17 @@ class TestTopicMonitoringIntegration(unittest.TestCase):
         # Check that timestamp was updated recently
         self.assertGreater(topic_data.last_update, time.time() - 10.0)
 
-    def test_service_timeout_handling(self, expected_frequency, message_type, tolerance_hz):
-        """Test service call timeout handling."""
+    def test_toggle_topic_monitoring(self, expected_frequency, message_type, tolerance_hz):
+        """Test toggling topic monitoring via enabled parameter."""
         if (message_type, expected_frequency, tolerance_hz) != MANAGE_TOPIC_TEST_CONFIG:
-            self.skipTest('Only running timeout handling tests once')
+            self.skipTest('Only running toggle monitoring tests once')
 
-        # Create a client to a non-existent service
-        fake_client = self.test_node.create_client(ManageTopic, '/nonexistent_service')
+        # Wait for initial diagnostics to be received
+        time.sleep(2.0)
 
-        # Replace the real client temporarily
-        original_client = self.diagnostics_monitor.manage_topic_client
-        self.diagnostics_monitor.manage_topic_client = fake_client
-
-        try:
-            # This should handle the service not being available gracefully
-            self.diagnostics_monitor.toggle_topic_monitoring('/some_topic')
-            # Should not crash or raise exceptions
-        finally:
-            # Restore original client
-            self.diagnostics_monitor.manage_topic_client = original_client
-            self.test_node.destroy_client(fake_client)
+        # This should handle toggling the enabled parameter
+        self.diagnostics_monitor.toggle_topic_monitoring('/test_topic')
+        # Should not crash or raise exceptions
 
 
 if __name__ == '__main__':
