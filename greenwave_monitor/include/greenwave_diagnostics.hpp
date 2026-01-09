@@ -163,13 +163,7 @@ public:
     }
   }
 
-  ~GreenwaveDiagnostics()
-  {
-    // Unregister parameter callback to avoid dangling references
-    if (param_callback_handle_) {
-      node_.remove_on_set_parameters_callback(param_callback_handle_.get());
-    }
-  }
+  ~GreenwaveDiagnostics() = default;
 
   // Update diagnostics numbers. To be called in Subscriber and Publisher
   void updateDiagnostics(uint64_t msg_timestamp_ns)
