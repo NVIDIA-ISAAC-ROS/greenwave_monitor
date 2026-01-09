@@ -112,8 +112,8 @@ std::optional<std::string> parse_enabled_topic_param(const std::string & name)
     return std::nullopt;
   }
 
-  std::string topic = name.substr(prefix.size(),
-    name.size() - prefix.size() - suffix.size());
+  std::string topic = name.substr(
+    prefix.size(), name.size() - prefix.size() - suffix.size());
   if (topic.empty() || topic[0] != '/') {
     return std::nullopt;
   }
@@ -375,6 +375,12 @@ bool GreenwaveMonitor::execute_add_topic(
   const std::string & topic = validated.topic;
   const std::string & type = validated.message_type;
 
+  // Guard against duplicate subscriptions from parameter re-set in GreenwaveDiagnostics
+  if (greenwave_diagnostics_.find(topic) != greenwave_diagnostics_.end()) {
+    message = "Topic already monitored: " + topic;
+    return true;
+  }
+
   RCLCPP_INFO(this->get_logger(), "Adding subscription for topic '%s'", topic.c_str());
 
   auto sub = this->create_generic_subscription(
@@ -392,8 +398,8 @@ bool GreenwaveMonitor::execute_add_topic(
   subscriptions_.push_back(sub);
   greenwave_diagnostics_.emplace(
     topic,
-    std::make_unique<greenwave_diagnostics::GreenwaveDiagnostics>(*this, topic,
-    diagnostics_config));
+    std::make_unique<greenwave_diagnostics::GreenwaveDiagnostics>(
+      *this, topic, diagnostics_config));
 
   message = "Successfully added topic: " + topic;
   return true;
@@ -482,12 +488,21 @@ void GreenwaveMonitor::fetch_external_topic_map()
       continue;
     }
 
-    auto param_names = param_client->list_parameters({"greenwave_diagnostics"}, 10).names;
-    if (param_names.empty()) {
+    std::vector<std::string> param_names;
+    std::vector<rclcpp::Parameter> params;
+    try {
+      param_names = param_client->list_parameters({"greenwave_diagnostics"}, 10).names;
+      if (param_names.empty()) {
+        continue;
+      }
+      params = param_client->get_parameters(param_names);
+    } catch (const std::exception & e) {
+      RCLCPP_DEBUG(this->get_logger(),
+        "Failed to query parameters from node '%s': %s",
+        full_node_name.c_str(), e.what());
       continue;
     }
 
-    auto params = param_client->get_parameters(param_names);
     for (size_t i = 0; i < param_names.size(); ++i) {
       const auto & name = param_names[i];
       const auto & param = params[i];
@@ -502,8 +517,8 @@ void GreenwaveMonitor::fetch_external_topic_map()
         continue;
       }
 
-      std::string topic = name.substr(prefix.size(),
-        name.size() - prefix.size() - suffix.size());
+      std::string topic = name.substr(
+        prefix.size(), name.size() - prefix.size() - suffix.size());
       if (topic.empty() || topic[0] != '/') {
         continue;
       }

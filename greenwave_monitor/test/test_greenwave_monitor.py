@@ -198,7 +198,7 @@ class TestGreenwaveMonitor(unittest.TestCase):
     def test_manage_multiple_topics(self, expected_frequency, message_type, tolerance_hz):
         """Test add_topic() and remove_topic() work via enabled parameter for multiple topics."""
         if (message_type, expected_frequency, tolerance_hz) != MANAGE_TOPIC_TEST_CONFIG:
-            self.skipTest('Only running manage topic tests once for 30 hz images')
+            self.skipTest('Only running manage topic tests once')
 
         self.check_node_launches_successfully()
 

@@ -176,8 +176,9 @@ public:
   {
     // If the topic is not enabled, skip updating diagnostics
     if (!enabled_) {
-      RCLCPP_DEBUG_THROTTLE(node_.get_logger(), *clock_, 1000,
-          "Topic %s is not enabled, skipping update diagnostics", topic_name_.c_str());
+      RCLCPP_DEBUG_THROTTLE(
+        node_.get_logger(), *clock_, 1000,
+        "Topic %s is not enabled, skipping update diagnostics", topic_name_.c_str());
       return;
     }
     // Mutex lock to prevent simultaneous access of common parameters
@@ -247,8 +248,9 @@ public:
   {
     // If the topic is not enabled, skip publishing diagnostics
     if (!enabled_) {
-      RCLCPP_DEBUG_THROTTLE(node_.get_logger(), *clock_, 1000,
-          "Topic %s is not enabled, skipping publish diagnostics", topic_name_.c_str());
+      RCLCPP_DEBUG_THROTTLE(
+        node_.get_logger(), *clock_, 1000,
+        "Topic %s is not enabled, skipping publish diagnostics", topic_name_.c_str());
       return;
     }
     // Mutex lock to prevent simultaneous access of common parameters
