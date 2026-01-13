@@ -18,6 +18,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 
+import os
 import tempfile
 import time
 import unittest
@@ -45,6 +46,10 @@ import rclpy
 from rclpy.node import Node
 
 
+# Temp directory auto-cleans when garbage collected or process exits
+_temp_dir = tempfile.TemporaryDirectory()
+
+
 def create_test_yaml_config():
     """Create a temporary YAML config file for testing parameter loading."""
     # Use /** wildcard to match any namespace/node name
@@ -55,19 +60,17 @@ def create_test_yaml_config():
       /test_topic_valid_expected_frequency:
         expected_frequency: 100.0
         tolerance: 10.0
-      /test_topic_invalid_expected_frequency:
-        expected_frequency: 0.0
-        tolerance: 0.0
+      /test_topic_invalid_parameters:
+        expected_frequency: -10.0
+        tolerance: -10.0
       /test_topic_integer_params:
         expected_frequency: 50
         tolerance: 5
 """
-    # Create temp file that persists until explicitly deleted
-    temp_file = tempfile.NamedTemporaryFile(
-        mode='w', suffix='.yaml', delete=False)
-    temp_file.write(yaml_content)
-    temp_file.flush()
-    return temp_file.name
+    filepath = os.path.join(_temp_dir.name, 'test_config.yaml')
+    with open(filepath, 'w') as f:
+        f.write(yaml_content)
+    return filepath
 
 
 @pytest.mark.launch_test
@@ -99,7 +102,7 @@ def generate_test_description(message_type, expected_frequency, tolerance_hz):
             '/test_topic_integer_params',
             50.0, message_type, '_integer_params'),
         create_minimal_publisher(
-            '/test_topic_invalid_expected_frequency',
+            '/test_topic_invalid_parameters',
             expected_frequency, message_type, '_invalid_expected_frequency')
     ]
 
@@ -359,15 +362,36 @@ class TestGreenwaveMonitor(unittest.TestCase):
             msg='Integer tolerance from YAML should be 5'
         )
 
-        # Verify that the invalid frequency topic is not monitored
-        INVALID_TOPIC = '/test_topic_invalid_expected_frequency'
-        received_diagnostics = collect_diagnostics_for_topic(
-            self.test_node, INVALID_TOPIC, expected_count=0, timeout_sec=10.0
+        # Verify topic with invalid (negative) params is monitored but with 0 values
+        invalid_topic = '/test_topic_invalid_parameters'
+        invalid_diagnostics = collect_diagnostics_for_topic(
+            self.test_node, invalid_topic, expected_count=3, timeout_sec=10.0
         )
-        self.assertEqual(
-            len(received_diagnostics), 0,
-            f'Topic {INVALID_TOPIC} with invalid expected frequency '
-            'should not be monitored')
+        self.assertGreaterEqual(
+            len(invalid_diagnostics), 1,
+            f'Topic {invalid_topic} should still be monitored'
+        )
+
+        invalid_status, _ = find_best_diagnostic(
+            invalid_diagnostics, 0.0, message_type)
+        self.assertIsNotNone(
+            invalid_status, f'Did not find diagnostics for {invalid_topic}')
+
+        invalid_values = {kv.key: kv.value for kv in invalid_status.values}
+
+        # Invalid (negative) expected_frequency should report as 0
+        self.assertIn('expected_frequency', invalid_values)
+        self.assertAlmostEqual(
+            float(invalid_values['expected_frequency']), 0.0, places=1,
+            msg='Invalid expected frequency should report as 0'
+        )
+
+        # Invalid (negative) tolerance should report as 0
+        self.assertIn('tolerance', invalid_values)
+        self.assertAlmostEqual(
+            float(invalid_values['tolerance']), 0.0, places=1,
+            msg='Invalid tolerance should report as 0'
+        )
 
 
 if __name__ == '__main__':

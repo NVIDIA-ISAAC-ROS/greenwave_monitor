@@ -17,6 +17,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import os
 import tempfile
 import threading
 import time
@@ -42,6 +43,10 @@ import rclpy
 from rclpy.node import Node
 
 
+# Temp directory auto-cleans when garbage collected or process exits
+_temp_dir = tempfile.TemporaryDirectory()
+
+
 def create_test_yaml_config():
     """Create a temporary YAML config file for testing parameter loading."""
     # Use /** wildcard to match any namespace/node name
@@ -53,18 +58,16 @@ def create_test_yaml_config():
         expected_frequency: 75.0
         tolerance: 15.0
       /yaml_invalid_topic:
-        expected_frequency: 0.0
-        tolerance: 0.0
+        expected_frequency: -10.0
+        tolerance: -10.0
       /yaml_integer_topic:
         expected_frequency: 60
         tolerance: 12
 """
-    # Create temp file that persists until explicitly deleted
-    temp_file = tempfile.NamedTemporaryFile(
-        mode='w', suffix='.yaml', delete=False)
-    temp_file.write(yaml_content)
-    temp_file.flush()
-    return temp_file.name
+    filepath = os.path.join(_temp_dir.name, 'test_config.yaml')
+    with open(filepath, 'w') as f:
+        f.write(yaml_content)
+    return filepath
 
 
 @pytest.mark.launch_test
@@ -437,13 +440,35 @@ class TestTopicMonitoringIntegration(unittest.TestCase):
             float(topic_data.tolerance), 15.0, places=1,
             msg='Tolerance from YAML should be 15.0')
 
-        # Verify that the invalid topic (0.0 expected_frequency) is not monitored
+        # Verify topic with invalid (negative) params is monitored but with 0 values
         invalid_topic = '/yaml_invalid_topic'
-        invalid_data = self.diagnostics_monitor.get_topic_diagnostics(invalid_topic)
-        self.assertEqual(
+        invalid_data = None
+
+        while time.time() - start_time < max_wait_time:
+            rclpy.spin_once(self.test_node, timeout_sec=0.1)
+            invalid_data = self.diagnostics_monitor.get_topic_diagnostics(
+                invalid_topic)
+            if invalid_data.status != '-':
+                break
+            time.sleep(0.1)
+
+        # Topic should still be monitored
+        self.assertIsNotNone(invalid_data)
+        self.assertNotEqual(
             invalid_data.status, '-',
-            f'Topic {invalid_topic} with invalid expected frequency '
-            'should not be monitored')
+            f'Topic {invalid_topic} should still be monitored')
+
+        # Invalid (negative) expected_frequency should report as 0
+        self.assertNotEqual(invalid_data.expected_frequency, '-')
+        self.assertAlmostEqual(
+            float(invalid_data.expected_frequency), 0.0, places=1,
+            msg='Invalid expected frequency should report as 0')
+
+        # Invalid (negative) tolerance should report as 0
+        self.assertNotEqual(invalid_data.tolerance, '-')
+        self.assertAlmostEqual(
+            float(invalid_data.tolerance), 0.0, places=1,
+            msg='Invalid tolerance should report as 0')
 
         # Verify integer parameters are handled correctly
         int_topic = '/yaml_integer_topic'

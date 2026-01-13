@@ -408,6 +408,9 @@ void GreenwaveMonitor::add_topics_from_parameters()
 
   // For each topic, read parameters and add topic with expected frequency settings
   for (const auto & topic : topics) {
+    if (topic.empty()) {
+      continue;
+    }
     std::string freq_param = std::string(kTopicParamPrefix) + topic + kExpectedFrequencySuffix;
     std::string tol_param = std::string(kTopicParamPrefix) + topic + kToleranceSuffix;
 
@@ -419,12 +422,21 @@ void GreenwaveMonitor::add_topics_from_parameters()
     }
     if (this->has_parameter(tol_param)) {
       tolerance = get_double_param(tol_param);
+      // Default to 0 if tolerance is negative
+      if (tolerance < 0.0) {
+        tolerance = 0.0;
+      }
     }
 
     std::string message;
     if (add_topic(topic, message)) {
       if (expected_frequency > 0.0) {
         greenwave_diagnostics_[topic]->setExpectedDt(expected_frequency, tolerance);
+      } else {
+        RCLCPP_WARN(
+          this->get_logger(),
+          "Expected frequency is 0 for topic '%s', skipping parameter settings",
+          topic.c_str());
       }
     }
   }

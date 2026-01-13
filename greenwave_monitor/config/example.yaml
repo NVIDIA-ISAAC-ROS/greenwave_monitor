@@ -8,4 +8,4 @@ greenwave_monitor:
         expected_frequency: 100.0
         tolerance: 10.0
       /image_topic:
-        expected_frequency: 0.0  # No initial monitoring for this topic
+        expected_frequency: 0.0  # Invalid parameter settings are ignored
