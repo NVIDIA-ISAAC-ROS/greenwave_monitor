@@ -148,7 +148,7 @@ class GreenwaveUiAdaptor:
         - NITROS: node_name + namespace + "/" + topic (e.g., "my_node/ns/camera/image")
         - Greenwave: topic_name only (e.g., "/ns/camera/image")
 
-        This is a temporary hack until NITROS migrates to message_diagnostics.hpp.
+        This is a temporary hack until NITROS migrates to greenwave_diagnostics.hpp.
         """
         # If the name starts with '/', it's already just a topic name (Greenwave format)
         if diagnostic_name.startswith('/'):

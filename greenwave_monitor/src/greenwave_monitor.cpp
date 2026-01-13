@@ -96,16 +96,16 @@ void GreenwaveMonitor::topic_callback(
   const std::string & topic, const std::string & type)
 {
   auto msg_timestamp = GetTimestampFromSerializedMessage(msg, type);
-  message_diagnostics_[topic]->updateDiagnostics(msg_timestamp.time_since_epoch().count());
+  greenwave_diagnostics_[topic]->updateDiagnostics(msg_timestamp.time_since_epoch().count());
 }
 
 void GreenwaveMonitor::timer_callback()
 {
   RCLCPP_INFO(this->get_logger(), "====================================================");
-  if (message_diagnostics_.empty()) {
+  if (greenwave_diagnostics_.empty()) {
     RCLCPP_INFO(this->get_logger(), "No topics to monitor");
   }
-  for (auto & [topic, diagnostics] : message_diagnostics_) {
+  for (auto & [topic, diagnostics] : greenwave_diagnostics_) {
     diagnostics->publishDiagnostics();
     RCLCPP_INFO(
       this->get_logger(), "Frame rate for topic %s: %.2f hz",
@@ -132,9 +132,9 @@ void GreenwaveMonitor::handle_set_expected_frequency(
   const std::shared_ptr<greenwave_monitor_interfaces::srv::SetExpectedFrequency::Request> request,
   std::shared_ptr<greenwave_monitor_interfaces::srv::SetExpectedFrequency::Response> response)
 {
-  auto it = message_diagnostics_.find(request->topic_name);
+  auto it = greenwave_diagnostics_.find(request->topic_name);
 
-  if (it == message_diagnostics_.end()) {
+  if (it == greenwave_diagnostics_.end()) {
     if (!request->add_topic_if_missing) {
       response->success = false;
       response->message = "Failed to find topic";
@@ -145,10 +145,10 @@ void GreenwaveMonitor::handle_set_expected_frequency(
       response->success = false;
       return;
     }
-    it = message_diagnostics_.find(request->topic_name);
+    it = greenwave_diagnostics_.find(request->topic_name);
   }
 
-  message_diagnostics::MessageDiagnostics & msg_diagnostics_obj = *(it->second);
+  greenwave_diagnostics::GreenwaveDiagnostics & msg_diagnostics_obj = *(it->second);
 
   if (request->clear_expected) {
     msg_diagnostics_obj.clearExpectedDt();
@@ -266,7 +266,7 @@ bool GreenwaveMonitor::has_header_from_type(const std::string & type_name)
 bool GreenwaveMonitor::add_topic(const std::string & topic, std::string & message)
 {
   // Check if topic already exists
-  if (message_diagnostics_.find(topic) != message_diagnostics_.end()) {
+  if (greenwave_diagnostics_.find(topic) != greenwave_diagnostics_.end()) {
     message = "Topic already being monitored";
     return false;
   }
@@ -290,13 +290,13 @@ bool GreenwaveMonitor::add_topic(const std::string & topic, std::string & messag
       this->topic_callback(msg, topic, type);
     });
 
-  message_diagnostics::MessageDiagnosticsConfig diagnostics_config;
+  greenwave_diagnostics::GreenwaveDiagnosticsConfig diagnostics_config;
   diagnostics_config.enable_all_topic_diagnostics = true;
 
   subscriptions_.push_back(sub);
-  message_diagnostics_.emplace(
+  greenwave_diagnostics_.emplace(
     topic,
-    std::make_unique<message_diagnostics::MessageDiagnostics>(*this, topic, diagnostics_config));
+    std::make_unique<greenwave_diagnostics::GreenwaveDiagnostics>(*this, topic, diagnostics_config));
 
   message = "Successfully added topic";
   return true;
@@ -304,8 +304,8 @@ bool GreenwaveMonitor::add_topic(const std::string & topic, std::string & messag
 
 bool GreenwaveMonitor::remove_topic(const std::string & topic, std::string & message)
 {
-  auto diag_it = message_diagnostics_.find(topic);
-  if (diag_it == message_diagnostics_.end()) {
+  auto diag_it = greenwave_diagnostics_.find(topic);
+  if (diag_it == greenwave_diagnostics_.end()) {
     message = "Topic not found";
     return false;
   }
@@ -321,7 +321,7 @@ bool GreenwaveMonitor::remove_topic(const std::string & topic, std::string & mes
     subscriptions_.erase(sub_it);
   }
 
-  message_diagnostics_.erase(diag_it);
+  greenwave_diagnostics_.erase(diag_it);
   message = "Successfully removed topic";
   return true;
 }
@@ -421,7 +421,7 @@ void GreenwaveMonitor::add_topics_from_parameters()
     std::string message;
     if (add_topic(topic, message)) {
       if (expected_frequency > 0.0) {
-        message_diagnostics_[topic]->setExpectedDt(expected_frequency, tolerance);
+        greenwave_diagnostics_[topic]->setExpectedDt(expected_frequency, tolerance);
       }
     }
   }

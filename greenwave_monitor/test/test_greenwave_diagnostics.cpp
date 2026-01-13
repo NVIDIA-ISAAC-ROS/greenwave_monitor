@@ -16,7 +16,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 /**
-Unit tests for functionality in message_diagnostics.hpp,
+Unit tests for functionality in greenwave_diagnostics.hpp,
 such as frame rate and latency calculation accuracy.
 **/
 
@@ -28,7 +28,7 @@ such as frame rate and latency calculation accuracy.
 #include <vector>
 #include <string>
 
-#include "message_diagnostics.hpp"
+#include "greenwave_diagnostics.hpp"
 
 namespace test_constants
 {
@@ -36,7 +36,7 @@ inline constexpr uint64_t kMillisecondsToSeconds = 1000ULL;
 inline constexpr uint64_t kStartTimestampNs = 10000000ULL;
 }  // namespace test_constants
 
-class MessageDiagnosticsTest : public ::testing::Test
+class GreenwaveDiagnosticsTest : public ::testing::Test
 {
 protected:
   static void SetUpTestSuite()
@@ -62,25 +62,25 @@ protected:
   std::shared_ptr<rclcpp::Node> node_;
 };
 
-TEST_F(MessageDiagnosticsTest, FrameRateMsgTest)
+TEST_F(GreenwaveDiagnosticsTest, FrameRateMsgTest)
 {
-  // Initialize MessageDiagnostics
-  message_diagnostics::MessageDiagnostics message_diagnostics(
-    *node_, "test_topic", message_diagnostics::MessageDiagnosticsConfig());
+  // Initialize GreenwaveDiagnostics
+  greenwave_diagnostics::GreenwaveDiagnostics greenwave_diagnostics(
+    *node_, "test_topic", greenwave_diagnostics::GreenwaveDiagnosticsConfig());
 
   uint64_t timestamp = test_constants::kStartTimestampNs;  // in nanoseconds
   for (int i = 0; i < 1000; i++) {
-    message_diagnostics.updateDiagnostics(timestamp);
+    greenwave_diagnostics.updateDiagnostics(timestamp);
     timestamp += 10000000;  // 10 ms in nanoseconds
   }
-  EXPECT_EQ(message_diagnostics.getFrameRateMsg(), 100);  // 100 Hz
+  EXPECT_EQ(greenwave_diagnostics.getFrameRateMsg(), 100);  // 100 Hz
 }
 
-TEST_F(MessageDiagnosticsTest, FrameRateNodeTest)
+TEST_F(GreenwaveDiagnosticsTest, FrameRateNodeTest)
 {
-  // Initialize MessageDiagnostics
-  message_diagnostics::MessageDiagnostics message_diagnostics(
-    *node_, "test_topic", message_diagnostics::MessageDiagnosticsConfig());
+  // Initialize GreenwaveDiagnostics
+  greenwave_diagnostics::GreenwaveDiagnostics greenwave_diagnostics(
+    *node_, "test_topic", greenwave_diagnostics::GreenwaveDiagnosticsConfig());
 
   // dummy timestamp, not used for node time calculation
   constexpr auto timestamp = test_constants::kStartTimestampNs;
@@ -90,7 +90,7 @@ TEST_F(MessageDiagnosticsTest, FrameRateNodeTest)
   constexpr int interarrival_time_ms = 10;  // 100 hz
 
   for (int i = 0; i < num_messages; i++) {
-    message_diagnostics.updateDiagnostics(timestamp);
+    greenwave_diagnostics.updateDiagnostics(timestamp);
     std::this_thread::sleep_for(std::chrono::milliseconds(interarrival_time_ms));
   }
 
@@ -100,14 +100,14 @@ TEST_F(MessageDiagnosticsTest, FrameRateNodeTest)
   const double expected_frame_rate = static_cast<double>(num_messages) / total_duration.count();
 
   // allow 2.0 Hz error
-  EXPECT_NEAR(message_diagnostics.getFrameRateNode(), expected_frame_rate, 2.0);
+  EXPECT_NEAR(greenwave_diagnostics.getFrameRateNode(), expected_frame_rate, 2.0);
 }
 
-TEST_F(MessageDiagnosticsTest, MessageLatencyTest)
+TEST_F(GreenwaveDiagnosticsTest, MessageLatencyTest)
 {
-  // Initialize MessageDiagnostics
-  message_diagnostics::MessageDiagnostics message_diagnostics(
-    *node_, "test_topic", message_diagnostics::MessageDiagnosticsConfig());
+  // Initialize GreenwaveDiagnostics
+  greenwave_diagnostics::GreenwaveDiagnostics greenwave_diagnostics(
+    *node_, "test_topic", greenwave_diagnostics::GreenwaveDiagnosticsConfig());
 
   const rclcpp::Time current_time = node_->get_clock()->now();
   // Make message timestamp a certain amount of time earlier than current time
@@ -116,28 +116,28 @@ TEST_F(MessageDiagnosticsTest, MessageLatencyTest)
     current_time - rclcpp::Duration::from_seconds(
     expected_latency_ms / static_cast<double>(test_constants::kMillisecondsToSeconds));
 
-  message_diagnostics.updateDiagnostics(msg_timestamp.nanoseconds());
+  greenwave_diagnostics.updateDiagnostics(msg_timestamp.nanoseconds());
 
-  EXPECT_NEAR(message_diagnostics.getLatency(), expected_latency_ms, 1.0);  // allow 1 ms tolerance
+  EXPECT_NEAR(greenwave_diagnostics.getLatency(), expected_latency_ms, 1.0);  // allow 1 ms tolerance
 }
 
-TEST_F(MessageDiagnosticsTest, DiagnosticPublishSubscribeTest)
+TEST_F(GreenwaveDiagnosticsTest, DiagnosticPublishSubscribeTest)
 {
   constexpr int input_frequency = 50;  // 50 Hz
   // 20 ms in nanoseconds
   const int64_t interarrival_time_ns = static_cast<int64_t>(
-    ::message_diagnostics::constants::kSecondsToNanoseconds / input_frequency);
+    ::greenwave_diagnostics::constants::kSecondsToNanoseconds / input_frequency);
 
-  // Initialize MessageDiagnostics with diagnostics enabled
-  message_diagnostics::MessageDiagnosticsConfig config;
+  // Initialize GreenwaveDiagnostics with diagnostics enabled
+  greenwave_diagnostics::GreenwaveDiagnosticsConfig config;
   config.enable_msg_time_diagnostics = true;
   config.enable_node_time_diagnostics = true;
   config.enable_increasing_msg_time_diagnostics = true;
   // in us
   config.expected_dt_us = interarrival_time_ns /
-    ::message_diagnostics::constants::kMicrosecondsToNanoseconds;
+    ::greenwave_diagnostics::constants::kMicrosecondsToNanoseconds;
 
-  message_diagnostics::MessageDiagnostics message_diagnostics(*node_, "test_topic", config);
+  greenwave_diagnostics::GreenwaveDiagnostics greenwave_diagnostics(*node_, "test_topic", config);
 
   // Create a subscriber to receive diagnostic messages
   std::vector<diagnostic_msgs::msg::DiagnosticArray::SharedPtr> received_diagnostics;
@@ -150,8 +150,8 @@ TEST_F(MessageDiagnosticsTest, DiagnosticPublishSubscribeTest)
 
   // 50 ms delay
   constexpr int64_t delay_time_ns = 50 *
-    static_cast<int64_t>(::message_diagnostics::constants::kMillisecondsToMicroseconds) *
-    static_cast<int64_t>(::message_diagnostics::constants::kMicrosecondsToNanoseconds);
+    static_cast<int64_t>(::greenwave_diagnostics::constants::kMillisecondsToMicroseconds) *
+    static_cast<int64_t>(::greenwave_diagnostics::constants::kMicrosecondsToNanoseconds);
   // Starting message timestamp in nanoseconds
   auto msg_timestamp = test_constants::kStartTimestampNs;
 
@@ -167,8 +167,8 @@ TEST_F(MessageDiagnosticsTest, DiagnosticPublishSubscribeTest)
 
     sent_count++;
 
-    message_diagnostics.updateDiagnostics(msg_timestamp);
-    message_diagnostics.publishDiagnostics();
+    greenwave_diagnostics.updateDiagnostics(msg_timestamp);
+    greenwave_diagnostics.publishDiagnostics();
 
     // Add a non-increasing timestamp at count 5
     if (sent_count == 5) {
@@ -196,7 +196,7 @@ TEST_F(MessageDiagnosticsTest, DiagnosticPublishSubscribeTest)
 
   const auto sum_interarrival_time_msg_sec = static_cast<double>(
     msg_timestamp - test_constants::kStartTimestampNs) /
-    static_cast<double>(::message_diagnostics::constants::kSecondsToNanoseconds);
+    static_cast<double>(::greenwave_diagnostics::constants::kSecondsToNanoseconds);
   const double expected_frame_rate_msg =
     static_cast<double>(interarrival_time_count) / sum_interarrival_time_msg_sec;
 
@@ -234,11 +234,11 @@ TEST_F(MessageDiagnosticsTest, DiagnosticPublishSubscribeTest)
 
   // Sometimes diagnostics may arrive out of order, so we use getter methods instead of values from
   //  the last diagnostic message to prevent flakiness
-  EXPECT_NEAR(message_diagnostics.getFrameRateNode(), expected_frame_rate_node, 1.0);
+  EXPECT_NEAR(greenwave_diagnostics.getFrameRateNode(), expected_frame_rate_node, 1.0);
   // Allow small floating point differences for frame rate msg
   constexpr double frame_rate_msg_tolerance = 0.001;
   EXPECT_NEAR(
-    message_diagnostics.getFrameRateMsg(), expected_frame_rate_msg, frame_rate_msg_tolerance);
+    greenwave_diagnostics.getFrameRateMsg(), expected_frame_rate_msg, frame_rate_msg_tolerance);
 
   // Sometimes diagnostics may arrive out of order, so we need to check all received diagnostics
   //  to see if the expected msg frame rate is somewhere in there
@@ -275,3 +275,4 @@ TEST_F(MessageDiagnosticsTest, DiagnosticPublishSubscribeTest)
   EXPECT_GE(diagnostics_values["total_dropped_frames"], 1.0);
   EXPECT_GE(diagnostics_values["num_non_increasing_msg"], 1.0);
 }
+

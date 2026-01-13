@@ -30,7 +30,7 @@
 #include "diagnostic_msgs/msg/diagnostic_array.hpp"
 #include "diagnostic_msgs/msg/diagnostic_status.hpp"
 #include "diagnostic_msgs/msg/key_value.hpp"
-#include "message_diagnostics.hpp"
+#include "greenwave_diagnostics.hpp"
 #include "greenwave_monitor_interfaces/srv/manage_topic.hpp"
 #include "greenwave_monitor_interfaces/srv/set_expected_frequency.hpp"
 
@@ -49,7 +49,7 @@ public:
       init_timer_->cancel();
     }
     // Clear diagnostics before base Node destructor runs to avoid accessing invalid node state
-    message_diagnostics_.clear();
+    greenwave_diagnostics_.clear();
     subscriptions_.clear();
   }
 
@@ -86,7 +86,7 @@ private:
   void add_topics_from_parameters();
 
   std::map<std::string,
-    std::unique_ptr<message_diagnostics::MessageDiagnostics>> message_diagnostics_;
+    std::unique_ptr<greenwave_diagnostics::GreenwaveDiagnostics>> greenwave_diagnostics_;
   std::vector<std::shared_ptr<rclcpp::GenericSubscription>> subscriptions_;
   rclcpp::TimerBase::SharedPtr timer_;
   rclcpp::TimerBase::SharedPtr init_timer_;
