@@ -58,6 +58,9 @@ def create_test_yaml_config():
       /test_topic_invalid_expected_frequency:
         expected_frequency: 0.0
         tolerance: 0.0
+      /test_topic_integer_params:
+        expected_frequency: 50
+        tolerance: 5
 """
     # Create temp file that persists until explicitly deleted
     temp_file = tempfile.NamedTemporaryFile(
@@ -92,6 +95,9 @@ def generate_test_description(message_type, expected_frequency, tolerance_hz):
         create_minimal_publisher(
             '/test_topic_valid_expected_frequency',
             expected_frequency, message_type, '_valid_expected_frequency'),
+        create_minimal_publisher(
+            '/test_topic_integer_params',
+            50.0, message_type, '_integer_params'),
         create_minimal_publisher(
             '/test_topic_invalid_expected_frequency',
             expected_frequency, message_type, '_invalid_expected_frequency')
@@ -322,6 +328,35 @@ class TestGreenwaveMonitor(unittest.TestCase):
         self.assertAlmostEqual(
             float(diag_values['tolerance']), 10.0, places=1,
             msg='Tolerance from YAML should be 10.0'
+        )
+
+        # Verify integer parameters are handled correctly
+        INT_TOPIC = '/test_topic_integer_params'
+        int_diagnostics = collect_diagnostics_for_topic(
+            self.test_node, INT_TOPIC, expected_count=3, timeout_sec=10.0
+        )
+        self.assertGreaterEqual(
+            len(int_diagnostics), 1,
+            f'Topic {INT_TOPIC} with integer params should be monitored'
+        )
+
+        int_status, _ = find_best_diagnostic(int_diagnostics, 50.0, message_type)
+        self.assertIsNotNone(int_status, f'Did not find diagnostics for {INT_TOPIC}')
+
+        int_values = {kv.key: kv.value for kv in int_status.values}
+
+        # Check integer expected_frequency (50) is properly converted
+        self.assertIn('expected_frequency', int_values)
+        self.assertAlmostEqual(
+            float(int_values['expected_frequency']), 50.0, places=1,
+            msg='Integer expected frequency from YAML should be 50'
+        )
+
+        # Check integer tolerance (5) is properly converted
+        self.assertIn('tolerance', int_values)
+        self.assertAlmostEqual(
+            float(int_values['tolerance']), 5.0, places=1,
+            msg='Integer tolerance from YAML should be 5'
         )
 
         # Verify that the invalid frequency topic is not monitored
