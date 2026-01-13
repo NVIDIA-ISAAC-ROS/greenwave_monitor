@@ -510,4 +510,3 @@ private:
 };
 
 }  // namespace greenwave_diagnostics
-

@@ -29,19 +29,19 @@ using namespace std::chrono_literals;
 
 namespace greenwave_monitor
 {
-  namespace constants
-  {
-    inline constexpr const char * kTopicParamPrefix = "greenwave_diagnostics.";
-    inline constexpr const char * kExpectedFrequencySuffix = ".expected_frequency";
-    inline constexpr const char * kToleranceSuffix = ".tolerance";
-  }
-}
+namespace constants
+{
+inline constexpr const char * kTopicParamPrefix = "greenwave_diagnostics.";
+inline constexpr const char * kExpectedFrequencySuffix = ".expected_frequency";
+inline constexpr const char * kToleranceSuffix = ".tolerance";
+}  // namespace constants
+}  // namespace greenwave_monitor
 
 GreenwaveMonitor::GreenwaveMonitor(const rclcpp::NodeOptions & options)
 : Node("greenwave_monitor",
-  rclcpp::NodeOptions(options)
-  .allow_undeclared_parameters(true)
-  .automatically_declare_parameters_from_overrides(true))
+    rclcpp::NodeOptions(options)
+    .allow_undeclared_parameters(true)
+    .automatically_declare_parameters_from_overrides(true))
 {
   RCLCPP_INFO(this->get_logger(), "Starting GreenwaveMonitorNode");
 
@@ -296,7 +296,8 @@ bool GreenwaveMonitor::add_topic(const std::string & topic, std::string & messag
   subscriptions_.push_back(sub);
   greenwave_diagnostics_.emplace(
     topic,
-    std::make_unique<greenwave_diagnostics::GreenwaveDiagnostics>(*this, topic, diagnostics_config));
+    std::make_unique<greenwave_diagnostics::GreenwaveDiagnostics>(
+      *this, topic, diagnostics_config));
 
   message = "Successfully added topic";
   return true;
@@ -358,7 +359,9 @@ GreenwaveMonitor::GetTimestampFromSerializedMessage(
 
 void GreenwaveMonitor::add_topics_from_parameters()
 {
-  using namespace greenwave_monitor::constants;
+  using greenwave_monitor::constants::kTopicParamPrefix;
+  using greenwave_monitor::constants::kExpectedFrequencySuffix;
+  using greenwave_monitor::constants::kToleranceSuffix;
 
   std::set<std::string> topics;
 
@@ -394,14 +397,14 @@ void GreenwaveMonitor::add_topics_from_parameters()
 
   // Helper function to get double parameters from the node
   auto get_double_param = [this](const std::string & name) -> double {
-    auto param = this->get_parameter(name);
-    if (param.get_type() == rclcpp::ParameterType::PARAMETER_DOUBLE) {
-      return param.as_double();
-    } else if (param.get_type() == rclcpp::ParameterType::PARAMETER_INTEGER) {
-      return static_cast<double>(param.as_int());
-    }
-    return 0.0;
-  };
+      auto param = this->get_parameter(name);
+      if (param.get_type() == rclcpp::ParameterType::PARAMETER_DOUBLE) {
+        return param.as_double();
+      } else if (param.get_type() == rclcpp::ParameterType::PARAMETER_INTEGER) {
+        return static_cast<double>(param.as_int());
+      }
+      return 0.0;
+    };
 
   // For each topic, read parameters and add topic with expected frequency settings
   for (const auto & topic : topics) {

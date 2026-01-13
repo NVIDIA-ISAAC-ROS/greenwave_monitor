@@ -118,7 +118,8 @@ TEST_F(GreenwaveDiagnosticsTest, MessageLatencyTest)
 
   greenwave_diagnostics.updateDiagnostics(msg_timestamp.nanoseconds());
 
-  EXPECT_NEAR(greenwave_diagnostics.getLatency(), expected_latency_ms, 1.0);  // allow 1 ms tolerance
+  // allow 1 ms tolerance
+  EXPECT_NEAR(greenwave_diagnostics.getLatency(), expected_latency_ms, 1.0);
 }
 
 TEST_F(GreenwaveDiagnosticsTest, DiagnosticPublishSubscribeTest)
@@ -275,4 +276,3 @@ TEST_F(GreenwaveDiagnosticsTest, DiagnosticPublishSubscribeTest)
   EXPECT_GE(diagnostics_values["total_dropped_frames"], 1.0);
   EXPECT_GE(diagnostics_values["num_non_increasing_msg"], 1.0);
 }
-
