@@ -54,7 +54,8 @@ public:
   }
 
 private:
-  std::optional<std::string> find_topic_type(const std::string & topic);
+  std::optional<std::string> find_topic_type(
+    const std::string & topic, int max_retries = 0, double retry_wait_s = 0.0);
 
   void topic_callback(
     const std::shared_ptr<rclcpp::SerializedMessage> msg,
@@ -72,7 +73,9 @@ private:
     const std::shared_ptr<greenwave_monitor_interfaces::srv::SetExpectedFrequency::Request> request,
     std::shared_ptr<greenwave_monitor_interfaces::srv::SetExpectedFrequency::Response> response);
 
-  bool add_topic(const std::string & topic, std::string & message);
+  bool add_topic(
+    const std::string & topic, std::string & message,
+    int max_retries = 0, double retry_wait_s = 0.0);
 
   bool remove_topic(const std::string & topic, std::string & message);
 

@@ -81,14 +81,20 @@ void GreenwaveMonitor::deferred_init()
       std::placeholders::_1, std::placeholders::_2));
 }
 
-std::optional<std::string> GreenwaveMonitor::find_topic_type(const std::string & topic)
+std::optional<std::string> GreenwaveMonitor::find_topic_type(
+  const std::string & topic, int max_retries, double retry_wait_s)
 {
-  std::vector<rclcpp::TopicEndpointInfo> publishers;
-  publishers = this->get_publishers_info_by_topic(topic);
-  if (publishers.empty()) {
-    return std::nullopt;
+  for (int attempt = 0; attempt <= max_retries; ++attempt) {
+    auto publishers = this->get_publishers_info_by_topic(topic);
+    if (!publishers.empty()) {
+      return publishers[0].topic_type();
+    }
+    if (attempt < max_retries && retry_wait_s > 0.0) {
+      std::this_thread::sleep_for(
+        std::chrono::duration<double>(retry_wait_s));
+    }
   }
-  return publishers[0].topic_type();
+  return std::nullopt;
 }
 
 void GreenwaveMonitor::topic_callback(
@@ -263,7 +269,8 @@ bool GreenwaveMonitor::has_header_from_type(const std::string & type_name)
   return has_header;
 }
 
-bool GreenwaveMonitor::add_topic(const std::string & topic, std::string & message)
+bool GreenwaveMonitor::add_topic(
+  const std::string & topic, std::string & message, int max_retries, double retry_wait_s)
 {
   // Check if topic already exists
   if (greenwave_diagnostics_.find(topic) != greenwave_diagnostics_.end()) {
@@ -273,7 +280,7 @@ bool GreenwaveMonitor::add_topic(const std::string & topic, std::string & messag
 
   RCLCPP_INFO(this->get_logger(), "Adding subscription for topic '%s'", topic.c_str());
 
-  auto maybe_type = find_topic_type(topic);
+  auto maybe_type = find_topic_type(topic, max_retries, retry_wait_s);
   if (!maybe_type.has_value()) {
     RCLCPP_ERROR(this->get_logger(), "Failed to find type for topic '%s'", topic.c_str());
     message = "Failed to find type for topic";
@@ -429,7 +436,9 @@ void GreenwaveMonitor::add_topics_from_parameters()
     }
 
     std::string message;
-    if (add_topic(topic, message)) {
+    static const int max_retries = 5;
+    static const double retry_wait_s = 0.5;
+    if (add_topic(topic, message, max_retries, retry_wait_s)) {
       if (expected_frequency > 0.0) {
         greenwave_diagnostics_[topic]->setExpectedDt(expected_frequency, tolerance);
       } else {
