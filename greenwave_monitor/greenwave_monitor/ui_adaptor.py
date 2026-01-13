@@ -57,6 +57,8 @@ class UiDiagnosticData:
 
     """
 
+    expected_frequency: str = '-'
+    tolerance: str = '-'
     pub_rate: str = '-'
     msg_rate: str = '-'
     latency: str = '-'
@@ -85,6 +87,10 @@ class UiDiagnosticData:
                 data.msg_rate = kv.value
             elif kv.key == 'current_delay_from_realtime_ms':
                 data.latency = kv.value
+            elif kv.key == 'expected_frequency':
+                data.expected_frequency = kv.value
+            elif kv.key == 'tolerance':
+                data.tolerance = kv.value
         return data
 
 
@@ -167,6 +173,12 @@ class GreenwaveUiAdaptor:
                 # Normalize the topic name to handle both NITROS and Greenwave formats
                 topic_name = self._extract_topic_name(status.name)
                 self.ui_diagnostics[topic_name] = ui_data
+                expected_frequency = float(ui_data.expected_frequency)
+                tolerance = float(ui_data.tolerance)
+                if expected_frequency > 0 and tolerance >= 0:
+                    self.expected_frequencies[topic_name] = (expected_frequency, tolerance)
+                else:
+                    self.expected_frequencies.pop(topic_name, None)
 
     def toggle_topic_monitoring(self, topic_name: str):
         """Toggle monitoring for a topic."""

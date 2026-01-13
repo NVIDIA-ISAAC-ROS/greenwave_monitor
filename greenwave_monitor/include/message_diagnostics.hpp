@@ -232,6 +232,14 @@ public:
         diagnostic_msgs::build<diagnostic_msgs::msg::KeyValue>()
         .key("total_dropped_frames")
         .value(std::to_string(msg_window_.outlier_count)));
+      values.push_back(
+        diagnostic_msgs::build<diagnostic_msgs::msg::KeyValue>()
+        .key("expected_frequency")
+        .value(std::to_string(frequency_)));
+      values.push_back(
+        diagnostic_msgs::build<diagnostic_msgs::msg::KeyValue>()
+        .key("tolerance")
+        .value(std::to_string(tolerance_)));
     }
     status_vec_[0].values = values;
 
@@ -291,11 +299,13 @@ public:
 
     const int64_t expected_dt_us =
       static_cast<int64_t>(message_diagnostics::constants::kSecondsToMicroseconds / expected_hz);
+    frequency_ = expected_hz;
     diagnostics_config_.expected_dt_us = expected_dt_us;
 
     const int tolerance_us =
       static_cast<int>((message_diagnostics::constants::kSecondsToMicroseconds / expected_hz) *
       (tolerance_percent / 100.0));
+    tolerance_ = tolerance_percent;
     diagnostics_config_.jitter_tolerance_us = tolerance_us;
   }
 
@@ -307,6 +317,9 @@ public:
 
     diagnostics_config_.expected_dt_us = 0;
     diagnostics_config_.jitter_tolerance_us = 0;
+
+    frequency_ = 0.0;
+    tolerance_ = 0.0;
   }
 
 private:
@@ -491,6 +504,9 @@ private:
     }
     return error_found;
   }
+
+  double frequency_{0.0};
+  double tolerance_{0.0};
 };
 
 }  // namespace message_diagnostics

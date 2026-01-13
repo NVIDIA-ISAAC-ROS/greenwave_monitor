@@ -60,7 +60,7 @@ install(TARGETS minimal_publisher_node
   DESTINATION lib/${PROJECT_NAME})
 
 install(
-  DIRECTORY launch examples
+  DIRECTORY launch examples config
   DESTINATION share/${PROJECT_NAME}
 )
 

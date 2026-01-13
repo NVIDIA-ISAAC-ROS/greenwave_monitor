@@ -337,8 +337,11 @@ def curses_main(stdscr, node):
 
                 # Get expected frequency
                 expected_hz, tolerance = node.ui_adaptor.get_expected_frequency(topic_name)
-                if expected_hz > 0:
-                    expected_freq_display = f'{expected_hz:.1f}Hz'.ljust(12)
+                if expected_hz > 0.0:
+                    expected_freq_display = f'{expected_hz:.1f}Hz'
+                    if tolerance > 0.0:
+                        expected_freq_display += f'±{tolerance:.0f}%'
+                    expected_freq_display = expected_freq_display.ljust(12)
 
             # Color coding based on status
             if is_monitored:

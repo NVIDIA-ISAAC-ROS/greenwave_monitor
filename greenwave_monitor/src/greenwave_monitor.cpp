@@ -20,37 +20,52 @@
 #include <algorithm>
 #include <cstring>
 #include <mutex>
+#include <set>
 #include <unordered_map>
 
 #include "rosidl_typesupport_introspection_cpp/message_introspection.hpp"
 
 using namespace std::chrono_literals;
 
+namespace greenwave_monitor
+{
+  namespace constants
+  {
+    inline constexpr const char * kTopicParamPrefix = "greenwave_diagnostics.";
+    inline constexpr const char * kExpectedFrequencySuffix = ".expected_frequency";
+    inline constexpr const char * kToleranceSuffix = ".tolerance";
+  }
+}
+
 GreenwaveMonitor::GreenwaveMonitor(const rclcpp::NodeOptions & options)
-: Node("greenwave_monitor", options)
+: Node("greenwave_monitor",
+  rclcpp::NodeOptions(options)
+  .allow_undeclared_parameters(true)
+  .automatically_declare_parameters_from_overrides(true))
 {
   RCLCPP_INFO(this->get_logger(), "Starting GreenwaveMonitorNode");
 
-  // Declare and get the topics parameter
-  this->declare_parameter<std::vector<std::string>>("topics", {""});
-  auto topics = this->get_parameter("topics").as_string_array();
-
-  message_diagnostics::MessageDiagnosticsConfig diagnostics_config;
-  diagnostics_config.enable_all_topic_diagnostics = true;
-
-  auto topic_names_and_types = this->get_topic_names_and_types();
-
-  for (const auto & topic : topics) {
-    if (!topic.empty()) {
-      std::string message;
-      add_topic(topic, message);
-    }
+  if (!this->has_parameter("topics")) {
+    this->declare_parameter<std::vector<std::string>>("topics", {""});
   }
 
   timer_ = this->create_wall_timer(
     1s, std::bind(&GreenwaveMonitor::timer_callback, this));
 
-  // Add service server
+  // Defer topic discovery to allow the ROS graph to settle before querying other nodes
+  init_timer_ = this->create_wall_timer(
+    100ms, [this]() {
+      init_timer_->cancel();
+      deferred_init();
+    });
+}
+
+void GreenwaveMonitor::deferred_init()
+{
+  // Get all topics from YAML and parameters
+  add_topics_from_parameters();
+
+  // Add service servers after all topics are added to prevent race conditions
   manage_topic_service_ =
     this->create_service<greenwave_monitor_interfaces::srv::ManageTopic>(
     "~/manage_topic",
@@ -66,20 +81,14 @@ GreenwaveMonitor::GreenwaveMonitor(const rclcpp::NodeOptions & options)
       std::placeholders::_1, std::placeholders::_2));
 }
 
-std::optional<std::string> GreenwaveMonitor::find_topic_type_with_retry(
-  const std::string & topic, const int max_retries, const int retry_period_s)
+std::optional<std::string> GreenwaveMonitor::find_topic_type(const std::string & topic)
 {
-  for (int i = 0; i < max_retries; ++i) {
-    auto topic_names_and_types = this->get_topic_names_and_types();
-    auto it = topic_names_and_types.find(topic);
-    if (it == topic_names_and_types.end() || it->second.empty()) {
-      std::this_thread::sleep_for(std::chrono::seconds(retry_period_s));
-      continue;
-    } else {
-      return it->second[0];
-    }
+  std::vector<rclcpp::TopicEndpointInfo> publishers;
+  publishers = this->get_publishers_info_by_topic(topic);
+  if (publishers.empty()) {
+    return std::nullopt;
   }
-  return std::nullopt;
+  return publishers[0].topic_type();
 }
 
 void GreenwaveMonitor::topic_callback(
@@ -264,9 +273,7 @@ bool GreenwaveMonitor::add_topic(const std::string & topic, std::string & messag
 
   RCLCPP_INFO(this->get_logger(), "Adding subscription for topic '%s'", topic.c_str());
 
-  const int max_retries = 5;
-  const int retry_period_s = 1;
-  auto maybe_type = find_topic_type_with_retry(topic, max_retries, retry_period_s);
+  auto maybe_type = find_topic_type(topic);
   if (!maybe_type.has_value()) {
     RCLCPP_ERROR(this->get_logger(), "Failed to find type for topic '%s'", topic.c_str());
     message = "Failed to find type for topic";
@@ -347,4 +354,75 @@ GreenwaveMonitor::GetTimestampFromSerializedMessage(
   std::chrono::time_point<std::chrono::system_clock> timestamp(
     std::chrono::seconds(timestamp_sec) + std::chrono::nanoseconds(timestamp_nanosec));
   return timestamp;
+}
+
+void GreenwaveMonitor::add_topics_from_parameters()
+{
+  using namespace greenwave_monitor::constants;
+
+  std::set<std::string> topics;
+
+  // List all parameters with "greenwave_diagnostics." prefix
+  auto list_result = this->list_parameters({"greenwave_diagnostics"}, 10);
+
+  // Loop over and find all unique topics with "greenwave_diagnostics." prefix
+  for (const auto & param_name : list_result.names) {
+    // Parameter names are like "greenwave_diagnostics./my_topic.tolerance"
+    // We need to extract the topic name (e.g., "/my_topic")
+    if (param_name.find(kTopicParamPrefix) != 0) {
+      continue;
+    }
+
+    // Remove the "greenwave_diagnostics." prefix
+    std::string remainder = param_name.substr(std::strlen(kTopicParamPrefix));
+
+    // Find the last '.' to separate topic name from parameter suffix
+    size_t last_dot = remainder.rfind('.');
+    if (last_dot == std::string::npos || last_dot == 0) {
+      continue;
+    }
+
+    std::string topic_name = remainder.substr(0, last_dot);
+    if (!topic_name.empty() && topic_name[0] == '/') {
+      topics.insert(topic_name);
+    }
+  }
+
+  // Add topics from "topics" parameter
+  auto topics_param = this->get_parameter("topics").as_string_array();
+  topics.insert(topics_param.begin(), topics_param.end());
+
+  // Helper function to get double parameters from the node
+  auto get_double_param = [this](const std::string & name) -> double {
+    auto param = this->get_parameter(name);
+    if (param.get_type() == rclcpp::ParameterType::PARAMETER_DOUBLE) {
+      return param.as_double();
+    } else if (param.get_type() == rclcpp::ParameterType::PARAMETER_INTEGER) {
+      return static_cast<double>(param.as_int());
+    }
+    return 0.0;
+  };
+
+  // For each topic, read parameters and add topic with expected frequency settings
+  for (const auto & topic : topics) {
+    std::string freq_param = std::string(kTopicParamPrefix) + topic + kExpectedFrequencySuffix;
+    std::string tol_param = std::string(kTopicParamPrefix) + topic + kToleranceSuffix;
+
+    double expected_frequency = 0.0;
+    double tolerance = 0.0;
+
+    if (this->has_parameter(freq_param)) {
+      expected_frequency = get_double_param(freq_param);
+    }
+    if (this->has_parameter(tol_param)) {
+      tolerance = get_double_param(tol_param);
+    }
+
+    std::string message;
+    if (add_topic(topic, message)) {
+      if (expected_frequency > 0.0) {
+        message_diagnostics_[topic]->setExpectedDt(expected_frequency, tolerance);
+      }
+    }
+  }
 }

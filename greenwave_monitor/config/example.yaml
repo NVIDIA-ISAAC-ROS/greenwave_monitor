@@ -1,0 +1,11 @@
+# Example configuration for greenwave_monitor
+# Defines topics to monitor with their expected frequencies and tolerances
+
+greenwave_monitor:
+  ros__parameters:
+    greenwave_diagnostics:
+      /imu_topic:
+        expected_frequency: 100.0
+        tolerance: 10.0
+      /image_topic:
+        expected_frequency: 0.0  # No initial monitoring for this topic
