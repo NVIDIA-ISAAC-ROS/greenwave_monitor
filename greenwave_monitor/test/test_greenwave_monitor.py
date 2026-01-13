@@ -18,6 +18,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 
+import tempfile
 import time
 import unittest
 
@@ -44,15 +45,40 @@ import rclpy
 from rclpy.node import Node
 
 
+def create_test_yaml_config():
+    """Create a temporary YAML config file for testing parameter loading."""
+    # Use /** wildcard to match any namespace/node name
+    yaml_content = """\
+/**:
+  ros__parameters:
+    greenwave_diagnostics:
+      /test_topic_valid_expected_frequency:
+        expected_frequency: 100.0
+        tolerance: 10.0
+      /test_topic_invalid_expected_frequency:
+        expected_frequency: 0.0
+        tolerance: 0.0
+"""
+    # Create temp file that persists until explicitly deleted
+    temp_file = tempfile.NamedTemporaryFile(
+        mode='w', suffix='.yaml', delete=False)
+    temp_file.write(yaml_content)
+    temp_file.flush()
+    return temp_file.name
+
+
 @pytest.mark.launch_test
 @launch_testing.parametrize('message_type, expected_frequency, tolerance_hz', TEST_CONFIGURATIONS)
 def generate_test_description(message_type, expected_frequency, tolerance_hz):
     """Generate launch description for greenwave monitor tests."""
+    # Create temporary YAML config for testing parameter loading
+    yaml_config_file = create_test_yaml_config()
+
     # Launch the greenwave_monitor
     ros2_monitor_node = create_monitor_node(
         namespace=MONITOR_NODE_NAMESPACE,
         node_name=MONITOR_NODE_NAME,
-        topics=['/test_topic']
+        parameters=[yaml_config_file, {'topics': ['/test_topic']}]
     )
 
     # Create publishers
@@ -61,7 +87,14 @@ def generate_test_description(message_type, expected_frequency, tolerance_hz):
         create_minimal_publisher('/test_topic', expected_frequency, message_type),
         # Additional publishers for topic management tests
         create_minimal_publisher('/test_topic1', expected_frequency, message_type, '1'),
-        create_minimal_publisher('/test_topic2', expected_frequency, message_type, '2')
+        create_minimal_publisher('/test_topic2', expected_frequency, message_type, '2'),
+        # Publisher for YAML configuration tests
+        create_minimal_publisher(
+            '/test_topic_valid_expected_frequency',
+            expected_frequency, message_type, '_valid_expected_frequency'),
+        create_minimal_publisher(
+            '/test_topic_invalid_expected_frequency',
+            expected_frequency, message_type, '_invalid_expected_frequency')
     ]
 
     context = {
@@ -247,6 +280,59 @@ class TestGreenwaveMonitor(unittest.TestCase):
         response = self.call_manage_topic(
             add=False, topic=TEST_TOPIC1, service_client=service_client)
         self.assertTrue(response.success)
+
+    def test_yaml_parameter_loading(self, expected_frequency, message_type, tolerance_hz):
+        """Test that topics defined in YAML config are automatically monitored."""
+        if (message_type, expected_frequency, tolerance_hz) != MANAGE_TOPIC_TEST_CONFIG:
+            self.skipTest('Only running YAML parameter tests once')
+
+        self.check_node_launches_successfully()
+
+        # Topic defined in test_config.yaml with valid expected_frequency
+        YAML_TOPIC = '/test_topic_valid_expected_frequency'
+
+        # Collect diagnostics - topic should already be monitored from YAML
+        received_diagnostics = collect_diagnostics_for_topic(
+            self.test_node, YAML_TOPIC, expected_count=3, timeout_sec=10.0
+        )
+
+        self.assertGreaterEqual(
+            len(received_diagnostics), 1,
+            f'Topic {YAML_TOPIC} from YAML should be auto-monitored'
+        )
+
+        # Verify the expected_frequency from YAML (100.0) is applied
+        best_status, _ = find_best_diagnostic(
+            received_diagnostics, 100.0, message_type
+        )
+        self.assertIsNotNone(best_status, f'Did not find diagnostics for {YAML_TOPIC}')
+
+        # Extract values from diagnostic status
+        diag_values = {kv.key: kv.value for kv in best_status.values}
+
+        # Check that expected_frequency was set from YAML
+        self.assertIn('expected_frequency', diag_values)
+        self.assertAlmostEqual(
+            float(diag_values['expected_frequency']), 100.0, places=1,
+            msg='Expected frequency from YAML should be 100.0'
+        )
+
+        # Verify the tolerance from YAML (10.0) is applied
+        self.assertIn('tolerance', diag_values)
+        self.assertAlmostEqual(
+            float(diag_values['tolerance']), 10.0, places=1,
+            msg='Tolerance from YAML should be 10.0'
+        )
+
+        # Verify that the invalid frequency topic is not monitored
+        INVALID_TOPIC = '/test_topic_invalid_expected_frequency'
+        received_diagnostics = collect_diagnostics_for_topic(
+            self.test_node, INVALID_TOPIC, expected_count=0, timeout_sec=10.0
+        )
+        self.assertEqual(
+            len(received_diagnostics), 0,
+            f'Topic {INVALID_TOPIC} with invalid expected frequency '
+            'should not be monitored')
 
 
 if __name__ == '__main__':

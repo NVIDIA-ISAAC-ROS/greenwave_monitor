@@ -17,6 +17,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import tempfile
 import threading
 import time
 import unittest
@@ -41,14 +42,36 @@ import rclpy
 from rclpy.node import Node
 
 
+def create_test_yaml_config():
+    """Create a temporary YAML config file for testing parameter loading."""
+    # Use /** wildcard to match any namespace/node name
+    yaml_content = """\
+/**:
+  ros__parameters:
+    greenwave_diagnostics:
+      /yaml_config_topic:
+        expected_frequency: 75.0
+        tolerance: 15.0
+"""
+    # Create temp file that persists until explicitly deleted
+    temp_file = tempfile.NamedTemporaryFile(
+        mode='w', suffix='.yaml', delete=False)
+    temp_file.write(yaml_content)
+    temp_file.flush()
+    return temp_file.name
+
+
 @pytest.mark.launch_test
 @launch_testing.parametrize('message_type, expected_frequency, tolerance_hz', TEST_CONFIGURATIONS)
 def generate_test_description(message_type, expected_frequency, tolerance_hz):
     """Generate launch description for topic monitoring tests."""
-    # Launch the greenwave_monitor
+    # Create temporary YAML config for testing parameter loading
+    yaml_config_file = create_test_yaml_config()
+
+    # Launch the greenwave_monitor with YAML config
     ros2_monitor_node = create_monitor_node(
         node_name=MONITOR_NODE_NAME,
-        topics=['/test_topic']
+        parameters=[yaml_config_file, {'topics': ['/test_topic']}]
     )
 
     # Create publishers for testing
@@ -59,7 +82,9 @@ def generate_test_description(message_type, expected_frequency, tolerance_hz):
         create_minimal_publisher('/test_topic1', expected_frequency, message_type, '1'),
         create_minimal_publisher('/test_topic2', expected_frequency, message_type, '2'),
         # Publisher for service discovery tests
-        create_minimal_publisher('/discovery_test_topic', 50.0, 'imu', '_discovery')
+        create_minimal_publisher('/discovery_test_topic', 50.0, 'imu', '_discovery'),
+        # Publisher for YAML config test (75 Hz as defined in YAML)
+        create_minimal_publisher('/yaml_config_topic', 75.0, 'imu', '_yaml_config')
     ]
 
     context = {
@@ -363,6 +388,44 @@ class TestTopicMonitoringIntegration(unittest.TestCase):
 
         # Check that timestamp was updated recently
         self.assertGreater(topic_data.last_update, time.time() - 10.0)
+
+    def test_yaml_sets_parameters_at_startup(
+            self, expected_frequency, message_type, tolerance_hz):
+        """Test that YAML config sets expected frequency and tolerance at startup."""
+        if (message_type, expected_frequency, tolerance_hz) != MANAGE_TOPIC_TEST_CONFIG:
+            self.skipTest('Only running YAML config tests once')
+
+        yaml_topic = '/yaml_config_topic'
+
+        # Spin to receive diagnostics from the YAML-configured topic
+        max_wait_time = 10.0
+        start_time = time.time()
+        topic_data = None
+
+        while time.time() - start_time < max_wait_time:
+            rclpy.spin_once(self.test_node, timeout_sec=0.1)
+            topic_data = self.diagnostics_monitor.get_topic_diagnostics(yaml_topic)
+            if topic_data.status != '-':
+                break
+            time.sleep(0.1)
+
+        # Topic should be auto-monitored from YAML config
+        self.assertIsNotNone(topic_data)
+        self.assertNotEqual(
+            topic_data.status, '-',
+            f'Topic {yaml_topic} from YAML should be auto-monitored')
+
+        # Verify expected_frequency from YAML (75.0) is applied
+        self.assertNotEqual(topic_data.expected_frequency, '-')
+        self.assertAlmostEqual(
+            float(topic_data.expected_frequency), 75.0, places=1,
+            msg='Expected frequency from YAML should be 75.0')
+
+        # Verify tolerance from YAML (15.0) is applied
+        self.assertNotEqual(topic_data.tolerance, '-')
+        self.assertAlmostEqual(
+            float(topic_data.tolerance), 15.0, places=1,
+            msg='Tolerance from YAML should be 15.0')
 
     def test_service_timeout_handling(self, expected_frequency, message_type, tolerance_hz):
         """Test service call timeout handling."""
