@@ -448,7 +448,7 @@ void GreenwaveMonitor::add_topics_from_parameters()
       } else {
         RCLCPP_WARN(
           this->get_logger(),
-          "Expected frequency is 0 for topic '%s', skipping parameter settings",
+          "Expected frequency is 0 or negative for topic '%s', skipping parameter settings",
           topic.c_str());
       }
     }
