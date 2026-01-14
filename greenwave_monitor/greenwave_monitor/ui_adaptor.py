@@ -129,8 +129,7 @@ class GreenwaveUiAdaptor:
         )
 
         manage_service_name = f'{self.monitor_node_name}/manage_topic'
-        set_freq_service_name = f'{
-            self.monitor_node_name}/set_expected_frequency'
+        set_freq_service_name = f'{self.monitor_node_name}/set_expected_frequency'
 
         self.node.get_logger().info(
             f'Connecting to monitor service: {manage_service_name}')
