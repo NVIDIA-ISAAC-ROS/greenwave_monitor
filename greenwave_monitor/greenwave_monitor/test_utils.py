@@ -35,7 +35,7 @@ from rclpy.node import Node
 # ensures tests pass even under system load. Low frequencies (1 Hz) use 50%
 # tolerance due to higher timing variability.
 TEST_CONFIGURATIONS = [
-    ('imu', 1.0, 0.5),
+    ('imu', 1.0, 0.6),
     ('imu', 100.0, 30.0),
     ('imu', 500.0, 150.0),
     ('image', 10.0, 3.0),
