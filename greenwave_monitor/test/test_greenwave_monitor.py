@@ -119,13 +119,13 @@ def generate_test_description(message_type, expected_frequency, tolerance_hz):
         create_minimal_publisher(TEST_TOPIC2, expected_frequency, message_type, '2'),
         # Publisher for YAML configuration tests
         create_minimal_publisher(
-            {VALID_PARAMS_TOPIC},
+            VALID_PARAMS_TOPIC,
             expected_frequency, message_type, '_valid_expected_frequency'),
         create_minimal_publisher(
-            {INTEGER_PARAMS_TOPIC},
+            INTEGER_PARAMS_TOPIC,
             expected_frequency, message_type, '_integer_params'),
         create_minimal_publisher(
-            {INVALID_PARAMS_TOPIC},
+            INVALID_PARAMS_TOPIC,
             expected_frequency, message_type, '_invalid_expected_frequency')
     ]
 
@@ -356,7 +356,8 @@ class TestGreenwaveMonitor(unittest.TestCase):
             f'Topic {INTEGER_PARAMS_TOPIC} with integer params should be monitored'
         )
 
-        int_status, _ = find_best_diagnostic(int_diagnostics, INTEGER_PARAMS_EXPECTED_FREQUENCY, message_type)
+        int_status, _ = find_best_diagnostic(
+            int_diagnostics, INTEGER_PARAMS_EXPECTED_FREQUENCY, message_type)
         self.assertIsNotNone(int_status, f'Did not find diagnostics for {INTEGER_PARAMS_TOPIC}')
 
         int_values = {kv.key: kv.value for kv in int_status.values}

@@ -109,9 +109,9 @@ def generate_test_description(message_type, expected_frequency, tolerance_hz):
             YAML_CONFIG_TOPIC, YAML_CONFIG_EXPECTED_FREQUENCY, 'imu', '_yaml_config'),
         # Publisher for invalid YAML config test (should still be monitored but with 0 values)
         create_minimal_publisher(YAML_INVALID_TOPIC, 50.0, 'imu', '_yaml_invalid'),
-        # Publisher for integer YAML config test
+        # Publisher for integer YAML config test (use float for publisher, YAML uses int)
         create_minimal_publisher(
-            YAML_INTEGER_TOPIC, YAML_INTEGER_EXPECTED_FREQUENCY, 'imu', '_yaml_integer')
+            YAML_INTEGER_TOPIC, float(YAML_INTEGER_EXPECTED_FREQUENCY), 'imu', '_yaml_integer')
     ]
 
     context = {
@@ -500,8 +500,9 @@ class TestTopicMonitoringIntegration(unittest.TestCase):
         # Check integer expected_frequency is properly converted
         self.assertNotEqual(int_data.expected_frequency, '-')
         self.assertAlmostEqual(
-            float(int_data.expected_frequency), YAML_INTEGER_EXPECTED_FREQUENCY, places=1,
-            msg=f'Integer expected frequency from YAML should be {YAML_INTEGER_EXPECTED_FREQUENCY}')
+            float(int_data.expected_frequency), YAML_INTEGER_EXPECTED_FREQUENCY,
+            places=1, msg='Integer expected frequency from YAML should be '
+            f'{YAML_INTEGER_EXPECTED_FREQUENCY}')
 
         # Check integer tolerance is properly converted
         self.assertNotEqual(int_data.tolerance, '-')

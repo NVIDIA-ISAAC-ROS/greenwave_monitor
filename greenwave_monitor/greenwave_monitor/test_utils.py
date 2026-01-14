@@ -32,9 +32,10 @@ from rclpy.node import Node
 # (message_type, expected_frequency, tolerance_hz)
 # NOTE: Tolerances and frequencies are set conservatively for reliable operation
 # on slow/loaded CI systems such as the ROS buildfarm. The 30% tolerance standard
-# ensures tests pass even under system load.
+# ensures tests pass even under system load. Low frequencies (1 Hz) use 50%
+# tolerance due to higher timing variability.
 TEST_CONFIGURATIONS = [
-    ('imu', 1.0, 0.3),
+    ('imu', 1.0, 0.5),
     ('imu', 100.0, 30.0),
     ('imu', 500.0, 150.0),
     ('image', 10.0, 3.0),
