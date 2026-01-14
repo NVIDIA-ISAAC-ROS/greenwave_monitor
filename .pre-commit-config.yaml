@@ -14,16 +14,22 @@
 # limitations under the License.
 exclude: ^(build|install)/
 repos:
--   repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v6.0.0
-    hooks:
-    -   id: check-yaml
-    -   id: end-of-file-fixer
-    -   id: trailing-whitespace
--   repo: https://github.com/google/yapf
-    rev: v0.43.0
-    hooks:
-    -   id: yapf
+- repo: https://github.com/pre-commit/pre-commit-hooks
+  rev: v6.0.0
+  hooks:
+    - id: check-yaml
+    - id: end-of-file-fixer
+    - id: trailing-whitespace
+- repo: https://github.com/hhatto/autopep8
+  rev: v2.3.1
+  hooks:
+    - id: autopep8
+      args: [-i, -a, -a]
+- repo: https://github.com/pycqa/flake8
+  rev: 7.1.1
+  hooks:
+    - id: flake8
+      args: [--max-line-length=99, '--extend-ignore=B902,C816,D100,D101,D102,D103,D104,D105,D106,D107,D203,D212,D404,I202']
 - repo: https://github.com/scop/pre-commit-shfmt
   rev: v3.12.0-2
   hooks:
