@@ -69,7 +69,7 @@ def create_monitor_node(namespace: str = MONITOR_NODE_NAMESPACE,
                         parameters: List[dict[str, Any]] = None):
     """Create a greenwave_monitor node for testing."""
     if parameters is None:
-        parameters = [{'topics': ['/test_topic']}]
+        parameters = [{'gw_monitored_topics': ['/test_topic']}]
 
     return launch_ros.actions.Node(
         package='greenwave_monitor',

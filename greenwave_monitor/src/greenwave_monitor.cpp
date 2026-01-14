@@ -31,7 +31,7 @@ namespace greenwave_monitor
 {
 namespace constants
 {
-inline constexpr const char * kTopicParamPrefix = "greenwave_diagnostics.";
+inline constexpr const char * kTopicParamPrefix = "gw_frequency_monitored_topics.";
 inline constexpr const char * kExpectedFrequencySuffix = ".expected_frequency";
 inline constexpr const char * kToleranceSuffix = ".tolerance";
 }  // namespace constants
@@ -45,8 +45,8 @@ GreenwaveMonitor::GreenwaveMonitor(const rclcpp::NodeOptions & options)
 {
   RCLCPP_INFO(this->get_logger(), "Starting GreenwaveMonitorNode");
 
-  if (!this->has_parameter("topics")) {
-    this->declare_parameter<std::vector<std::string>>("topics", {""});
+  if (!this->has_parameter("gw_monitored_topics")) {
+    this->declare_parameter<std::vector<std::string>>("gw_monitored_topics", {""});
   }
 
   timer_ = this->create_wall_timer(
@@ -372,18 +372,18 @@ void GreenwaveMonitor::add_topics_from_parameters()
 
   std::set<std::string> topics;
 
-  // List all parameters with "greenwave_diagnostics." prefix
-  auto list_result = this->list_parameters({"greenwave_diagnostics"}, 10);
+  // List all parameters with "gw_frequency_monitored_topics." prefix
+  auto list_result = this->list_parameters({"gw_frequency_monitored_topics"}, 10);
 
-  // Loop over and find all unique topics with "greenwave_diagnostics." prefix
+  // Loop over and find all unique topics with "gw_frequency_monitored_topics." prefix
   for (const auto & param_name : list_result.names) {
-    // Parameter names are like "greenwave_diagnostics./my_topic.tolerance"
+    // Parameter names are like "gw_frequency_monitored_topics./my_topic.tolerance"
     // We need to extract the topic name (e.g., "/my_topic")
     if (param_name.find(kTopicParamPrefix) != 0) {
       continue;
     }
 
-    // Remove the "greenwave_diagnostics." prefix
+    // Remove the "gw_frequency_monitored_topics." prefix
     std::string remainder = param_name.substr(std::strlen(kTopicParamPrefix));
 
     // Find the last '.' to separate topic name from parameter suffix
@@ -398,8 +398,8 @@ void GreenwaveMonitor::add_topics_from_parameters()
     }
   }
 
-  // Add topics from "topics" parameter
-  auto topics_param = this->get_parameter("topics").as_string_array();
+  // Add topics from "gw_monitored_topics" parameter
+  auto topics_param = this->get_parameter("gw_monitored_topics").as_string_array();
   topics.insert(topics_param.begin(), topics_param.end());
 
   // Helper function to get double parameters from the node

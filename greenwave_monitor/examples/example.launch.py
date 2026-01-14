@@ -59,8 +59,8 @@ def generate_launch_description():
             output='log',
             # Example of inline parameter settings
             # parameters=[{
-            #     'topics': ['/string_topic'],
-            #     'greenwave_diagnostics': {
+            #     'gw_monitored_topics': ['/string_topic'],
+            #     'gw_frequency_monitored_topics': {
             #         '/imu_topic': {'expected_frequency': 100.0, 'tolerance': 10.0},
             #         '/image_topic': {'expected_frequency': 0.0, 'tolerance': -10.0}
             #     }

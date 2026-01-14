@@ -108,5 +108,5 @@ You can of course also launch the node standalone, or incorporate it into your o
 If you want to use it as a command line tool, you can do so with the following launch file:
 
 ```bash
-ros2 launch greenwave_monitor hz.launch.py topics:='["/topic1", "/topic2"]'
+ros2 launch greenwave_monitor hz.launch.py gw_monitored_topics:='["/topic1", "/topic2"]'
 ```

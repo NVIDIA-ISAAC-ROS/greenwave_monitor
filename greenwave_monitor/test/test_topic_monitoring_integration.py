@@ -65,7 +65,7 @@ def create_test_yaml_config():
     yaml_content = f"""\
 /**:
   ros__parameters:
-    greenwave_diagnostics:
+    gw_frequency_monitored_topics:
       {YAML_CONFIG_TOPIC}:
         expected_frequency: {YAML_CONFIG_EXPECTED_FREQUENCY}
         tolerance: {YAML_CONFIG_TOLERANCE}
@@ -92,7 +92,7 @@ def generate_test_description(message_type, expected_frequency, tolerance_hz):
     # Launch the greenwave_monitor with YAML config
     ros2_monitor_node = create_monitor_node(
         node_name=MONITOR_NODE_NAME,
-        parameters=[yaml_config_file, {'topics': ['/test_topic']}]
+        parameters=[yaml_config_file, {'gw_monitored_topics': ['/test_topic']}]
     )
 
     # Create publishers for testing
