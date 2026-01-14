@@ -29,7 +29,7 @@ MinimalPublisher::MinimalPublisher(const rclcpp::NodeOptions & options)
   const auto topic = this->get_parameter("topic").as_string();
   const auto frequency_hz = this->get_parameter("frequency_hz").as_double();
   const auto period_ns = static_cast<int64_t>(
-    ::message_diagnostics::constants::kSecondsToNanoseconds / frequency_hz);
+    ::greenwave_diagnostics::constants::kSecondsToNanoseconds / frequency_hz);
   const auto create_subscriber = this->get_parameter("create_subscriber").as_bool();
 
   message_type_ = this->get_parameter("message_type").as_string();
@@ -82,9 +82,9 @@ MinimalPublisher::MinimalPublisher(const rclcpp::NodeOptions & options)
   timer_ = this->create_wall_timer(
     std::chrono::nanoseconds(period_ns), std::bind(&MinimalPublisher::timer_callback, this));
 
-  message_diagnostics::MessageDiagnosticsConfig diagnostics_config;
+  greenwave_diagnostics::GreenwaveDiagnosticsConfig diagnostics_config;
   diagnostics_config.enable_all_topic_diagnostics = true;
-  message_diagnostics_ = std::make_unique<message_diagnostics::MessageDiagnostics>(
+  greenwave_diagnostics_ = std::make_unique<greenwave_diagnostics::GreenwaveDiagnostics>(
     *this, topic, diagnostics_config);
 }
 
@@ -138,6 +138,6 @@ void MinimalPublisher::timer_callback()
   }
 
   const auto msg_timestamp = this->now();
-  message_diagnostics_->updateDiagnostics(msg_timestamp.nanoseconds());
-  // message_diagnostics_->publishDiagnostics();
+  greenwave_diagnostics_->updateDiagnostics(msg_timestamp.nanoseconds());
+  // greenwave_diagnostics_->publishDiagnostics();
 }

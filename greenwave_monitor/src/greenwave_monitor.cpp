@@ -20,37 +20,52 @@
 #include <algorithm>
 #include <cstring>
 #include <mutex>
+#include <set>
 #include <unordered_map>
 
 #include "rosidl_typesupport_introspection_cpp/message_introspection.hpp"
 
 using namespace std::chrono_literals;
 
+namespace greenwave_monitor
+{
+namespace constants
+{
+inline constexpr const char * kTopicParamPrefix = "gw_frequency_monitored_topics.";
+inline constexpr const char * kExpectedFrequencySuffix = ".expected_frequency";
+inline constexpr const char * kToleranceSuffix = ".tolerance";
+}  // namespace constants
+}  // namespace greenwave_monitor
+
 GreenwaveMonitor::GreenwaveMonitor(const rclcpp::NodeOptions & options)
-: Node("greenwave_monitor", options)
+: Node("greenwave_monitor",
+    rclcpp::NodeOptions(options)
+    .allow_undeclared_parameters(true)
+    .automatically_declare_parameters_from_overrides(true))
 {
   RCLCPP_INFO(this->get_logger(), "Starting GreenwaveMonitorNode");
 
-  // Declare and get the topics parameter
-  this->declare_parameter<std::vector<std::string>>("topics", {""});
-  auto topics = this->get_parameter("topics").as_string_array();
-
-  message_diagnostics::MessageDiagnosticsConfig diagnostics_config;
-  diagnostics_config.enable_all_topic_diagnostics = true;
-
-  auto topic_names_and_types = this->get_topic_names_and_types();
-
-  for (const auto & topic : topics) {
-    if (!topic.empty()) {
-      std::string message;
-      add_topic(topic, message);
-    }
+  if (!this->has_parameter("gw_monitored_topics")) {
+    this->declare_parameter<std::vector<std::string>>("gw_monitored_topics", {""});
   }
 
   timer_ = this->create_wall_timer(
     1s, std::bind(&GreenwaveMonitor::timer_callback, this));
 
-  // Add service server
+  // Defer topic discovery to allow the ROS graph to settle before querying other nodes
+  init_timer_ = this->create_wall_timer(
+    100ms, [this]() {
+      init_timer_->cancel();
+      deferred_init();
+    });
+}
+
+void GreenwaveMonitor::deferred_init()
+{
+  // Get all topics from YAML and parameters
+  add_topics_from_parameters();
+
+  // Add service servers after all topics are added to prevent race conditions
   manage_topic_service_ =
     this->create_service<greenwave_monitor_interfaces::srv::ManageTopic>(
     "~/manage_topic",
@@ -66,17 +81,17 @@ GreenwaveMonitor::GreenwaveMonitor(const rclcpp::NodeOptions & options)
       std::placeholders::_1, std::placeholders::_2));
 }
 
-std::optional<std::string> GreenwaveMonitor::find_topic_type_with_retry(
-  const std::string & topic, const int max_retries, const int retry_period_s)
+std::optional<std::string> GreenwaveMonitor::find_topic_type(
+  const std::string & topic, int max_retries, double retry_wait_s)
 {
-  for (int i = 0; i < max_retries; ++i) {
-    auto topic_names_and_types = this->get_topic_names_and_types();
-    auto it = topic_names_and_types.find(topic);
-    if (it == topic_names_and_types.end() || it->second.empty()) {
-      std::this_thread::sleep_for(std::chrono::seconds(retry_period_s));
-      continue;
-    } else {
-      return it->second[0];
+  for (int attempt = 0; attempt <= max_retries; ++attempt) {
+    auto publishers = this->get_publishers_info_by_topic(topic);
+    if (!publishers.empty()) {
+      return publishers[0].topic_type();
+    }
+    if (attempt < max_retries && retry_wait_s > 0.0) {
+      std::this_thread::sleep_for(
+        std::chrono::duration<double>(retry_wait_s));
     }
   }
   return std::nullopt;
@@ -87,16 +102,16 @@ void GreenwaveMonitor::topic_callback(
   const std::string & topic, const std::string & type)
 {
   auto msg_timestamp = GetTimestampFromSerializedMessage(msg, type);
-  message_diagnostics_[topic]->updateDiagnostics(msg_timestamp.time_since_epoch().count());
+  greenwave_diagnostics_[topic]->updateDiagnostics(msg_timestamp.time_since_epoch().count());
 }
 
 void GreenwaveMonitor::timer_callback()
 {
   RCLCPP_INFO(this->get_logger(), "====================================================");
-  if (message_diagnostics_.empty()) {
+  if (greenwave_diagnostics_.empty()) {
     RCLCPP_INFO(this->get_logger(), "No topics to monitor");
   }
-  for (auto & [topic, diagnostics] : message_diagnostics_) {
+  for (auto & [topic, diagnostics] : greenwave_diagnostics_) {
     diagnostics->publishDiagnostics();
     RCLCPP_INFO(
       this->get_logger(), "Frame rate for topic %s: %.2f hz",
@@ -123,9 +138,9 @@ void GreenwaveMonitor::handle_set_expected_frequency(
   const std::shared_ptr<greenwave_monitor_interfaces::srv::SetExpectedFrequency::Request> request,
   std::shared_ptr<greenwave_monitor_interfaces::srv::SetExpectedFrequency::Response> response)
 {
-  auto it = message_diagnostics_.find(request->topic_name);
+  auto it = greenwave_diagnostics_.find(request->topic_name);
 
-  if (it == message_diagnostics_.end()) {
+  if (it == greenwave_diagnostics_.end()) {
     if (!request->add_topic_if_missing) {
       response->success = false;
       response->message = "Failed to find topic";
@@ -136,10 +151,10 @@ void GreenwaveMonitor::handle_set_expected_frequency(
       response->success = false;
       return;
     }
-    it = message_diagnostics_.find(request->topic_name);
+    it = greenwave_diagnostics_.find(request->topic_name);
   }
 
-  message_diagnostics::MessageDiagnostics & msg_diagnostics_obj = *(it->second);
+  greenwave_diagnostics::GreenwaveDiagnostics & msg_diagnostics_obj = *(it->second);
 
   if (request->clear_expected) {
     msg_diagnostics_obj.clearExpectedDt();
@@ -254,19 +269,18 @@ bool GreenwaveMonitor::has_header_from_type(const std::string & type_name)
   return has_header;
 }
 
-bool GreenwaveMonitor::add_topic(const std::string & topic, std::string & message)
+bool GreenwaveMonitor::add_topic(
+  const std::string & topic, std::string & message, int max_retries, double retry_wait_s)
 {
   // Check if topic already exists
-  if (message_diagnostics_.find(topic) != message_diagnostics_.end()) {
+  if (greenwave_diagnostics_.find(topic) != greenwave_diagnostics_.end()) {
     message = "Topic already being monitored";
     return false;
   }
 
   RCLCPP_INFO(this->get_logger(), "Adding subscription for topic '%s'", topic.c_str());
 
-  const int max_retries = 5;
-  const int retry_period_s = 1;
-  auto maybe_type = find_topic_type_with_retry(topic, max_retries, retry_period_s);
+  auto maybe_type = find_topic_type(topic, max_retries, retry_wait_s);
   if (!maybe_type.has_value()) {
     RCLCPP_ERROR(this->get_logger(), "Failed to find type for topic '%s'", topic.c_str());
     message = "Failed to find type for topic";
@@ -283,13 +297,14 @@ bool GreenwaveMonitor::add_topic(const std::string & topic, std::string & messag
       this->topic_callback(msg, topic, type);
     });
 
-  message_diagnostics::MessageDiagnosticsConfig diagnostics_config;
+  greenwave_diagnostics::GreenwaveDiagnosticsConfig diagnostics_config;
   diagnostics_config.enable_all_topic_diagnostics = true;
 
   subscriptions_.push_back(sub);
-  message_diagnostics_.emplace(
+  greenwave_diagnostics_.emplace(
     topic,
-    std::make_unique<message_diagnostics::MessageDiagnostics>(*this, topic, diagnostics_config));
+    std::make_unique<greenwave_diagnostics::GreenwaveDiagnostics>(
+      *this, topic, diagnostics_config));
 
   message = "Successfully added topic";
   return true;
@@ -297,8 +312,8 @@ bool GreenwaveMonitor::add_topic(const std::string & topic, std::string & messag
 
 bool GreenwaveMonitor::remove_topic(const std::string & topic, std::string & message)
 {
-  auto diag_it = message_diagnostics_.find(topic);
-  if (diag_it == message_diagnostics_.end()) {
+  auto diag_it = greenwave_diagnostics_.find(topic);
+  if (diag_it == greenwave_diagnostics_.end()) {
     message = "Topic not found";
     return false;
   }
@@ -314,7 +329,7 @@ bool GreenwaveMonitor::remove_topic(const std::string & topic, std::string & mes
     subscriptions_.erase(sub_it);
   }
 
-  message_diagnostics_.erase(diag_it);
+  greenwave_diagnostics_.erase(diag_it);
   message = "Successfully removed topic";
   return true;
 }
@@ -347,4 +362,95 @@ GreenwaveMonitor::GetTimestampFromSerializedMessage(
   std::chrono::time_point<std::chrono::system_clock> timestamp(
     std::chrono::seconds(timestamp_sec) + std::chrono::nanoseconds(timestamp_nanosec));
   return timestamp;
+}
+
+void GreenwaveMonitor::add_topics_from_parameters()
+{
+  using greenwave_monitor::constants::kTopicParamPrefix;
+  using greenwave_monitor::constants::kExpectedFrequencySuffix;
+  using greenwave_monitor::constants::kToleranceSuffix;
+
+  std::set<std::string> topics;
+
+  // List all parameters with "gw_frequency_monitored_topics." prefix
+  auto list_result = this->list_parameters({"gw_frequency_monitored_topics"}, 10);
+
+  // Loop over and find all unique topics with "gw_frequency_monitored_topics." prefix
+  for (const auto & param_name : list_result.names) {
+    // Parameter names are like "gw_frequency_monitored_topics./my_topic.tolerance"
+    // We need to extract the topic name (e.g., "/my_topic")
+    if (param_name.find(kTopicParamPrefix) != 0) {
+      continue;
+    }
+
+    // Remove the "gw_frequency_monitored_topics." prefix
+    std::string remainder = param_name.substr(std::strlen(kTopicParamPrefix));
+
+    // Find the last '.' to separate topic name from parameter suffix
+    size_t last_dot = remainder.rfind('.');
+    if (last_dot == std::string::npos || last_dot == 0) {
+      continue;
+    }
+
+    std::string topic_name = remainder.substr(0, last_dot);
+    if (!topic_name.empty() && topic_name[0] == '/') {
+      topics.insert(topic_name);
+    }
+  }
+
+  // Add topics from "gw_monitored_topics" parameter
+  auto topics_param = this->get_parameter("gw_monitored_topics").as_string_array();
+  topics.insert(topics_param.begin(), topics_param.end());
+
+  // Helper function to get double parameters from the node
+  auto get_double_param = [this](const std::string & name) -> double {
+      auto param = this->get_parameter(name);
+      if (param.get_type() == rclcpp::ParameterType::PARAMETER_DOUBLE) {
+        return param.as_double();
+      } else if (param.get_type() == rclcpp::ParameterType::PARAMETER_INTEGER) {
+        return static_cast<double>(param.as_int());
+      }
+      return 0.0;
+    };
+
+  // For each topic, read parameters and add topic with expected frequency settings
+  for (const auto & topic : topics) {
+    if (topic.empty()) {
+      continue;
+    }
+    std::string freq_param = std::string(kTopicParamPrefix) + topic + kExpectedFrequencySuffix;
+    std::string tol_param = std::string(kTopicParamPrefix) + topic + kToleranceSuffix;
+
+    double expected_frequency = 0.0;
+    double tolerance = 0.0;
+
+    if (this->has_parameter(freq_param)) {
+      expected_frequency = get_double_param(freq_param);
+    }
+    if (this->has_parameter(tol_param)) {
+      tolerance = get_double_param(tol_param);
+      // Default to 0 if tolerance is negative
+      if (tolerance < 0.0) {
+        RCLCPP_WARN(
+          this->get_logger(),
+          "Invalid tolerance for topic '%s', clamping to 0.0",
+          topic.c_str());
+        tolerance = 0.0;
+      }
+    }
+
+    std::string message;
+    static const int max_retries = 5;
+    static const double retry_wait_s = 0.5;
+    if (add_topic(topic, message, max_retries, retry_wait_s)) {
+      if (expected_frequency > 0.0) {
+        greenwave_diagnostics_[topic]->setExpectedDt(expected_frequency, tolerance);
+      } else {
+        RCLCPP_WARN(
+          this->get_logger(),
+          "Expected frequency is 0 or negative for topic '%s', skipping parameter settings",
+          topic.c_str());
+      }
+    }
+  }
 }

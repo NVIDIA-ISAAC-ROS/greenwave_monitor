@@ -22,7 +22,7 @@ from launch_ros.actions import Node
 def generate_launch_description():
     return LaunchDescription([
         DeclareLaunchArgument(
-            'topics',
+            'gw_monitored_topics',
             default_value='[""]',
             description='List of topics to monitor'
         ),
@@ -33,7 +33,7 @@ def generate_launch_description():
             name='greenwave_monitor',
             output='screen',
             parameters=[
-                {'topics': LaunchConfiguration('topics'),
+                {'gw_monitored_topics': LaunchConfiguration('gw_monitored_topics'),
                  'use_sim_time': LaunchConfiguration('use_sim_time')}
             ],
         ),

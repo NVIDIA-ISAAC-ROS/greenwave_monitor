@@ -26,7 +26,7 @@ Node(
     name='greenwave_monitor',
     output='screen',  # or 'log' if you want to add monitoring without terminal output
     parameters=[
-        {'topics': ['/your_topic_1', '/your_topic_2']}  # List your topics to monitor
+        {'gw_monitored_topics': ['/your_topic_1', '/your_topic_2']}  # List your topics to monitor
     ],
 ),
 ```

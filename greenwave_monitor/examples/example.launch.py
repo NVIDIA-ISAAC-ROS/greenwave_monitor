@@ -1,4 +1,4 @@
-# Copyright (c) 2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2025-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,12 +12,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
+
+from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
 from launch.actions import LogInfo
 from launch_ros.actions import Node
 
 
 def generate_launch_description():
+    pkg_share = get_package_share_directory('greenwave_monitor')
+    config_file = os.path.join(pkg_share, 'config', 'example.yaml')
+
     return LaunchDescription([
         Node(
             package='greenwave_monitor',
@@ -51,9 +57,16 @@ def generate_launch_description():
             executable='greenwave_monitor',
             name='greenwave_monitor',
             output='log',
-            parameters=[
-                {'topics': ['/imu_topic', '/image_topic', '/string_topic']}
-            ],
+            # Example of inline parameter settings
+            # parameters=[{
+            #     'gw_monitored_topics': ['/string_topic'],
+            #     'gw_frequency_monitored_topics': {
+            #         '/imu_topic': {'expected_frequency': 100.0, 'tolerance': 10.0},
+            #         '/image_topic': {'expected_frequency': 0.0, 'tolerance': -10.0}
+            #     }
+            # }],
+            # Example of using a config file
+            parameters=[config_file],
         ),
         LogInfo(
             msg='Run `ros2 run r2s_gw r2s_gw` in another terminal to see the demo output '

@@ -30,7 +30,7 @@
 #include "diagnostic_msgs/msg/diagnostic_array.hpp"
 #include "diagnostic_msgs/msg/diagnostic_status.hpp"
 #include "diagnostic_msgs/msg/key_value.hpp"
-#include "message_diagnostics.hpp"
+#include "greenwave_diagnostics.hpp"
 #include "greenwave_monitor_interfaces/srv/manage_topic.hpp"
 #include "greenwave_monitor_interfaces/srv/set_expected_frequency.hpp"
 
@@ -39,15 +39,31 @@ class GreenwaveMonitor : public rclcpp::Node
 public:
   explicit GreenwaveMonitor(const rclcpp::NodeOptions & options);
 
+  ~GreenwaveMonitor()
+  {
+    // Cancel timers first to stop callbacks from firing
+    if (timer_) {
+      timer_->cancel();
+    }
+    if (init_timer_) {
+      init_timer_->cancel();
+    }
+    // Clear diagnostics before base Node destructor runs to avoid accessing invalid node state
+    greenwave_diagnostics_.clear();
+    subscriptions_.clear();
+  }
+
 private:
-  std::optional<std::string> find_topic_type_with_retry(
-    const std::string & topic, const int max_retries, const int retry_period_s);
+  std::optional<std::string> find_topic_type(
+    const std::string & topic, int max_retries = 0, double retry_wait_s = 0.0);
 
   void topic_callback(
     const std::shared_ptr<rclcpp::SerializedMessage> msg,
     const std::string & topic, const std::string & type);
 
   void timer_callback();
+
+  void deferred_init();
 
   void handle_manage_topic(
     const std::shared_ptr<greenwave_monitor_interfaces::srv::ManageTopic::Request> request,
@@ -57,7 +73,9 @@ private:
     const std::shared_ptr<greenwave_monitor_interfaces::srv::SetExpectedFrequency::Request> request,
     std::shared_ptr<greenwave_monitor_interfaces::srv::SetExpectedFrequency::Response> response);
 
-  bool add_topic(const std::string & topic, std::string & message);
+  bool add_topic(
+    const std::string & topic, std::string & message,
+    int max_retries = 0, double retry_wait_s = 0.0);
 
   bool remove_topic(const std::string & topic, std::string & message);
 
@@ -68,10 +86,13 @@ private:
     std::shared_ptr<rclcpp::SerializedMessage> serialized_message_ptr,
     const std::string & type);
 
+  void add_topics_from_parameters();
+
   std::map<std::string,
-    std::unique_ptr<message_diagnostics::MessageDiagnostics>> message_diagnostics_;
+    std::unique_ptr<greenwave_diagnostics::GreenwaveDiagnostics>> greenwave_diagnostics_;
   std::vector<std::shared_ptr<rclcpp::GenericSubscription>> subscriptions_;
   rclcpp::TimerBase::SharedPtr timer_;
+  rclcpp::TimerBase::SharedPtr init_timer_;
   rclcpp::Service<greenwave_monitor_interfaces::srv::ManageTopic>::SharedPtr
     manage_topic_service_;
   rclcpp::Service<greenwave_monitor_interfaces::srv::SetExpectedFrequency>::SharedPtr

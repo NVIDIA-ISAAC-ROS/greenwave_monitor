@@ -1,0 +1,36 @@
+# SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
+# Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# SPDX-License-Identifier: Apache-2.0
+# Example configuration for greenwave_monitor
+# Defines topics to monitor with their expected frequencies and tolerances
+
+greenwave_monitor:
+  ros__parameters:
+    # gw_monitored_topics parameter specifies topics to monitor that do not require expected
+    # frequencies or tolerances.
+    gw_monitored_topics: ['/string_topic']
+    # gw_frequency_monitored_topics parameter specifies the topics to monitor and their
+    # expected frequencies and tolerances.
+    gw_frequency_monitored_topics:
+      /imu_topic:
+        expected_frequency: 100.0
+        tolerance: 10.0
+      /image_topic:
+        # If an invalid frequency is provided (e.g. 0.0), the topic will be monitored but no
+        # expected frequency will be set.
+        expected_frequency: 0.0
+        # Invalid tolerance values are clamped to 0.0.
+        tolerance: -10.0

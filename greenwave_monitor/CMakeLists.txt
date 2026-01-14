@@ -23,9 +23,9 @@ endif()
 find_package(ament_cmake_auto REQUIRED)
 ament_auto_find_build_dependencies()
 
-# Add message_diagnostics.hpp as a header-only library
-add_library(message_diagnostics INTERFACE)
-target_include_directories(message_diagnostics INTERFACE
+# Add greenwave_diagnostics.hpp as a header-only library
+add_library(greenwave_diagnostics INTERFACE)
+target_include_directories(greenwave_diagnostics INTERFACE
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
   $<INSTALL_INTERFACE:include>)
 
@@ -36,7 +36,7 @@ ament_target_dependencies(greenwave_monitor
   diagnostic_msgs
   greenwave_monitor_interfaces
 )
-target_link_libraries(greenwave_monitor message_diagnostics)
+target_link_libraries(greenwave_monitor greenwave_diagnostics)
 
 target_include_directories(greenwave_monitor PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
@@ -51,7 +51,7 @@ add_executable(minimal_publisher_node
   src/minimal_publisher_node.cpp
   src/minimal_publisher_main.cpp)
 ament_target_dependencies(minimal_publisher_node rclcpp std_msgs sensor_msgs diagnostic_msgs)
-target_link_libraries(minimal_publisher_node message_diagnostics)
+target_link_libraries(minimal_publisher_node greenwave_diagnostics)
 target_include_directories(minimal_publisher_node PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
   $<INSTALL_INTERFACE:include>)
@@ -60,7 +60,7 @@ install(TARGETS minimal_publisher_node
   DESTINATION lib/${PROJECT_NAME})
 
 install(
-  DIRECTORY launch examples
+  DIRECTORY launch examples config
   DESTINATION share/${PROJECT_NAME}
 )
 
@@ -117,21 +117,21 @@ if(BUILD_TESTING)
   )
 
   # Add gtests
-  ament_add_gtest(test_message_diagnostics test/test_message_diagnostics.cpp
+  ament_add_gtest(test_greenwave_diagnostics test/test_greenwave_diagnostics.cpp
     TIMEOUT 60
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
   )
-  ament_target_dependencies(test_message_diagnostics
+  ament_target_dependencies(test_greenwave_diagnostics
     rclcpp
     std_msgs
     diagnostic_msgs
   )
-  target_link_libraries(test_message_diagnostics message_diagnostics)
-  target_include_directories(test_message_diagnostics PUBLIC
+  target_link_libraries(test_greenwave_diagnostics greenwave_diagnostics)
+  target_include_directories(test_greenwave_diagnostics PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
     $<INSTALL_INTERFACE:include>
   )
-  target_compile_features(test_message_diagnostics PUBLIC c_std_99 cxx_std_17)
+  target_compile_features(test_greenwave_diagnostics PUBLIC c_std_99 cxx_std_17)
 
   ament_add_gtest(test_minimal_publisher
     test/test_minimal_publisher.cpp
@@ -144,7 +144,7 @@ if(BUILD_TESTING)
     sensor_msgs
     diagnostic_msgs
   )
-  target_link_libraries(test_minimal_publisher message_diagnostics)
+  target_link_libraries(test_minimal_publisher greenwave_diagnostics)
   target_include_directories(test_minimal_publisher PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
     $<INSTALL_INTERFACE:include>

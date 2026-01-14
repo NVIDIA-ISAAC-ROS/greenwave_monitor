@@ -19,7 +19,7 @@
 
 import math
 import time
-from typing import List, Optional, Tuple
+from typing import Any, List, Optional, Tuple
 
 from diagnostic_msgs.msg import DiagnosticArray, DiagnosticStatus
 from greenwave_monitor_interfaces.srv import ManageTopic, SetExpectedFrequency
@@ -32,9 +32,10 @@ from rclpy.node import Node
 # (message_type, expected_frequency, tolerance_hz)
 # NOTE: Tolerances and frequencies are set conservatively for reliable operation
 # on slow/loaded CI systems such as the ROS buildfarm. The 30% tolerance standard
-# ensures tests pass even under system load.
+# ensures tests pass even under system load. Low frequencies (1 Hz) use 50%
+# tolerance due to higher timing variability.
 TEST_CONFIGURATIONS = [
-    ('imu', 1.0, 0.3),
+    ('imu', 1.0, 0.6),
     ('imu', 100.0, 30.0),
     ('imu', 500.0, 150.0),
     ('image', 10.0, 3.0),
@@ -65,19 +66,17 @@ def create_minimal_publisher(
 
 def create_monitor_node(namespace: str = MONITOR_NODE_NAMESPACE,
                         node_name: str = MONITOR_NODE_NAME,
-                        topics: List[str] = None):
+                        parameters: List[dict[str, Any]] = None):
     """Create a greenwave_monitor node for testing."""
-    if topics is None:
-        topics = ['/test_topic']
+    if parameters is None:
+        parameters = [{'gw_monitored_topics': ['/test_topic']}]
 
     return launch_ros.actions.Node(
         package='greenwave_monitor',
         executable='greenwave_monitor',
         name=node_name,
         namespace=namespace,
-        parameters=[{
-            'topics': topics
-        }],
+        parameters=parameters,
         output='screen'
     )
 

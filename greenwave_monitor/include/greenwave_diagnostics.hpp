@@ -33,7 +33,7 @@
 #include "builtin_interfaces/msg/time.hpp"
 #include "rclcpp/rclcpp.hpp"
 
-namespace message_diagnostics
+namespace greenwave_diagnostics
 {
 namespace constants
 {
@@ -48,8 +48,8 @@ inline constexpr int64_t kDropWarnTimeoutSeconds = 5LL;
 inline constexpr int64_t kNonsenseLatencyMs = 365LL * 24LL * 60LL * 60LL * 1000LL;
 }  // namespace constants
 
-// Configurations for a message diagnostics
-struct MessageDiagnosticsConfig
+// Configurations for a greenwave diagnostics
+struct GreenwaveDiagnosticsConfig
 {
   // diagnostics toggle
   bool enable_diagnostics{false};
@@ -73,13 +73,13 @@ struct MessageDiagnosticsConfig
   int64_t jitter_tolerance_us{0LL};
 };
 
-class MessageDiagnostics
+class GreenwaveDiagnostics
 {
 public:
-  MessageDiagnostics(
+  GreenwaveDiagnostics(
     rclcpp::Node & node,
     const std::string & topic_name,
-    const MessageDiagnosticsConfig & diagnostics_config)
+    const GreenwaveDiagnosticsConfig & diagnostics_config)
   : node_(node), topic_name_(topic_name), diagnostics_config_(diagnostics_config)
   {
     clock_ = node_.get_clock();
@@ -113,7 +113,7 @@ public:
   {
     // Mutex lock to prevent simultaneous access of common parameters
     // used by updateDiagnostics() and publishDiagnostics()
-    const std::lock_guard<std::mutex> lock(message_diagnostics_mutex_);
+    const std::lock_guard<std::mutex> lock(greenwave_diagnostics_mutex_);
     // Message diagnostics checks message intervals both using the node clock
     // and the message timestamp.
     // All variables name _node refers to the node timestamp checks.
@@ -123,9 +123,9 @@ public:
 
     // Get the current timestamps in microseconds
     uint64_t current_timestamp_msg_us =
-      msg_timestamp_ns / message_diagnostics::constants::kMicrosecondsToNanoseconds;
+      msg_timestamp_ns / greenwave_diagnostics::constants::kMicrosecondsToNanoseconds;
     uint64_t current_timestamp_node_us = static_cast<uint64_t>(clock_->now().nanoseconds() /
-      message_diagnostics::constants::kMicrosecondsToNanoseconds);
+      greenwave_diagnostics::constants::kMicrosecondsToNanoseconds);
 
     // we can only calculate frame rate after 2 messages have been received
     if (prev_timestamp_node_us_ != std::numeric_limits<uint64_t>::min()) {
@@ -138,11 +138,11 @@ public:
 
     const rclcpp::Time time_from_node = node_.get_clock()->now();
     uint64_t ros_node_system_time_us = time_from_node.nanoseconds() /
-      message_diagnostics::constants::kMicrosecondsToNanoseconds;
+      greenwave_diagnostics::constants::kMicrosecondsToNanoseconds;
 
     const double latency_wrt_current_timestamp_node_ms =
       static_cast<double>(ros_node_system_time_us - current_timestamp_msg_us) /
-      message_diagnostics::constants::kMillisecondsToMicroseconds;
+      greenwave_diagnostics::constants::kMillisecondsToMicroseconds;
 
     if (prev_timestamp_msg_us_ != std::numeric_limits<uint64_t>::min()) {
       const int64_t timestamp_diff_msg_us = current_timestamp_msg_us - prev_timestamp_msg_us_;
@@ -161,7 +161,7 @@ public:
 
     // calculate key values for diagnostics status (computed on publish/getters)
     message_latency_msg_ms_ = latency_wrt_current_timestamp_node_ms;
-    if (message_latency_msg_ms_ > message_diagnostics::constants::kNonsenseLatencyMs) {
+    if (message_latency_msg_ms_ > greenwave_diagnostics::constants::kNonsenseLatencyMs) {
       message_latency_msg_ms_ = std::numeric_limits<double>::quiet_NaN();
     }
 
@@ -178,7 +178,7 @@ public:
   {
     // Mutex lock to prevent simultaneous access of common parameters
     // used by updateDiagnostics() and publishDiagnostics()
-    const std::lock_guard<std::mutex> lock(message_diagnostics_mutex_);
+    const std::lock_guard<std::mutex> lock(greenwave_diagnostics_mutex_);
 
     std::vector<diagnostic_msgs::msg::KeyValue> values;
     // publish diagnostics stale if message has not been updated since the last call
@@ -232,15 +232,23 @@ public:
         diagnostic_msgs::build<diagnostic_msgs::msg::KeyValue>()
         .key("total_dropped_frames")
         .value(std::to_string(msg_window_.outlier_count)));
+      values.push_back(
+        diagnostic_msgs::build<diagnostic_msgs::msg::KeyValue>()
+        .key("expected_frequency")
+        .value(std::to_string(expected_frequency_)));
+      values.push_back(
+        diagnostic_msgs::build<diagnostic_msgs::msg::KeyValue>()
+        .key("tolerance")
+        .value(std::to_string(tolerance_)));
     }
     status_vec_[0].values = values;
 
     // timestamp from std::chrono (steady clock); split into sec/nanosec correctly
     const uint64_t elapsed_ns = static_cast<uint64_t>((clock_->now() - t_start_).nanoseconds());
     const uint32_t time_seconds = static_cast<uint32_t>(
-      elapsed_ns / static_cast<uint64_t>(message_diagnostics::constants::kSecondsToNanoseconds));
+      elapsed_ns / static_cast<uint64_t>(greenwave_diagnostics::constants::kSecondsToNanoseconds));
     const uint32_t time_ns = static_cast<uint32_t>(
-      elapsed_ns % static_cast<uint64_t>(message_diagnostics::constants::kSecondsToNanoseconds));
+      elapsed_ns % static_cast<uint64_t>(greenwave_diagnostics::constants::kSecondsToNanoseconds));
 
     diagnostic_msgs::msg::DiagnosticArray diagnostic_msg;
     std_msgs::msg::Header header;
@@ -272,7 +280,7 @@ public:
 
   void setExpectedDt(double expected_hz, double tolerance_percent)
   {
-    const std::lock_guard<std::mutex> lock(message_diagnostics_mutex_);
+    const std::lock_guard<std::mutex> lock(greenwave_diagnostics_mutex_);
     diagnostics_config_.enable_node_time_diagnostics = true;
     diagnostics_config_.enable_msg_time_diagnostics = true;
 
@@ -290,23 +298,28 @@ public:
     }
 
     const int64_t expected_dt_us =
-      static_cast<int64_t>(message_diagnostics::constants::kSecondsToMicroseconds / expected_hz);
+      static_cast<int64_t>(greenwave_diagnostics::constants::kSecondsToMicroseconds / expected_hz);
+    expected_frequency_ = expected_hz;
     diagnostics_config_.expected_dt_us = expected_dt_us;
 
     const int tolerance_us =
-      static_cast<int>((message_diagnostics::constants::kSecondsToMicroseconds / expected_hz) *
+      static_cast<int>((greenwave_diagnostics::constants::kSecondsToMicroseconds / expected_hz) *
       (tolerance_percent / 100.0));
+    tolerance_ = tolerance_percent;
     diagnostics_config_.jitter_tolerance_us = tolerance_us;
   }
 
   void clearExpectedDt()
   {
-    const std::lock_guard<std::mutex> lock(message_diagnostics_mutex_);
+    const std::lock_guard<std::mutex> lock(greenwave_diagnostics_mutex_);
     diagnostics_config_.enable_node_time_diagnostics = false;
     diagnostics_config_.enable_msg_time_diagnostics = false;
 
     diagnostics_config_.expected_dt_us = 0;
     diagnostics_config_.jitter_tolerance_us = 0;
+
+    expected_frequency_ = 0.0;
+    tolerance_ = 0.0;
   }
 
 private:
@@ -352,7 +365,7 @@ private:
       if (sum_interarrival_us == 0 || interarrival_us.empty()) {
         return 0.0;
       }
-      return static_cast<double>(message_diagnostics::constants::kSecondsToMicroseconds) /
+      return static_cast<double>(greenwave_diagnostics::constants::kSecondsToMicroseconds) /
              (static_cast<double>(sum_interarrival_us) /
              static_cast<double>(interarrival_us.size()));
     }
@@ -367,11 +380,11 @@ private:
   };
   // Mutex lock to prevent simultaneous access of common parameters
   // used by updateDiagnostics() and publishDiagnostics()
-  std::mutex message_diagnostics_mutex_;
+  std::mutex greenwave_diagnostics_mutex_;
 
   rclcpp::Node & node_;
   std::string topic_name_;
-  MessageDiagnosticsConfig diagnostics_config_;
+  GreenwaveDiagnosticsConfig diagnostics_config_;
   std::vector<diagnostic_msgs::msg::DiagnosticStatus> status_vec_;
   rclcpp::Clock::SharedPtr clock_;
   rclcpp::Time t_start_;
@@ -412,7 +425,7 @@ private:
     if (missed_deadline_node) {
       RCLCPP_DEBUG(
         node_.get_logger(),
-        "[MessageDiagnostics Node Time]"
+        "[GreenwaveDiagnostics Node Time]"
         " Difference of time between messages(%" PRId64 ") and expected time between"
         " messages(%" PRId64 ") is out of tolerance(%" PRId64 ") by %" PRId64 " for topic %s."
         " Units are microseconds.",
@@ -442,7 +455,7 @@ private:
       prev_drop_ts_ = clock_->now();
       RCLCPP_DEBUG(
         node_.get_logger(),
-        "[MessageDiagnostics Message Timestamp]"
+        "[GreenwaveDiagnostics Message Timestamp]"
         " Difference of time between messages(%" PRId64 ") and expected "
         "time between"
         " messages(%" PRId64 ") is out of tolerance(%" PRId64 ") by %" PRId64 " for topic %s. "
@@ -455,7 +468,7 @@ private:
 
     if (prev_drop_ts_.nanoseconds() != 0) {
       auto time_since_drop = (clock_->now() - prev_drop_ts_).seconds();
-      if (time_since_drop < message_diagnostics::constants::kDropWarnTimeoutSeconds) {
+      if (time_since_drop < greenwave_diagnostics::constants::kDropWarnTimeoutSeconds) {
         error_found = true;
         status_vec_[0].level = diagnostic_msgs::msg::DiagnosticStatus::ERROR;
         deadlines_missed_since_last_pub_ = 0;
@@ -475,14 +488,14 @@ private:
       prev_noninc_msg_ts_ = clock_->now();
       RCLCPP_WARN(
         node_.get_logger(),
-        "[MessageDiagnostics Message Timestamp Non Increasing]"
+        "[GreenwaveDiagnostics Message Timestamp Non Increasing]"
         " Message timestamp is not increasing. Current timestamp: %" PRIu64 ", "
         " Previous timestamp: %" PRIu64 " for topic %s. Units are microseconds.",
         current_timestamp_msg_us, prev_timestamp_msg_us_, topic_name_.c_str());
     }
     if (prev_noninc_msg_ts_.nanoseconds() != 0) {
       auto time_since_noninc = (clock_->now() - prev_noninc_msg_ts_).seconds();
-      if (time_since_noninc < message_diagnostics::constants::kDropWarnTimeoutSeconds) {
+      if (time_since_noninc < greenwave_diagnostics::constants::kDropWarnTimeoutSeconds) {
         error_found = true;
         status_vec_[0].level = diagnostic_msgs::msg::DiagnosticStatus::ERROR;
         deadlines_missed_since_last_pub_ = 0;
@@ -491,6 +504,9 @@ private:
     }
     return error_found;
   }
+
+  double expected_frequency_{0.0};
+  double tolerance_{0.0};
 };
 
-}  // namespace message_diagnostics
+}  // namespace greenwave_diagnostics

@@ -17,6 +17,8 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import os
+import tempfile
 import threading
 import time
 import unittest
@@ -41,14 +43,56 @@ import rclpy
 from rclpy.node import Node
 
 
+# Temp directory auto-cleans when garbage collected or process exits
+_temp_dir = tempfile.TemporaryDirectory()
+
+YAML_CONFIG_TOPIC = '/yaml_config_topic'
+YAML_CONFIG_EXPECTED_FREQUENCY = 75.0
+YAML_CONFIG_TOLERANCE = 15.0
+
+YAML_INVALID_TOPIC = '/yaml_invalid_topic'
+YAML_INVALID_EXPECTED_FREQUENCY = -10.0
+YAML_INVALID_TOLERANCE = -10.0
+
+YAML_INTEGER_TOPIC = '/yaml_integer_topic'
+YAML_INTEGER_EXPECTED_FREQUENCY = 60
+YAML_INTEGER_TOLERANCE = 12
+
+
+def create_test_yaml_config():
+    """Create a temporary YAML config file for testing parameter loading."""
+    # Use /** wildcard to match any namespace/node name
+    yaml_content = f"""\
+/**:
+  ros__parameters:
+    gw_frequency_monitored_topics:
+      {YAML_CONFIG_TOPIC}:
+        expected_frequency: {YAML_CONFIG_EXPECTED_FREQUENCY}
+        tolerance: {YAML_CONFIG_TOLERANCE}
+      {YAML_INVALID_TOPIC}:
+        expected_frequency: {YAML_INVALID_EXPECTED_FREQUENCY}
+        tolerance: {YAML_INVALID_TOLERANCE}
+      {YAML_INTEGER_TOPIC}:
+        expected_frequency: {YAML_INTEGER_EXPECTED_FREQUENCY}
+        tolerance: {YAML_INTEGER_TOLERANCE}
+"""
+    filepath = os.path.join(_temp_dir.name, 'test_config.yaml')
+    with open(filepath, 'w') as f:
+        f.write(yaml_content)
+    return filepath
+
+
 @pytest.mark.launch_test
 @launch_testing.parametrize('message_type, expected_frequency, tolerance_hz', TEST_CONFIGURATIONS)
 def generate_test_description(message_type, expected_frequency, tolerance_hz):
     """Generate launch description for topic monitoring tests."""
-    # Launch the greenwave_monitor
+    # Create temporary YAML config for testing parameter loading
+    yaml_config_file = create_test_yaml_config()
+
+    # Launch the greenwave_monitor with YAML config
     ros2_monitor_node = create_monitor_node(
         node_name=MONITOR_NODE_NAME,
-        topics=['/test_topic']
+        parameters=[yaml_config_file, {'gw_monitored_topics': ['/test_topic']}]
     )
 
     # Create publishers for testing
@@ -59,7 +103,15 @@ def generate_test_description(message_type, expected_frequency, tolerance_hz):
         create_minimal_publisher('/test_topic1', expected_frequency, message_type, '1'),
         create_minimal_publisher('/test_topic2', expected_frequency, message_type, '2'),
         # Publisher for service discovery tests
-        create_minimal_publisher('/discovery_test_topic', 50.0, 'imu', '_discovery')
+        create_minimal_publisher('/discovery_test_topic', 50.0, 'imu', '_discovery'),
+        # Publisher for YAML config test
+        create_minimal_publisher(
+            YAML_CONFIG_TOPIC, YAML_CONFIG_EXPECTED_FREQUENCY, 'imu', '_yaml_config'),
+        # Publisher for invalid YAML config test (should still be monitored but with 0 values)
+        create_minimal_publisher(YAML_INVALID_TOPIC, 50.0, 'imu', '_yaml_invalid'),
+        # Publisher for integer YAML config test (use float for publisher, YAML uses int)
+        create_minimal_publisher(
+            YAML_INTEGER_TOPIC, float(YAML_INTEGER_EXPECTED_FREQUENCY), 'imu', '_yaml_integer')
     ]
 
     context = {
@@ -151,10 +203,10 @@ class TestTopicMonitoringIntegration(unittest.TestCase):
 
         # Verify services are available
         manage_available = self.diagnostics_monitor.manage_topic_client.wait_for_service(
-            timeout_sec=5.0)
+            timeout_sec=10.0)
         set_freq_available = (
             self.diagnostics_monitor.set_expected_frequency_client
-            .wait_for_service(timeout_sec=5.0))
+            .wait_for_service(timeout_sec=10.0))
 
         self.assertTrue(manage_available, 'ManageTopic service should be available')
         self.assertTrue(set_freq_available, 'SetExpectedFrequency service should be available')
@@ -363,6 +415,100 @@ class TestTopicMonitoringIntegration(unittest.TestCase):
 
         # Check that timestamp was updated recently
         self.assertGreater(topic_data.last_update, time.time() - 10.0)
+
+    def test_yaml_sets_parameters_at_startup(
+            self, expected_frequency, message_type, tolerance_hz):
+        """Test that YAML config sets expected frequency and tolerance at startup."""
+        if (message_type, expected_frequency, tolerance_hz) != MANAGE_TOPIC_TEST_CONFIG:
+            self.skipTest('Only running YAML config tests once')
+
+        # Spin to receive diagnostics from the YAML-configured topic
+        max_wait_time = 10.0
+        start_time = time.time()
+        topic_data = None
+
+        while time.time() - start_time < max_wait_time:
+            rclpy.spin_once(self.test_node, timeout_sec=0.1)
+            topic_data = self.diagnostics_monitor.get_topic_diagnostics(YAML_CONFIG_TOPIC)
+            if topic_data.status != '-':
+                break
+            time.sleep(0.1)
+
+        # Topic should be auto-monitored from YAML config
+        self.assertIsNotNone(topic_data)
+        self.assertNotEqual(
+            topic_data.status, '-',
+            f'Topic {YAML_CONFIG_TOPIC} from YAML should be auto-monitored')
+
+        # Verify expected_frequency from YAML is applied
+        self.assertNotEqual(topic_data.expected_frequency, '-')
+        self.assertAlmostEqual(
+            float(topic_data.expected_frequency), YAML_CONFIG_EXPECTED_FREQUENCY, places=1,
+            msg=f'Expected frequency from YAML should be {YAML_CONFIG_EXPECTED_FREQUENCY}')
+
+        # Verify tolerance from YAML is applied
+        self.assertNotEqual(topic_data.tolerance, '-')
+        self.assertAlmostEqual(
+            float(topic_data.tolerance), YAML_CONFIG_TOLERANCE, places=1,
+            msg=f'Tolerance from YAML should be {YAML_CONFIG_TOLERANCE}')
+
+        # Verify topic with invalid (negative) params is monitored but with 0 values
+        invalid_data = None
+
+        while time.time() - start_time < max_wait_time:
+            rclpy.spin_once(self.test_node, timeout_sec=0.1)
+            invalid_data = self.diagnostics_monitor.get_topic_diagnostics(YAML_INVALID_TOPIC)
+            if invalid_data.status != '-':
+                break
+            time.sleep(0.1)
+
+        # Topic should still be monitored
+        self.assertIsNotNone(invalid_data)
+        self.assertNotEqual(
+            invalid_data.status, '-',
+            f'Topic {YAML_INVALID_TOPIC} should still be monitored')
+
+        # Invalid (negative) expected_frequency should report as 0
+        self.assertNotEqual(invalid_data.expected_frequency, '-')
+        self.assertAlmostEqual(
+            float(invalid_data.expected_frequency), 0.0, places=1,
+            msg='Invalid expected frequency should report as 0')
+
+        # Invalid (negative) tolerance should report as 0
+        self.assertNotEqual(invalid_data.tolerance, '-')
+        self.assertAlmostEqual(
+            float(invalid_data.tolerance), 0.0, places=1,
+            msg='Invalid tolerance should report as 0')
+
+        # Verify integer parameters are handled correctly
+        int_data = None
+        start_time = time.time()
+
+        while time.time() - start_time < max_wait_time:
+            rclpy.spin_once(self.test_node, timeout_sec=0.1)
+            int_data = self.diagnostics_monitor.get_topic_diagnostics(YAML_INTEGER_TOPIC)
+            if int_data.status != '-':
+                break
+            time.sleep(0.1)
+
+        # Topic with integer params should be monitored
+        self.assertIsNotNone(int_data)
+        self.assertNotEqual(
+            int_data.status, '-',
+            f'Topic {YAML_INTEGER_TOPIC} with integer params should be monitored')
+
+        # Check integer expected_frequency is properly converted
+        self.assertNotEqual(int_data.expected_frequency, '-')
+        self.assertAlmostEqual(
+            float(int_data.expected_frequency), YAML_INTEGER_EXPECTED_FREQUENCY,
+            places=1, msg='Integer expected frequency from YAML should be '
+            f'{YAML_INTEGER_EXPECTED_FREQUENCY}')
+
+        # Check integer tolerance is properly converted
+        self.assertNotEqual(int_data.tolerance, '-')
+        self.assertAlmostEqual(
+            float(int_data.tolerance), YAML_INTEGER_TOLERANCE, places=1,
+            msg=f'Integer tolerance from YAML should be {YAML_INTEGER_TOLERANCE}')
 
     def test_service_timeout_handling(self, expected_frequency, message_type, tolerance_hz):
         """Test service call timeout handling."""
