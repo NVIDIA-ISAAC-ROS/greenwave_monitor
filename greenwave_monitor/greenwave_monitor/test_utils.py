@@ -27,6 +27,7 @@ import launch_ros
 import rclpy
 from rclpy.node import Node
 
+
 # Test configurations for various message types and frequencies
 # (message_type, expected_frequency, tolerance_hz)
 # NOTE: Tolerances and frequencies are set conservatively for reliable operation
@@ -47,20 +48,23 @@ MONITOR_NODE_NAME = 'test_greenwave_monitor'
 MONITOR_NODE_NAMESPACE = 'test_namespace'
 
 
-def create_minimal_publisher(topic: str,
-                             frequency_hz: float,
-                             message_type: str,
-                             id_suffix: str = ''):
+def create_minimal_publisher(
+        topic: str,
+        frequency_hz: float,
+        message_type: str,
+        id_suffix: str = ''):
     """Create a minimal publisher node with the given parameters."""
-    return launch_ros.actions.Node(package='greenwave_monitor',
-                                   executable='minimal_publisher_node',
-                                   name=f'minimal_publisher_node{id_suffix}',
-                                   parameters=[{
-                                       'topic': topic,
-                                       'frequency_hz': frequency_hz,
-                                       'message_type': message_type
-                                   }],
-                                   output='screen')
+    return launch_ros.actions.Node(
+        package='greenwave_monitor',
+        executable='minimal_publisher_node',
+        name=f'minimal_publisher_node{id_suffix}',
+        parameters=[{
+            'topic': topic,
+            'frequency_hz': frequency_hz,
+            'message_type': message_type
+        }],
+        output='screen'
+    )
 
 
 def create_monitor_node(namespace: str = MONITOR_NODE_NAMESPACE,
@@ -93,12 +97,12 @@ def wait_for_service_connection(node: Node,
     return service_available
 
 
-def call_manage_topic_service(
-        node: Node,
-        service_client,
-        add: bool,
-        topic: str,
-        timeout_sec: float = 8.0) -> Optional[ManageTopic.Response]:
+def call_manage_topic_service(node: Node,
+                              service_client,
+                              add: bool,
+                              topic: str,
+                              timeout_sec: float = 8.0
+                              ) -> Optional[ManageTopic.Response]:
     """Call the manage_topic service with given parameters."""
     request = ManageTopic.Request()
     request.add_topic = add
@@ -114,15 +118,15 @@ def call_manage_topic_service(
     return future.result()
 
 
-def call_set_frequency_service(
-        node: Node,
-        service_client,
-        topic_name: str,
-        expected_hz: float = 0.0,
-        tolerance_percent: float = 0.0,
-        clear: bool = False,
-        add_if_missing: bool = True,
-        timeout_sec: float = 8.0) -> Optional[SetExpectedFrequency.Response]:
+def call_set_frequency_service(node: Node,
+                               service_client,
+                               topic_name: str,
+                               expected_hz: float = 0.0,
+                               tolerance_percent: float = 0.0,
+                               clear: bool = False,
+                               add_if_missing: bool = True,
+                               timeout_sec: float = 8.0
+                               ) -> Optional[SetExpectedFrequency.Response]:
     """Call the set_expected_frequency service with given parameters."""
     request = SetExpectedFrequency.Request()
     request.topic_name = topic_name
@@ -154,8 +158,12 @@ def collect_diagnostics_for_topic(
             if topic_name == status.name:
                 received_diagnostics.append(status)
 
-    subscription = node.create_subscription(DiagnosticArray, '/diagnostics',
-                                            diagnostics_callback, 10)
+    subscription = node.create_subscription(
+        DiagnosticArray,
+        '/diagnostics',
+        diagnostics_callback,
+        10
+    )
 
     end_time = time.time() + timeout_sec
     while time.time() < end_time:
@@ -170,8 +178,9 @@ def collect_diagnostics_for_topic(
 
 
 def find_best_diagnostic(
-    diagnostics: List[DiagnosticStatus], expected_frequency: float,
-    message_type: str
+        diagnostics: List[DiagnosticStatus],
+        expected_frequency: float,
+        message_type: str
 ) -> Tuple[Optional[DiagnosticStatus], Optional[Tuple[float, float, float]]]:
     """Find the diagnostic message with frequency closest to expected."""
     best_status = None
@@ -219,7 +228,8 @@ def find_best_diagnostic(
 
 def verify_diagnostic_values(status: DiagnosticStatus,
                              values: Tuple[float, float, float],
-                             expected_frequency: float, message_type: str,
+                             expected_frequency: float,
+                             message_type: str,
                              tolerance_hz: float) -> List[str]:
     """Verify diagnostic values and return list of assertion errors."""
     errors = []
@@ -236,16 +246,18 @@ def verify_diagnostic_values(status: DiagnosticStatus,
 
     # Check frequency tolerances
     if abs(reported_frequency_node - expected_frequency) > tolerance_hz:
-        errors.append(f'Node frequency {reported_frequency_node} not within '
-                      f'{tolerance_hz} Hz of expected {expected_frequency}')
+        errors.append(
+            f'Node frequency {reported_frequency_node} not within '
+            f'{tolerance_hz} Hz of expected {expected_frequency}')
 
     if message_type == 'string':
         if reported_frequency_msg != 0.0:
             errors.append(
                 f'String message frequency should be 0.0, got {reported_frequency_msg}')
         if not math.isnan(reported_latency_ms):
-            errors.append(f'String latency should be {math.nan}, '
-                          f'got {reported_latency_ms}')
+            errors.append(
+                f'String latency should be {math.nan}, '
+                f'got {reported_latency_ms}')
     else:
         if abs(reported_frequency_msg - expected_frequency) > tolerance_hz:
             errors.append(
@@ -253,18 +265,19 @@ def verify_diagnostic_values(status: DiagnosticStatus,
                 f'{tolerance_hz} Hz of expected {expected_frequency}')
         # Relaxed to 50ms for slow/loaded CI systems (was 10ms)
         if reported_latency_ms > 50:
-            errors.append(f'Latency should be <= 50 ms for non-string types, '
-                          f'got {reported_latency_ms}')
+            errors.append(
+                f'Latency should be <= 50 ms for non-string types, '
+                f'got {reported_latency_ms}')
 
     return errors
 
 
-def create_service_clients(node: Node,
-                           namespace: str = MONITOR_NODE_NAMESPACE,
+def create_service_clients(node: Node, namespace: str = MONITOR_NODE_NAMESPACE,
                            node_name: str = MONITOR_NODE_NAME):
     """Create service clients for the monitor node."""
     manage_topic_client = node.create_client(
-        ManageTopic, f'/{namespace}/{node_name}/manage_topic')
+        ManageTopic, f'/{namespace}/{node_name}/manage_topic'
+    )
 
     set_frequency_client = node.create_client(
         SetExpectedFrequency,

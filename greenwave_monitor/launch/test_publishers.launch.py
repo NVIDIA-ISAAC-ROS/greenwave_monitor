@@ -11,7 +11,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
 """Launch file with minimal publishers for testing the greenwave monitor."""
+
 
 from launch import LaunchDescription
 from launch_ros.actions import Node
@@ -24,42 +26,35 @@ def generate_launch_description():
             executable='minimal_publisher_node',
             name='minimal_publisher1',
             output='log',
-            parameters=[{
-                'topic': 'imu_topic',
-                'frequency_hz': 100.0
-            }],
+            parameters=[
+                {'topic': 'imu_topic', 'frequency_hz': 100.0}
+            ],
         ),
         Node(
             package='greenwave_monitor',
             executable='minimal_publisher_node',
             name='minimal_publisher2',
             output='log',
-            parameters=[{
-                'topic': 'image_topic',
-                'message_type': 'image',
-                'frequency_hz': 30.0
-            }],
+            parameters=[
+                {'topic': 'image_topic', 'message_type': 'image', 'frequency_hz': 30.0}
+            ],
         ),
         Node(
             package='greenwave_monitor',
             executable='minimal_publisher_node',
             name='minimal_publisher3',
             output='log',
-            parameters=[{
-                'topic': 'string_topic',
-                'message_type': 'string',
-                'frequency_hz': 1000.0
-            }],
+            parameters=[
+                {'topic': 'string_topic', 'message_type': 'string', 'frequency_hz': 1000.0}
+            ],
         ),
         Node(
             package='greenwave_monitor',
             executable='minimal_publisher_node',
             name='minimal_publisher4',
             output='log',
-            parameters=[{
-                'topic': 'slow_string_topic',
-                'message_type': 'string',
-                'frequency_hz': 0.5
-            }],
+            parameters=[
+                {'topic': 'slow_string_topic', 'message_type': 'string', 'frequency_hz': 0.5}
+            ],
         ),
     ])

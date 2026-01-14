@@ -16,6 +16,7 @@
 # limitations under the License.
 #
 # SPDX-License-Identifier: Apache-2.0
+
 """Tests for ncurses frontend argument parsing."""
 
 from greenwave_monitor.ncurses_frontend import parse_args
@@ -37,7 +38,8 @@ class TestParseArgs:
     def test_ros_args_passthrough(self):
         """Test that ROS arguments are passed through."""
         parsed_args, ros_args = parse_args(
-            ['--hide-unmonitored', '--ros-args', '-r', '__node:=my_node'])
+            ['--hide-unmonitored', '--ros-args', '-r', '__node:=my_node']
+        )
         assert parsed_args.hide_unmonitored is True
         assert '--ros-args' in ros_args
         assert '-r' in ros_args
