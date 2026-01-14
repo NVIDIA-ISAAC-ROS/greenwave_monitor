@@ -209,12 +209,12 @@ def curses_main(stdscr, node):
 
         # Draw header
         header = (
-            f'{
-                "Topic Name":<{MAX_NAME_WIDTH}} {
-                "Status":<{STATUS_WIDTH}} ' f'{
-                "Pub Rate (Hz)":<{FRAME_RATE_WIDTH}} ' f'{
-                    "Latency (ms)":<{REALTIME_DELAY_WIDTH}} {
-                        "Expected Hz":<12}')
+            f'{"Topic Name":<{MAX_NAME_WIDTH}} '
+            f'{"Status":<{STATUS_WIDTH}} '
+            f'{"Pub Rate (Hz)":<{FRAME_RATE_WIDTH}} '
+            f'{"Latency (ms)":<{REALTIME_DELAY_WIDTH}} '
+            f'{"Expected Hz":<12}'
+        )
         separator_width = min(
             width -
             BUTTON_WIDTH -
