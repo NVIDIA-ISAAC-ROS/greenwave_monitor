@@ -123,7 +123,8 @@ class GreenwaveUiAdaptor:
             DiagnosticArray, '/diagnostics', self._on_diagnostics, 100)
 
         manage_service_name = f'{self.monitor_node_name}/manage_topic'
-        set_freq_service_name = f'{self.monitor_node_name}/set_expected_frequency'
+        set_freq_service_name = f'{
+            self.monitor_node_name}/set_expected_frequency'
 
         self.node.get_logger().info(
             f'Connecting to monitor service: {manage_service_name}')
@@ -144,12 +145,14 @@ class GreenwaveUiAdaptor:
 
         This is a temporary hack until NITROS migrates to greenwave_diagnostics.hpp.
         """
-        # If the name starts with '/', it's already just a topic name (Greenwave format)
+        # If the name starts with '/', it's already just a topic name
+        # (Greenwave format)
         if diagnostic_name.startswith('/'):
             return diagnostic_name
 
         # NITROS format: node_name + namespace + "/" + topic_name
-        # Node names cannot contain '/', so the first '/' marks where namespace+topic begins
+        # Node names cannot contain '/', so the first '/' marks where
+        # namespace+topic begins
         idx = diagnostic_name.find('/')
         if idx >= 0:
             return diagnostic_name[idx:]
@@ -164,7 +167,8 @@ class GreenwaveUiAdaptor:
             for status in msg.status:
                 ui_data = UiDiagnosticData.from_status(status)
                 ui_data.last_update = time.time()
-                # Normalize the topic name to handle both NITROS and Greenwave formats
+                # Normalize the topic name to handle both NITROS and Greenwave
+                # formats
                 topic_name = self._extract_topic_name(status.name)
                 self.ui_diagnostics[topic_name] = ui_data
                 try:
@@ -255,8 +259,8 @@ class GreenwaveUiAdaptor:
             if not response.success:
                 action = 'clear' if clear else 'set'
                 self.node.get_logger().error(
-                    f'Failed to {action} expected frequency: {response.message}'
-                )
+                    f'Failed to {action} expected frequency: {
+                        response.message}')
                 return False, response.message
             else:
                 with self.data_lock:

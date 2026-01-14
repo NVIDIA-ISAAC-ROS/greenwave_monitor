@@ -176,7 +176,8 @@ class TestGreenwaveMonitor(unittest.TestCase):
     def check_node_launches_successfully(self):
         """Test that the node launches without errors."""
         # Create a service client to check if the node is ready
-        # Service discovery is more reliable than node discovery in launch_testing
+        # Service discovery is more reliable than node discovery in
+        # launch_testing
         manage_client, set_freq_client = create_service_clients(
             self.test_node, MONITOR_NODE_NAMESPACE, MONITOR_NODE_NAME)
         service_available = wait_for_service_connection(
@@ -251,7 +252,8 @@ class TestGreenwaveMonitor(unittest.TestCase):
                                           service_client=service_client)
         self.assertTrue(response.success)
 
-        # 2. Removing the same topic again should fail because it no longer exists.
+        # 2. Removing the same topic again should fail because it no longer
+        # exists.
         response = self.call_manage_topic(add=False,
                                           topic=TEST_TOPIC,
                                           service_client=service_client)
@@ -267,7 +269,8 @@ class TestGreenwaveMonitor(unittest.TestCase):
         self.verify_diagnostics(TEST_TOPIC, expected_frequency, message_type,
                                 tolerance_hz)
 
-        # 4. Adding the same topic again should fail because it's already monitored.
+        # 4. Adding the same topic again should fail because it's already
+        # monitored.
         response = self.call_manage_topic(add=True,
                                           topic=TEST_TOPIC,
                                           service_client=service_client)

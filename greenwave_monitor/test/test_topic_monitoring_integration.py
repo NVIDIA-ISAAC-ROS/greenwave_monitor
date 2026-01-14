@@ -166,11 +166,13 @@ class TestTopicMonitoringIntegration(unittest.TestCase):
 
     def setUp(self):
         """Set up for each test."""
-        # Create a fresh GreenwaveUiAdaptor instance for each test with proper namespace
+        # Create a fresh GreenwaveUiAdaptor instance for each test with proper
+        # namespace
         self.diagnostics_monitor = GreenwaveUiAdaptor(
             self.test_node, monitor_node_name=MONITOR_NODE_NAME)
 
-        # Allow time for service discovery in test environment (reduced from 2.0s)
+        # Allow time for service discovery in test environment (reduced from
+        # 2.0s)
         time.sleep(1.0)
 
     def tearDown(self):

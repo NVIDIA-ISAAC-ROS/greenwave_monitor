@@ -80,7 +80,6 @@ def generate_launch_description():
 >>>>>>> 3f640d3 (Beginning of linting journey)
         ),
         LogInfo(
-            msg=
-            'Run `ros2 run r2s_gw r2s_gw` in another terminal to see the demo output '
+            msg='Run `ros2 run r2s_gw r2s_gw` in another terminal to see the demo output '
             'with the r2s dashboard.'),
     ])

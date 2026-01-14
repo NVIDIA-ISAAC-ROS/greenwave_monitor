@@ -104,7 +104,8 @@ class GreenwaveNcursesFrontend(Node):
         all_topic_names = list(self.all_topics)
 
         if self.hide_unmonitored and self.ui_adaptor:
-            # Filter to only show topics that have diagnostic data (are being monitored)
+            # Filter to only show topics that have diagnostic data (are being
+            # monitored)
             filtered_topics = []
             for topic_name in all_topic_names:
                 diag = self.ui_adaptor.get_topic_diagnostics(topic_name)

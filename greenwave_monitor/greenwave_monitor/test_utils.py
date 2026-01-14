@@ -89,8 +89,7 @@ def wait_for_service_connection(node: Node,
         timeout_sec=timeout_sec)
     if not service_available:
         node.get_logger().error(
-            f'Service "{service_name}" not available within {timeout_sec} seconds'
-        )
+            f'Service "{service_name}" not available within {timeout_sec} seconds')
     return service_available
 
 
@@ -243,8 +242,7 @@ def verify_diagnostic_values(status: DiagnosticStatus,
     if message_type == 'string':
         if reported_frequency_msg != 0.0:
             errors.append(
-                f'String message frequency should be 0.0, got {reported_frequency_msg}'
-            )
+                f'String message frequency should be 0.0, got {reported_frequency_msg}')
         if not math.isnan(reported_latency_ms):
             errors.append(f'String latency should be {math.nan}, '
                           f'got {reported_latency_ms}')
