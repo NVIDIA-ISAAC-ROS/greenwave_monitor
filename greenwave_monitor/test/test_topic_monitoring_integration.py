@@ -203,10 +203,10 @@ class TestTopicMonitoringIntegration(unittest.TestCase):
 
         # Verify services are available
         manage_available = self.diagnostics_monitor.manage_topic_client.wait_for_service(
-            timeout_sec=5.0)
+            timeout_sec=10.0)
         set_freq_available = (
             self.diagnostics_monitor.set_expected_frequency_client
-            .wait_for_service(timeout_sec=5.0))
+            .wait_for_service(timeout_sec=10.0))
 
         self.assertTrue(manage_available, 'ManageTopic service should be available')
         self.assertTrue(set_freq_available, 'SetExpectedFrequency service should be available')

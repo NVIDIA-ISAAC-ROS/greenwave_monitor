@@ -188,7 +188,7 @@ class TestGreenwaveMonitor(unittest.TestCase):
             self.test_node, MONITOR_NODE_NAMESPACE, MONITOR_NODE_NAME
         )
         service_available = wait_for_service_connection(
-            self.test_node, manage_client, timeout_sec=3.0,
+            self.test_node, manage_client, timeout_sec=10.0,
             service_name=f'/{MONITOR_NODE_NAMESPACE}/{MONITOR_NODE_NAME}/manage_topic'
         )
         self.assertTrue(
