@@ -57,7 +57,16 @@ def generate_launch_description():
             executable='greenwave_monitor',
             name='greenwave_monitor',
             output='log',
-            parameters=[config_file, {'topics': ['/string_topic']}],
+            # Example of inline parameter settings
+            # parameters=[{
+            #     'topics': ['/string_topic'],
+            #     'greenwave_diagnostics': {
+            #         '/imu_topic': {'expected_frequency': 100.0, 'tolerance': 10.0},
+            #         '/image_topic': {'expected_frequency': 0.0, 'tolerance': -10.0}
+            #     }
+            # }],
+            # Example of using a config file
+            parameters=[config_file],
         ),
         LogInfo(
             msg='Run `ros2 run r2s_gw r2s_gw` in another terminal to see the demo output '

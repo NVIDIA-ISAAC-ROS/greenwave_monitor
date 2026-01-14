@@ -235,7 +235,7 @@ public:
       values.push_back(
         diagnostic_msgs::build<diagnostic_msgs::msg::KeyValue>()
         .key("expected_frequency")
-        .value(std::to_string(frequency_)));
+        .value(std::to_string(expected_frequency_)));
       values.push_back(
         diagnostic_msgs::build<diagnostic_msgs::msg::KeyValue>()
         .key("tolerance")
@@ -299,7 +299,7 @@ public:
 
     const int64_t expected_dt_us =
       static_cast<int64_t>(greenwave_diagnostics::constants::kSecondsToMicroseconds / expected_hz);
-    frequency_ = expected_hz;
+    expected_frequency_ = expected_hz;
     diagnostics_config_.expected_dt_us = expected_dt_us;
 
     const int tolerance_us =
@@ -318,7 +318,7 @@ public:
     diagnostics_config_.expected_dt_us = 0;
     diagnostics_config_.jitter_tolerance_us = 0;
 
-    frequency_ = 0.0;
+    expected_frequency_ = 0.0;
     tolerance_ = 0.0;
   }
 
@@ -505,7 +505,7 @@ private:
     return error_found;
   }
 
-  double frequency_{0.0};
+  double expected_frequency_{0.0};
   double tolerance_{0.0};
 };
 

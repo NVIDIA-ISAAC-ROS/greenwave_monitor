@@ -431,6 +431,10 @@ void GreenwaveMonitor::add_topics_from_parameters()
       tolerance = get_double_param(tol_param);
       // Default to 0 if tolerance is negative
       if (tolerance < 0.0) {
+        RCLCPP_WARN(
+          this->get_logger(),
+          "Invalid tolerance for topic '%s', clamping to 0.0",
+          topic.c_str());
         tolerance = 0.0;
       }
     }

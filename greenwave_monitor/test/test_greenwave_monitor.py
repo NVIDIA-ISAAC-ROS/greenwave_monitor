@@ -49,23 +49,46 @@ from rclpy.node import Node
 # Temp directory auto-cleans when garbage collected or process exits
 _temp_dir = tempfile.TemporaryDirectory()
 
+TEST_TOPIC = '/test_topic'
+TEST_TOPIC1 = '/test_topic1'
+TEST_TOPIC2 = '/test_topic2'
+
+VALID_PARAMS_TOPIC = '/test_topic_valid_parameters'
+VALID_PARAMS_EXPECTED_FREQUENCY = 100.0
+VALID_PARAMS_TOLERANCE = 10.0
+
+INVALID_PARAMS_TOPIC = '/test_topic_invalid_parameters'
+INVALID_PARAMS_EXPECTED_FREQUENCY = -10.0
+INVALID_PARAMS_TOLERANCE = -10.0
+
+INTEGER_PARAMS_TOPIC = '/test_topic_integer_params'
+INTEGER_PARAMS_EXPECTED_FREQUENCY = 50
+INTEGER_PARAMS_TOLERANCE = 5
+
+NONEXISTENT_TOPIC = '/test_topic_nonexistent'
+NONEXISTENT_EXPECTED_FREQUENCY = 10.0
+NONEXISTENT_TOLERANCE = 1.0
+
 
 def create_test_yaml_config():
     """Create a temporary YAML config file for testing parameter loading."""
     # Use /** wildcard to match any namespace/node name
-    yaml_content = """\
+    yaml_content = f"""\
 /**:
   ros__parameters:
     greenwave_diagnostics:
-      /test_topic_valid_expected_frequency:
-        expected_frequency: 100.0
-        tolerance: 10.0
-      /test_topic_invalid_parameters:
-        expected_frequency: -10.0
-        tolerance: -10.0
-      /test_topic_integer_params:
-        expected_frequency: 50
-        tolerance: 5
+      {VALID_PARAMS_TOPIC}:
+        expected_frequency: {VALID_PARAMS_EXPECTED_FREQUENCY}
+        tolerance: {VALID_PARAMS_TOLERANCE}
+      {INVALID_PARAMS_TOPIC}:
+        expected_frequency: {INVALID_PARAMS_EXPECTED_FREQUENCY}
+        tolerance: {INVALID_PARAMS_TOLERANCE}
+      {INTEGER_PARAMS_TOPIC}:
+        expected_frequency: {INTEGER_PARAMS_EXPECTED_FREQUENCY}
+        tolerance: {INTEGER_PARAMS_TOLERANCE}
+      {NONEXISTENT_TOPIC}:
+        expected_frequency: {NONEXISTENT_EXPECTED_FREQUENCY}
+        tolerance: {NONEXISTENT_TOLERANCE}
 """
     filepath = os.path.join(_temp_dir.name, 'test_config.yaml')
     with open(filepath, 'w') as f:
@@ -90,19 +113,19 @@ def generate_test_description(message_type, expected_frequency, tolerance_hz):
     # Create publishers
     publishers = [
         # Main test topic publisher with parametrized frequency
-        create_minimal_publisher('/test_topic', expected_frequency, message_type),
+        create_minimal_publisher(TEST_TOPIC, expected_frequency, message_type),
         # Additional publishers for topic management tests
-        create_minimal_publisher('/test_topic1', expected_frequency, message_type, '1'),
-        create_minimal_publisher('/test_topic2', expected_frequency, message_type, '2'),
+        create_minimal_publisher(TEST_TOPIC1, expected_frequency, message_type, '1'),
+        create_minimal_publisher(TEST_TOPIC2, expected_frequency, message_type, '2'),
         # Publisher for YAML configuration tests
         create_minimal_publisher(
-            '/test_topic_valid_expected_frequency',
+            {VALID_PARAMS_TOPIC},
             expected_frequency, message_type, '_valid_expected_frequency'),
         create_minimal_publisher(
-            '/test_topic_integer_params',
-            50.0, message_type, '_integer_params'),
+            {INTEGER_PARAMS_TOPIC},
+            expected_frequency, message_type, '_integer_params'),
         create_minimal_publisher(
-            '/test_topic_invalid_parameters',
+            {INVALID_PARAMS_TOPIC},
             expected_frequency, message_type, '_invalid_expected_frequency')
     ]
 
@@ -206,7 +229,7 @@ class TestGreenwaveMonitor(unittest.TestCase):
         """Test that the monitor node correctly tracks different frequencies."""
         # This test runs for all configurations to verify frequency monitoring
         self.check_node_launches_successfully()
-        self.verify_diagnostics('/test_topic', expected_frequency, message_type, tolerance_hz)
+        self.verify_diagnostics(TEST_TOPIC, expected_frequency, message_type, tolerance_hz)
 
     def call_manage_topic(self, add, topic, service_client):
         """Service call helper."""
@@ -222,8 +245,6 @@ class TestGreenwaveMonitor(unittest.TestCase):
             self.skipTest('Only running manage topic tests once')
 
         service_client = self.check_node_launches_successfully()
-
-        TEST_TOPIC = '/test_topic'
 
         # 1. Remove an existing topic – should succeed on first attempt.
         response = self.call_manage_topic(
@@ -255,18 +276,14 @@ class TestGreenwaveMonitor(unittest.TestCase):
 
         service_client = self.check_node_launches_successfully()
 
-        TEST_TOPIC1 = '/test_topic1'
-        TEST_TOPIC2 = '/test_topic2'
-
         # Allow some time for topic discovery
         end_time = time.time() + 1.0
         while time.time() < end_time:
             rclpy.spin_once(self.test_node, timeout_sec=0.1)
 
         # Try to add a non-existent topic - should fail
-        nonexistent_topic = '/test/nonexistent_topic'
         response = self.call_manage_topic(
-            add=True, topic=nonexistent_topic, service_client=service_client)
+            add=True, topic=NONEXISTENT_TOPIC, service_client=service_client)
         self.assertFalse(response.success)
 
         # 1. Add first topic – should succeed.
@@ -297,24 +314,21 @@ class TestGreenwaveMonitor(unittest.TestCase):
 
         self.check_node_launches_successfully()
 
-        # Topic defined in test_config.yaml with valid expected_frequency
-        YAML_TOPIC = '/test_topic_valid_expected_frequency'
-
         # Collect diagnostics - topic should already be monitored from YAML
         received_diagnostics = collect_diagnostics_for_topic(
-            self.test_node, YAML_TOPIC, expected_count=3, timeout_sec=10.0
+            self.test_node, VALID_PARAMS_TOPIC, expected_count=3, timeout_sec=10.0
         )
 
         self.assertGreaterEqual(
             len(received_diagnostics), 1,
-            f'Topic {YAML_TOPIC} from YAML should be auto-monitored'
+            f'Topic {VALID_PARAMS_TOPIC} from YAML should be auto-monitored'
         )
 
         # Verify the expected_frequency from YAML (100.0) is applied
         best_status, _ = find_best_diagnostic(
-            received_diagnostics, 100.0, message_type
+            received_diagnostics, VALID_PARAMS_EXPECTED_FREQUENCY, message_type
         )
-        self.assertIsNotNone(best_status, f'Did not find diagnostics for {YAML_TOPIC}')
+        self.assertIsNotNone(best_status, f'Did not find diagnostics for {VALID_PARAMS_TOPIC}')
 
         # Extract values from diagnostic status
         diag_values = {kv.key: kv.value for kv in best_status.values}
@@ -322,60 +336,58 @@ class TestGreenwaveMonitor(unittest.TestCase):
         # Check that expected_frequency was set from YAML
         self.assertIn('expected_frequency', diag_values)
         self.assertAlmostEqual(
-            float(diag_values['expected_frequency']), 100.0, places=1,
+            float(diag_values['expected_frequency']), VALID_PARAMS_EXPECTED_FREQUENCY, places=1,
             msg='Expected frequency from YAML should be 100.0'
         )
 
         # Verify the tolerance from YAML (10.0) is applied
         self.assertIn('tolerance', diag_values)
         self.assertAlmostEqual(
-            float(diag_values['tolerance']), 10.0, places=1,
+            float(diag_values['tolerance']), VALID_PARAMS_TOLERANCE, places=1,
             msg='Tolerance from YAML should be 10.0'
         )
 
         # Verify integer parameters are handled correctly
-        INT_TOPIC = '/test_topic_integer_params'
         int_diagnostics = collect_diagnostics_for_topic(
-            self.test_node, INT_TOPIC, expected_count=3, timeout_sec=10.0
+            self.test_node, INTEGER_PARAMS_TOPIC, expected_count=3, timeout_sec=10.0
         )
         self.assertGreaterEqual(
             len(int_diagnostics), 1,
-            f'Topic {INT_TOPIC} with integer params should be monitored'
+            f'Topic {INTEGER_PARAMS_TOPIC} with integer params should be monitored'
         )
 
-        int_status, _ = find_best_diagnostic(int_diagnostics, 50.0, message_type)
-        self.assertIsNotNone(int_status, f'Did not find diagnostics for {INT_TOPIC}')
+        int_status, _ = find_best_diagnostic(int_diagnostics, INTEGER_PARAMS_EXPECTED_FREQUENCY, message_type)
+        self.assertIsNotNone(int_status, f'Did not find diagnostics for {INTEGER_PARAMS_TOPIC}')
 
         int_values = {kv.key: kv.value for kv in int_status.values}
 
         # Check integer expected_frequency (50) is properly converted
         self.assertIn('expected_frequency', int_values)
         self.assertAlmostEqual(
-            float(int_values['expected_frequency']), 50.0, places=1,
+            float(int_values['expected_frequency']), INTEGER_PARAMS_EXPECTED_FREQUENCY, places=1,
             msg='Integer expected frequency from YAML should be 50'
         )
 
         # Check integer tolerance (5) is properly converted
         self.assertIn('tolerance', int_values)
         self.assertAlmostEqual(
-            float(int_values['tolerance']), 5.0, places=1,
+            float(int_values['tolerance']), INTEGER_PARAMS_TOLERANCE, places=1,
             msg='Integer tolerance from YAML should be 5'
         )
 
         # Verify topic with invalid (negative) params is monitored but with 0 values
-        invalid_topic = '/test_topic_invalid_parameters'
         invalid_diagnostics = collect_diagnostics_for_topic(
-            self.test_node, invalid_topic, expected_count=3, timeout_sec=10.0
+            self.test_node, INVALID_PARAMS_TOPIC, expected_count=3, timeout_sec=10.0
         )
         self.assertGreaterEqual(
             len(invalid_diagnostics), 1,
-            f'Topic {invalid_topic} should still be monitored'
+            f'Topic {INVALID_PARAMS_TOPIC} should still be monitored'
         )
 
         invalid_status, _ = find_best_diagnostic(
-            invalid_diagnostics, 0.0, message_type)
+            invalid_diagnostics, INVALID_PARAMS_EXPECTED_FREQUENCY, message_type)
         self.assertIsNotNone(
-            invalid_status, f'Did not find diagnostics for {invalid_topic}')
+            invalid_status, f'Did not find diagnostics for {INVALID_PARAMS_TOPIC}')
 
         invalid_values = {kv.key: kv.value for kv in invalid_status.values}
 
@@ -391,6 +403,15 @@ class TestGreenwaveMonitor(unittest.TestCase):
         self.assertAlmostEqual(
             float(invalid_values['tolerance']), 0.0, places=1,
             msg='Invalid tolerance should report as 0'
+        )
+
+        # Verify topic with nonexistent parameters is not monitored
+        nonexistent_diagnostics = collect_diagnostics_for_topic(
+            self.test_node, NONEXISTENT_TOPIC, expected_count=3, timeout_sec=10.0
+        )
+        self.assertEqual(
+            len(nonexistent_diagnostics), 0,
+            f'Topic {NONEXISTENT_TOPIC} should not be monitored'
         )
 
 
