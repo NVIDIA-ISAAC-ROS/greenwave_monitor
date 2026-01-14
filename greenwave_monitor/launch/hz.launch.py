@@ -21,18 +21,20 @@ from launch_ros.actions import Node
 
 def generate_launch_description():
     return LaunchDescription([
-        DeclareLaunchArgument('topics',
-                              default_value='[""]',
-                              description='List of topics to monitor'),
+        DeclareLaunchArgument(
+            'topics',
+            default_value='[""]',
+            description='List of topics to monitor'
+        ),
         DeclareLaunchArgument('use_sim_time', default_value='false'),
         Node(
             package='greenwave_monitor',
             executable='greenwave_monitor',
             name='greenwave_monitor',
             output='screen',
-            parameters=[{
-                'topics': LaunchConfiguration('topics'),
-                'use_sim_time': LaunchConfiguration('use_sim_time')
-            }],
+            parameters=[
+                {'topics': LaunchConfiguration('topics'),
+                 'use_sim_time': LaunchConfiguration('use_sim_time')}
+            ],
         ),
     ])

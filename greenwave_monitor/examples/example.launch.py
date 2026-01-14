@@ -24,43 +24,39 @@ def generate_launch_description():
             executable='minimal_publisher_node',
             name='minimal_publisher1',
             output='log',
-            parameters=[{
-                'topic': 'imu_topic',
-                'frequency_hz': 100.0
-            }],
+            parameters=[
+                {'topic': 'imu_topic', 'frequency_hz': 100.0}
+            ],
         ),
         Node(
             package='greenwave_monitor',
             executable='minimal_publisher_node',
             name='minimal_publisher2',
             output='log',
-            parameters=[{
-                'topic': 'image_topic',
-                'message_type': 'image',
-                'frequency_hz': 30.0
-            }],
+            parameters=[
+                {'topic': 'image_topic', 'message_type': 'image', 'frequency_hz': 30.0}
+            ],
         ),
         Node(
             package='greenwave_monitor',
             executable='minimal_publisher_node',
             name='minimal_publisher3',
             output='log',
-            parameters=[{
-                'topic': 'string_topic',
-                'message_type': 'string',
-                'frequency_hz': 1000.0
-            }],
+            parameters=[
+                {'topic': 'string_topic', 'message_type': 'string', 'frequency_hz': 1000.0}
+            ],
         ),
         Node(
             package='greenwave_monitor',
             executable='greenwave_monitor',
             name='greenwave_monitor',
             output='log',
-            parameters=[{
-                'topics': ['/imu_topic', '/image_topic', '/string_topic']
-            }],
+            parameters=[
+                {'topics': ['/imu_topic', '/image_topic', '/string_topic']}
+            ],
         ),
         LogInfo(
             msg='Run `ros2 run r2s_gw r2s_gw` in another terminal to see the demo output '
-            'with the r2s dashboard.'),
+                'with the r2s dashboard.'
+        ),
     ])
