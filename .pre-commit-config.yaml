@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -33,13 +33,11 @@ repos:
   hooks:
     - id: copyright-required
       exclude: '(\.ini|\.json|\.service|__init__\.py|\.md|\.gitkeep|\.conf|LICENSE|\.toml|\.template|\.style\..*|\.gitattributes|\.gitignore|\.editorconfig|\.bash-completion|\.install|\.links|changelog|debian/source/format|.codespellrc|copyright)$'
-- repo: local
+- repo: https://github.com/pocc/pre-commit-hooks
+  rev: v1.3.5
   hooks:
-    - id: ament-uncrustify
-      name: ament-uncrustify
-      entry: uncrustify -c ament_code_style.cfg --replace --no-backup
-      language: system
-      types_or: [c, c++]
+    - id: uncrustify
+      args: [-c, ament_code_style.cfg]
 - repo: https://github.com/codespell-project/codespell
   rev: v2.4.1
   hooks:

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -16,7 +16,6 @@
 # limitations under the License.
 #
 # SPDX-License-Identifier: Apache-2.0
-
 """
 Ncurses-based frontend for Greenwave Monitor.
 
@@ -66,7 +65,8 @@ class GreenwaveNcursesFrontend(Node):
         self.ui_adaptor = GreenwaveUiAdaptor(self)
 
         # Timer to periodically update the topic list
-        self.topic_update_timer = self.create_timer(5.0, self.update_topic_list)
+        self.topic_update_timer = self.create_timer(5.0,
+                                                    self.update_topic_list)
 
         # Initial topic list update
         self.update_topic_list()
@@ -80,10 +80,14 @@ class GreenwaveNcursesFrontend(Node):
             topic_names_and_types = [
                 (topic_name, topic_type)
                 for topic_name, topic_type in topic_names_and_types
-                if (not topic_name.endswith('/nitros')) and ('/nitros/' not in topic_name)
+                if (not topic_name.endswith('/nitros')) and (
+                    '/nitros/' not in topic_name)
             ]
 
-            topic_set = {topic_name for topic_name, topic_type in topic_names_and_types}
+            topic_set = {
+                topic_name
+                for topic_name, topic_type in topic_names_and_types
+            }
 
             with self.topics_lock:
                 # Update topics
@@ -172,7 +176,8 @@ def curses_main(stdscr, node):
             key = -1
 
         # Only redraw if we got input or enough time has passed
-        should_redraw = (key != -1) or (current_time - last_redraw >= redraw_interval)
+        should_redraw = (key != -1) or (current_time - last_redraw
+                                        >= redraw_interval)
 
         if not should_redraw:
             time.sleep(0.01)
@@ -189,9 +194,9 @@ def curses_main(stdscr, node):
         STATUS_WIDTH = 18
         BUTTON_WIDTH = 10
 
-        total_width_needed = (
-            MAX_NAME_WIDTH + 2 * FRAME_RATE_WIDTH + REALTIME_DELAY_WIDTH +
-            STATUS_WIDTH + BUTTON_WIDTH + 5)
+        total_width_needed = (MAX_NAME_WIDTH + 2 * FRAME_RATE_WIDTH +
+                              REALTIME_DELAY_WIDTH + STATUS_WIDTH +
+                              BUTTON_WIDTH + 5)
         if total_width_needed > width:
             scaling_factor = width / total_width_needed
             MAX_NAME_WIDTH = int(MAX_NAME_WIDTH * scaling_factor)
@@ -200,12 +205,13 @@ def curses_main(stdscr, node):
             STATUS_WIDTH = int(STATUS_WIDTH * scaling_factor)
 
         # Draw header
-        header = (f'{"Topic Name":<{MAX_NAME_WIDTH}} {"Status":<{STATUS_WIDTH}} '
-                  f'{"Pub Rate (Hz)":<{FRAME_RATE_WIDTH}} '
-                  f'{"Latency (ms)":<{REALTIME_DELAY_WIDTH}} {"Expected Hz":<12}')
+        header = (
+            f'{"Topic Name":<{MAX_NAME_WIDTH}} {"Status":<{STATUS_WIDTH}} '
+            f'{"Pub Rate (Hz)":<{FRAME_RATE_WIDTH}} '
+            f'{"Latency (ms)":<{REALTIME_DELAY_WIDTH}} {"Expected Hz":<12}')
         separator_width = min(
-            width - BUTTON_WIDTH - 2,
-            MAX_NAME_WIDTH + FRAME_RATE_WIDTH + REALTIME_DELAY_WIDTH + STATUS_WIDTH + 12 + 4)
+            width - BUTTON_WIDTH - 2, MAX_NAME_WIDTH + FRAME_RATE_WIDTH +
+            REALTIME_DELAY_WIDTH + STATUS_WIDTH + 12 + 4)
         separator = '-' * separator_width
 
         try:
@@ -221,13 +227,15 @@ def curses_main(stdscr, node):
                 input_mode = None
                 input_buffer = ''
             elif key == 10 or key == 13:  # Enter
-                if input_mode == 'frequency' and 0 <= selected_row < len(node.visible_topics):
+                if input_mode == 'frequency' and 0 <= selected_row < len(
+                        node.visible_topics):
                     topic_name = node.visible_topics[selected_row]
                     try:
                         parts = input_buffer.strip().split()
                         if len(parts) >= 1:
                             hz = float(parts[0])
-                            tolerance = float(parts[1]) if len(parts) > 1 else 5.0
+                            tolerance = float(
+                                parts[1]) if len(parts) > 1 else 5.0
                             success, msg = node.ui_adaptor.set_expected_frequency(
                                 topic_name, hz, tolerance)
                             status_message = f'Set frequency for {topic_name}: {hz}Hz'
@@ -252,7 +260,8 @@ def curses_main(stdscr, node):
                     start_idx = selected_row
             elif key == curses.KEY_DOWN:
                 if len(node.visible_topics) > 0:
-                    selected_row = min(len(node.visible_topics) - 1, selected_row + 1)
+                    selected_row = min(
+                        len(node.visible_topics) - 1, selected_row + 1)
                 if selected_row >= start_idx + (height - 5):
                     start_idx = min(
                         len(node.visible_topics) - (height - 5),
@@ -264,9 +273,12 @@ def curses_main(stdscr, node):
             elif key == curses.KEY_NPAGE:  # Page Down
                 visible_height = height - 5
                 if len(node.visible_topics) > 0:
-                    start_idx = min(len(node.visible_topics) - visible_height,
-                                    start_idx + visible_height)
-                    selected_row = min(len(node.visible_topics) - 1, selected_row + visible_height)
+                    start_idx = min(
+                        len(node.visible_topics) - visible_height,
+                        start_idx + visible_height)
+                    selected_row = min(
+                        len(node.visible_topics) - 1,
+                        selected_row + visible_height)
             elif key == ord('q') or key == ord('Q'):
                 node.running = False
                 break
@@ -307,11 +319,14 @@ def curses_main(stdscr, node):
             start_idx = 0
         else:
             selected_row = min(selected_row, len(visible_topics) - 1)
-            start_idx = min(start_idx, max(0, len(visible_topics) - (height - 5)))
+            start_idx = min(start_idx,
+                            max(0,
+                                len(visible_topics) - (height - 5)))
             start_idx = max(0, start_idx)
 
         visible_height = height - 5
-        visible_topics_slice = visible_topics[start_idx:start_idx + visible_height]
+        visible_topics_slice = visible_topics[start_idx:start_idx +
+                                              visible_height]
 
         # Draw visible topics
         for idx, topic_name in enumerate(visible_topics_slice):
@@ -330,10 +345,12 @@ def curses_main(stdscr, node):
                     is_monitored = True
                     status_display = diag.status  # Use actual diagnostic status
                     frame_rate_node = (diag.pub_rate.ljust(FRAME_RATE_WIDTH)
-                                       if diag.pub_rate != '-' else 'N/A'.ljust(FRAME_RATE_WIDTH))
+                                       if diag.pub_rate != '-' else
+                                       'N/A'.ljust(FRAME_RATE_WIDTH))
                     current_delay_from_realtime_ms = (
                         diag.latency.ljust(REALTIME_DELAY_WIDTH)
-                        if diag.latency != '-' else 'N/A'.ljust(REALTIME_DELAY_WIDTH))
+                        if diag.latency != '-' else
+                        'N/A'.ljust(REALTIME_DELAY_WIDTH))
 
                 # Get expected frequency
                 expected_hz, tolerance = node.ui_adaptor.get_expected_frequency(topic_name)
@@ -351,7 +368,8 @@ def curses_main(stdscr, node):
                 elif status_display == 'ERROR':
                     color_pair = curses.color_pair(COLOR_ERROR)
                 else:
-                    color_pair = curses.color_pair(COLOR_OK)  # Default green for monitored
+                    color_pair = curses.color_pair(
+                        COLOR_OK)  # Default green for monitored
             else:
                 color_pair = curses.color_pair(COLOR_UNMONITORED)
 
@@ -359,7 +377,7 @@ def curses_main(stdscr, node):
 
             # Format topic name with truncation
             if len(topic_name) > MAX_NAME_WIDTH:
-                name_display = topic_name[:MAX_NAME_WIDTH-3] + '...'
+                name_display = topic_name[:MAX_NAME_WIDTH - 3] + '...'
             else:
                 name_display = topic_name.ljust(MAX_NAME_WIDTH)
 
@@ -378,8 +396,9 @@ def curses_main(stdscr, node):
                 button_x = width - len(button_text) - 1
 
                 if is_selected:
-                    button_color = (curses.color_pair(COLOR_ERROR) if is_monitored
-                                    else curses.color_pair(COLOR_BUTTON_ADD))
+                    button_color = (curses.color_pair(COLOR_ERROR)
+                                    if is_monitored else
+                                    curses.color_pair(COLOR_BUTTON_ADD))
                 else:
                     button_color = curses.color_pair(COLOR_WARN)
                 stdscr.addstr(idx + 2, button_x, button_text, button_color)
@@ -400,7 +419,7 @@ def curses_main(stdscr, node):
         # Status message
         if current_time < status_timeout:
             try:
-                stdscr.addstr(height - 3, 0, status_message[:width-1],
+                stdscr.addstr(height - 3, 0, status_message[:width - 1],
                               curses.color_pair(COLOR_STATUS_MSG))
             except curses.error:
                 pass
@@ -408,7 +427,7 @@ def curses_main(stdscr, node):
         # Show node status message
         if current_time < node.status_timeout:
             try:
-                stdscr.addstr(height - 3, 0, node.status_message[:width-1],
+                stdscr.addstr(height - 3, 0, node.status_message[:width - 1],
                               curses.color_pair(COLOR_STATUS_MSG))
             except curses.error:
                 pass
@@ -417,7 +436,7 @@ def curses_main(stdscr, node):
         if input_mode:
             try:
                 prompt = f'Set frequency: {input_buffer}'
-                stdscr.addstr(height - 3, 0, prompt[:width-1],
+                stdscr.addstr(height - 3, 0, prompt[:width - 1],
                               curses.color_pair(COLOR_STATUS_MSG))
                 # Position cursor after the input
                 cursor_x = len(prompt)
@@ -430,10 +449,12 @@ def curses_main(stdscr, node):
             curses.curs_set(0)  # Hide cursor when not in input mode
 
         # Footer
-        num_shown = min(start_idx + len(visible_topics_slice), len(visible_topics))
+        num_shown = min(start_idx + len(visible_topics_slice),
+                        len(visible_topics))
         if input_mode:
-            status_line = ("Format: Hz [tolerance%] - Examples: '30' (30Hz±5% default) "
-                           "or '30 10' (30Hz±10%) - ESC=cancel, Enter=confirm")
+            status_line = (
+                "Format: Hz [tolerance%] - Examples: '30' (30Hz±5% default) "
+                "or '30 10' (30Hz±10%) - ESC=cancel, Enter=confirm")
         else:
             if node.hide_unmonitored:
                 mode_text = 'monitored only'
@@ -457,13 +478,10 @@ def curses_main(stdscr, node):
 def parse_args(args=None):
     """Parse command-line arguments."""
     parser = argparse.ArgumentParser(
-        description='Ncurses-based frontend for Greenwave Monitor'
-    )
-    parser.add_argument(
-        '--hide-unmonitored',
-        action='store_true',
-        help='Hide unmonitored topics on initialization'
-    )
+        description='Ncurses-based frontend for Greenwave Monitor')
+    parser.add_argument('--hide-unmonitored',
+                        action='store_true',
+                        help='Hide unmonitored topics on initialization')
     return parser.parse_known_args(args)
 
 
@@ -471,7 +489,8 @@ def main(args=None):
     """Entry point for the ncurses frontend application."""
     parsed_args, ros_args = parse_args(args)
     rclpy.init(args=ros_args)
-    node = GreenwaveNcursesFrontend(hide_unmonitored=parsed_args.hide_unmonitored)
+    node = GreenwaveNcursesFrontend(
+        hide_unmonitored=parsed_args.hide_unmonitored)
     thread = None
 
     def signal_handler(signum, frame):
@@ -483,7 +502,9 @@ def main(args=None):
     signal.signal(signal.SIGTERM, signal_handler)
 
     try:
-        thread = threading.Thread(target=rclpy.spin, args=(node,), daemon=False)
+        thread = threading.Thread(target=rclpy.spin,
+                                  args=(node, ),
+                                  daemon=False)
         thread.start()
         curses.wrapper(curses_main, node)
     except KeyboardInterrupt:
