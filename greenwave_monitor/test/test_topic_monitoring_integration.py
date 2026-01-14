@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2024-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -42,7 +42,9 @@ from rclpy.node import Node
 
 
 @pytest.mark.launch_test
-@launch_testing.parametrize('message_type, expected_frequency, tolerance_hz', TEST_CONFIGURATIONS)
+@launch_testing.parametrize(
+    'message_type, expected_frequency, tolerance_hz',
+    TEST_CONFIGURATIONS)
 def generate_test_description(message_type, expected_frequency, tolerance_hz):
     """Generate launch description for topic monitoring tests."""
     # Launch the greenwave_monitor
@@ -54,12 +56,24 @@ def generate_test_description(message_type, expected_frequency, tolerance_hz):
     # Create publishers for testing
     publishers = [
         # Main test topic publisher with parametrized frequency
-        create_minimal_publisher('/test_topic', expected_frequency, message_type),
+        create_minimal_publisher(
+            '/test_topic',
+            expected_frequency,
+            message_type),
         # Additional publishers for topic management tests
-        create_minimal_publisher('/test_topic1', expected_frequency, message_type, '1'),
-        create_minimal_publisher('/test_topic2', expected_frequency, message_type, '2'),
+        create_minimal_publisher(
+            '/test_topic1',
+            expected_frequency,
+            message_type,
+            '1'),
+        create_minimal_publisher(
+            '/test_topic2',
+            expected_frequency,
+            message_type,
+            '2'),
         # Publisher for service discovery tests
-        create_minimal_publisher('/discovery_test_topic', 50.0, 'imu', '_discovery')
+        create_minimal_publisher(
+            '/discovery_test_topic', 50.0, 'imu', '_discovery')
     ]
 
     context = {
@@ -85,7 +99,9 @@ class TestTopicMonitoringPostShutdown(unittest.TestCase):
     def setUpClass(cls):
         """Initialize ROS2 and create test node."""
         rclpy.init()
-        cls.test_node = Node('shutdown_test_node', namespace=MONITOR_NODE_NAMESPACE)
+        cls.test_node = Node(
+            'shutdown_test_node',
+            namespace=MONITOR_NODE_NAMESPACE)
 
     @classmethod
     def tearDownClass(cls):
@@ -107,7 +123,9 @@ class TestTopicMonitoringIntegration(unittest.TestCase):
     def setUpClass(cls):
         """Initialize ROS2 and create test node."""
         rclpy.init()
-        cls.test_node = Node('topic_monitoring_test_node', namespace=MONITOR_NODE_NAMESPACE)
+        cls.test_node = Node(
+            'topic_monitoring_test_node',
+            namespace=MONITOR_NODE_NAMESPACE)
 
     @classmethod
     def tearDownClass(cls):
@@ -117,13 +135,15 @@ class TestTopicMonitoringIntegration(unittest.TestCase):
 
     def setUp(self):
         """Set up for each test."""
-        # Create a fresh GreenwaveUiAdaptor instance for each test with proper namespace
+        # Create a fresh GreenwaveUiAdaptor instance for each test with proper
+        # namespace
         self.diagnostics_monitor = GreenwaveUiAdaptor(
             self.test_node,
             monitor_node_name=MONITOR_NODE_NAME
         )
 
-        # Allow time for service discovery in test environment (reduced from 2.0s)
+        # Allow time for service discovery in test environment (reduced from
+        # 2.0s)
         time.sleep(1.0)
 
     def tearDown(self):
@@ -132,8 +152,10 @@ class TestTopicMonitoringIntegration(unittest.TestCase):
         if hasattr(self, 'diagnostics_monitor'):
             # Clean up ROS components
             try:
-                self.test_node.destroy_subscription(self.diagnostics_monitor.subscription)
-                self.test_node.destroy_client(self.diagnostics_monitor.manage_topic_client)
+                self.test_node.destroy_subscription(
+                    self.diagnostics_monitor.subscription)
+                self.test_node.destroy_client(
+                    self.diagnostics_monitor.manage_topic_client)
                 self.test_node.destroy_client(
                     self.diagnostics_monitor.set_expected_frequency_client)
             except Exception:
@@ -142,12 +164,14 @@ class TestTopicMonitoringIntegration(unittest.TestCase):
     def test_service_discovery_default_namespace(
             self, expected_frequency, message_type, tolerance_hz):
         """Test service discovery with default namespace."""
-        if (message_type, expected_frequency, tolerance_hz) != MANAGE_TOPIC_TEST_CONFIG:
+        if (message_type, expected_frequency,
+                tolerance_hz) != MANAGE_TOPIC_TEST_CONFIG:
             self.skipTest('Only running service discovery tests once')
 
         # The monitor should discover the services automatically
         self.assertIsNotNone(self.diagnostics_monitor.manage_topic_client)
-        self.assertIsNotNone(self.diagnostics_monitor.set_expected_frequency_client)
+        self.assertIsNotNone(
+            self.diagnostics_monitor.set_expected_frequency_client)
 
         # Verify services are available
         manage_available = self.diagnostics_monitor.manage_topic_client.wait_for_service(
@@ -156,12 +180,21 @@ class TestTopicMonitoringIntegration(unittest.TestCase):
             self.diagnostics_monitor.set_expected_frequency_client
             .wait_for_service(timeout_sec=5.0))
 
-        self.assertTrue(manage_available, 'ManageTopic service should be available')
-        self.assertTrue(set_freq_available, 'SetExpectedFrequency service should be available')
+        self.assertTrue(
+            manage_available,
+            'ManageTopic service should be available')
+        self.assertTrue(
+            set_freq_available,
+            'SetExpectedFrequency service should be available')
 
-    def test_diagnostic_data_conversion(self, expected_frequency, message_type, tolerance_hz):
+    def test_diagnostic_data_conversion(
+            self,
+            expected_frequency,
+            message_type,
+            tolerance_hz):
         """Test conversion from DiagnosticStatus to UiDiagnosticData."""
-        if (message_type, expected_frequency, tolerance_hz) != MANAGE_TOPIC_TEST_CONFIG:
+        if (message_type, expected_frequency,
+                tolerance_hz) != MANAGE_TOPIC_TEST_CONFIG:
             self.skipTest('Only running diagnostic conversion tests once')
 
         # Create a mock DiagnosticStatus
@@ -190,7 +223,8 @@ class TestTopicMonitoringIntegration(unittest.TestCase):
     def test_diagnostic_data_conversion_different_levels(
             self, expected_frequency, message_type, tolerance_hz):
         """Test diagnostic status level conversion."""
-        if (message_type, expected_frequency, tolerance_hz) != MANAGE_TOPIC_TEST_CONFIG:
+        if (message_type, expected_frequency,
+                tolerance_hz) != MANAGE_TOPIC_TEST_CONFIG:
             self.skipTest('Only running diagnostic conversion tests once')
 
         status_levels = [
@@ -213,7 +247,8 @@ class TestTopicMonitoringIntegration(unittest.TestCase):
     def test_toggle_topic_monitoring_add_remove(
             self, expected_frequency, message_type, tolerance_hz):
         """Test adding and removing topics from monitoring."""
-        if (message_type, expected_frequency, tolerance_hz) != MANAGE_TOPIC_TEST_CONFIG:
+        if (message_type, expected_frequency,
+                tolerance_hz) != MANAGE_TOPIC_TEST_CONFIG:
             self.skipTest('Only running topic toggle tests once')
 
         test_topic = '/test_topic1'
@@ -231,15 +266,18 @@ class TestTopicMonitoringIntegration(unittest.TestCase):
 
         while time.time() - start_time < max_wait_time:
             rclpy.spin_once(self.test_node, timeout_sec=0.1)
-            topic_data = self.diagnostics_monitor.get_topic_diagnostics(test_topic)
+            topic_data = self.diagnostics_monitor.get_topic_diagnostics(
+                test_topic)
             if topic_data.status != '-':
                 break
             time.sleep(0.1)
 
         # Topic should now have diagnostic data
         self.assertIsNotNone(topic_data)
-        self.assertNotEqual(topic_data.status, '-',
-                            f'Should have received diagnostic data after {max_wait_time}s')
+        self.assertNotEqual(
+            topic_data.status,
+            '-',
+            f'Should have received diagnostic data after {max_wait_time}s')
 
         # Remove topic
         self.diagnostics_monitor.toggle_topic_monitoring(test_topic)
@@ -250,7 +288,8 @@ class TestTopicMonitoringIntegration(unittest.TestCase):
     def test_set_expected_frequency_operations(
             self, expected_frequency, message_type, tolerance_hz):
         """Test setting and clearing expected frequencies."""
-        if (message_type, expected_frequency, tolerance_hz) != MANAGE_TOPIC_TEST_CONFIG:
+        if (message_type, expected_frequency,
+                tolerance_hz) != MANAGE_TOPIC_TEST_CONFIG:
             self.skipTest('Only running frequency setting tests once')
 
         test_topic = '/test_topic2'
@@ -258,7 +297,8 @@ class TestTopicMonitoringIntegration(unittest.TestCase):
         test_tolerance = 15.0
 
         # Initially no expected frequency
-        freq, tolerance = self.diagnostics_monitor.get_expected_frequency(test_topic)
+        freq, tolerance = self.diagnostics_monitor.get_expected_frequency(
+            test_topic)
         self.assertEqual((freq, tolerance), (0.0, 0.0))
 
         # Set expected frequency
@@ -268,7 +308,8 @@ class TestTopicMonitoringIntegration(unittest.TestCase):
         self.assertTrue(success, f'Failed to set frequency: {message}')
 
         # Check that frequency was stored locally
-        freq, tolerance = self.diagnostics_monitor.get_expected_frequency(test_topic)
+        freq, tolerance = self.diagnostics_monitor.get_expected_frequency(
+            test_topic)
         self.assertEqual((freq, tolerance), (test_freq, test_tolerance))
 
         # Clear expected frequency
@@ -278,12 +319,15 @@ class TestTopicMonitoringIntegration(unittest.TestCase):
         self.assertTrue(success, f'Failed to clear frequency: {message}')
 
         # Should be back to defaults
-        freq, tolerance = self.diagnostics_monitor.get_expected_frequency(test_topic)
+        freq, tolerance = self.diagnostics_monitor.get_expected_frequency(
+            test_topic)
         self.assertEqual((freq, tolerance), (0.0, 0.0))
 
-    def test_diagnostic_data_thread_safety(self, expected_frequency, message_type, tolerance_hz):
+    def test_diagnostic_data_thread_safety(
+            self, expected_frequency, message_type, tolerance_hz):
         """Test thread safety of diagnostic data updates."""
-        if (message_type, expected_frequency, tolerance_hz) != MANAGE_TOPIC_TEST_CONFIG:
+        if (message_type, expected_frequency,
+                tolerance_hz) != MANAGE_TOPIC_TEST_CONFIG:
             self.skipTest('Only running thread safety tests once')
 
         test_topic = '/test_topic'
@@ -295,7 +339,8 @@ class TestTopicMonitoringIntegration(unittest.TestCase):
             try:
                 for _ in range(50):
                     # Simulate concurrent diagnostic updates
-                    data = self.diagnostics_monitor.get_topic_diagnostics(test_topic)
+                    data = self.diagnostics_monitor.get_topic_diagnostics(
+                        test_topic)
                     if data.status != '-':
                         update_count += 1
                     time.sleep(0.01)
@@ -325,16 +370,21 @@ class TestTopicMonitoringIntegration(unittest.TestCase):
 
         # Should not have encountered any thread safety issues
         self.assertFalse(error_occurred, 'Thread safety error occurred')
-        self.assertGreater(update_count, 0, 'Should have received some diagnostic updates')
+        self.assertGreater(
+            update_count,
+            0,
+            'Should have received some diagnostic updates')
 
     def test_get_topic_diagnostics_nonexistent_topic(
             self, expected_frequency, message_type, tolerance_hz):
         """Test getting diagnostics for non-existent topic."""
-        if (message_type, expected_frequency, tolerance_hz) != MANAGE_TOPIC_TEST_CONFIG:
+        if (message_type, expected_frequency,
+                tolerance_hz) != MANAGE_TOPIC_TEST_CONFIG:
             self.skipTest('Only running diagnostic retrieval tests once')
 
         # Request diagnostics for non-monitored topic
-        data = self.diagnostics_monitor.get_topic_diagnostics('/nonexistent_topic')
+        data = self.diagnostics_monitor.get_topic_diagnostics(
+            '/nonexistent_topic')
 
         # Should return default values
         expected_default = UiDiagnosticData()
@@ -343,9 +393,11 @@ class TestTopicMonitoringIntegration(unittest.TestCase):
         self.assertEqual(data.latency, expected_default.latency)
         self.assertEqual(data.status, expected_default.status)
 
-    def test_diagnostics_callback_processing(self, expected_frequency, message_type, tolerance_hz):
+    def test_diagnostics_callback_processing(
+            self, expected_frequency, message_type, tolerance_hz):
         """Test that diagnostic callbacks are processed correctly."""
-        if (message_type, expected_frequency, tolerance_hz) != MANAGE_TOPIC_TEST_CONFIG:
+        if (message_type, expected_frequency,
+                tolerance_hz) != MANAGE_TOPIC_TEST_CONFIG:
             self.skipTest('Only running callback processing tests once')
 
         test_topic = '/test_topic'
@@ -364,13 +416,19 @@ class TestTopicMonitoringIntegration(unittest.TestCase):
         # Check that timestamp was updated recently
         self.assertGreater(topic_data.last_update, time.time() - 10.0)
 
-    def test_service_timeout_handling(self, expected_frequency, message_type, tolerance_hz):
+    def test_service_timeout_handling(
+            self,
+            expected_frequency,
+            message_type,
+            tolerance_hz):
         """Test service call timeout handling."""
-        if (message_type, expected_frequency, tolerance_hz) != MANAGE_TOPIC_TEST_CONFIG:
+        if (message_type, expected_frequency,
+                tolerance_hz) != MANAGE_TOPIC_TEST_CONFIG:
             self.skipTest('Only running timeout handling tests once')
 
         # Create a client to a non-existent service
-        fake_client = self.test_node.create_client(ManageTopic, '/nonexistent_service')
+        fake_client = self.test_node.create_client(
+            ManageTopic, '/nonexistent_service')
 
         # Replace the real client temporarily
         original_client = self.diagnostics_monitor.manage_topic_client

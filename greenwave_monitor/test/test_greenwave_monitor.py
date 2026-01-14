@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2024-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -45,7 +45,9 @@ from rclpy.node import Node
 
 
 @pytest.mark.launch_test
-@launch_testing.parametrize('message_type, expected_frequency, tolerance_hz', TEST_CONFIGURATIONS)
+@launch_testing.parametrize(
+    'message_type, expected_frequency, tolerance_hz',
+    TEST_CONFIGURATIONS)
 def generate_test_description(message_type, expected_frequency, tolerance_hz):
     """Generate launch description for greenwave monitor tests."""
     # Launch the greenwave_monitor
@@ -58,10 +60,21 @@ def generate_test_description(message_type, expected_frequency, tolerance_hz):
     # Create publishers
     publishers = [
         # Main test topic publisher with parametrized frequency
-        create_minimal_publisher('/test_topic', expected_frequency, message_type),
+        create_minimal_publisher(
+            '/test_topic',
+            expected_frequency,
+            message_type),
         # Additional publishers for topic management tests
-        create_minimal_publisher('/test_topic1', expected_frequency, message_type, '1'),
-        create_minimal_publisher('/test_topic2', expected_frequency, message_type, '2')
+        create_minimal_publisher(
+            '/test_topic1',
+            expected_frequency,
+            message_type,
+            '1'),
+        create_minimal_publisher(
+            '/test_topic2',
+            expected_frequency,
+            message_type,
+            '2')
     ]
 
     context = {
@@ -118,21 +131,28 @@ class TestGreenwaveMonitor(unittest.TestCase):
     def check_node_launches_successfully(self):
         """Test that the node launches without errors."""
         # Create a service client to check if the node is ready
-        # Service discovery is more reliable than node discovery in launch_testing
+        # Service discovery is more reliable than node discovery in
+        # launch_testing
         manage_client, set_freq_client = create_service_clients(
             self.test_node, MONITOR_NODE_NAMESPACE, MONITOR_NODE_NAME
         )
         service_available = wait_for_service_connection(
-            self.test_node, manage_client, timeout_sec=3.0,
-            service_name=f'/{MONITOR_NODE_NAMESPACE}/{MONITOR_NODE_NAME}/manage_topic'
-        )
+            self.test_node,
+            manage_client,
+            timeout_sec=3.0,
+            service_name=f'/{MONITOR_NODE_NAMESPACE}/{MONITOR_NODE_NAME}/manage_topic')
         self.assertTrue(
             service_available,
             f'Service "/{MONITOR_NODE_NAMESPACE}/{MONITOR_NODE_NAME}/manage_topic" '
             'not available within timeout')
         return manage_client
 
-    def verify_diagnostics(self, topic_name, expected_frequency, message_type, tolerance_hz):
+    def verify_diagnostics(
+            self,
+            topic_name,
+            expected_frequency,
+            message_type,
+            tolerance_hz):
         """Verify diagnostics for a given topic."""
         # Collect diagnostic messages using shared utility
         received_diagnostics = collect_diagnostics_for_topic(
@@ -148,23 +168,36 @@ class TestGreenwaveMonitor(unittest.TestCase):
             received_diagnostics, expected_frequency, message_type
         )
 
-        self.assertIsNotNone(best_status, 'Did not find a diagnostic with all required values')
+        self.assertIsNotNone(
+            best_status,
+            'Did not find a diagnostic with all required values')
         self.assertEqual(topic_name, best_status.name)
 
         # Verify diagnostic values using shared utility
         errors = verify_diagnostic_values(
-            best_status, best_values, expected_frequency, message_type, tolerance_hz
-        )
+            best_status,
+            best_values,
+            expected_frequency,
+            message_type,
+            tolerance_hz)
 
         # Assert no errors occurred
         if errors:
             self.fail(f"Diagnostic verification failed: {'; '.join(errors)}")
 
-    def test_frequency_monitoring(self, expected_frequency, message_type, tolerance_hz):
+    def test_frequency_monitoring(
+            self,
+            expected_frequency,
+            message_type,
+            tolerance_hz):
         """Test that the monitor node correctly tracks different frequencies."""
         # This test runs for all configurations to verify frequency monitoring
         self.check_node_launches_successfully()
-        self.verify_diagnostics('/test_topic', expected_frequency, message_type, tolerance_hz)
+        self.verify_diagnostics(
+            '/test_topic',
+            expected_frequency,
+            message_type,
+            tolerance_hz)
 
     def call_manage_topic(self, add, topic, service_client):
         """Service call helper."""
@@ -174,9 +207,14 @@ class TestGreenwaveMonitor(unittest.TestCase):
         self.assertIsNotNone(response, 'Service call failed or timed out')
         return response
 
-    def test_manage_one_topic(self, expected_frequency, message_type, tolerance_hz):
+    def test_manage_one_topic(
+            self,
+            expected_frequency,
+            message_type,
+            tolerance_hz):
         """Test that add_topic() and remove_topic() work correctly for one topic."""
-        if (message_type, expected_frequency, tolerance_hz) != MANAGE_TOPIC_TEST_CONFIG:
+        if (message_type, expected_frequency,
+                tolerance_hz) != MANAGE_TOPIC_TEST_CONFIG:
             self.skipTest('Only running manage topic tests once')
 
         service_client = self.check_node_launches_successfully()
@@ -188,7 +226,8 @@ class TestGreenwaveMonitor(unittest.TestCase):
             add=False, topic=TEST_TOPIC, service_client=service_client)
         self.assertTrue(response.success)
 
-        # 2. Removing the same topic again should fail because it no longer exists.
+        # 2. Removing the same topic again should fail because it no longer
+        # exists.
         response = self.call_manage_topic(
             add=False, topic=TEST_TOPIC, service_client=service_client)
         self.assertFalse(response.success)
@@ -199,17 +238,28 @@ class TestGreenwaveMonitor(unittest.TestCase):
         self.assertTrue(response.success)
 
         # Verify diagnostics after adding the topic back
-        self.verify_diagnostics(TEST_TOPIC, expected_frequency, message_type, tolerance_hz)
+        self.verify_diagnostics(
+            TEST_TOPIC,
+            expected_frequency,
+            message_type,
+            tolerance_hz)
 
-        # 4. Adding the same topic again should fail because it's already monitored.
+        # 4. Adding the same topic again should fail because it's already
+        # monitored.
         response = self.call_manage_topic(
             add=True, topic=TEST_TOPIC, service_client=service_client)
         self.assertFalse(response.success)
 
-    def test_manage_multiple_topics(self, expected_frequency, message_type, tolerance_hz):
+    def test_manage_multiple_topics(
+            self,
+            expected_frequency,
+            message_type,
+            tolerance_hz):
         """Test that add_topic() and remove_topic() work correctly for multiple topics."""
-        if (message_type, expected_frequency, tolerance_hz) != MANAGE_TOPIC_TEST_CONFIG:
-            self.skipTest('Only running manage topic tests once for 30 hz images')
+        if (message_type, expected_frequency,
+                tolerance_hz) != MANAGE_TOPIC_TEST_CONFIG:
+            self.skipTest(
+                'Only running manage topic tests once for 30 hz images')
 
         service_client = self.check_node_launches_successfully()
 
@@ -233,7 +283,11 @@ class TestGreenwaveMonitor(unittest.TestCase):
         self.assertTrue(response.success)
 
         # Verify diagnostics after adding the first topic
-        self.verify_diagnostics(TEST_TOPIC1, expected_frequency, message_type, tolerance_hz)
+        self.verify_diagnostics(
+            TEST_TOPIC1,
+            expected_frequency,
+            message_type,
+            tolerance_hz)
 
         # 2. Add second topic – should succeed.
         response = self.call_manage_topic(
@@ -241,7 +295,11 @@ class TestGreenwaveMonitor(unittest.TestCase):
         self.assertTrue(response.success)
 
         # Verify diagnostics after adding the second topic
-        self.verify_diagnostics(TEST_TOPIC2, expected_frequency, message_type, tolerance_hz)
+        self.verify_diagnostics(
+            TEST_TOPIC2,
+            expected_frequency,
+            message_type,
+            tolerance_hz)
 
         # 3. Remove first topic – should succeed.
         response = self.call_manage_topic(

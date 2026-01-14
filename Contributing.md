@@ -1,4 +1,4 @@
-We welcome PRs for new features or bugfixes, CI will automatically run automated tests on new PRs. You can also use the scripts/docker-test.sh to debug tests for a particular distribution locally. 
+We welcome PRs for new features or bugfixes, CI will automatically run automated tests on new PRs. You can also use the scripts/docker-test.sh to debug tests for a particular distribution locally.
 
 We require that all contributors "sign-off" on their commits. This certifies that the contribution is your original work, or you have rights to submit it under the same license, or a compatible license.
 
