@@ -12,7 +12,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-exclude: ^third_party/
+exclude: ^(build|install)/
 repos:
 -   repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v6.0.0
@@ -32,12 +32,14 @@ repos:
   rev: 1.6.1
   hooks:
     - id: copyright-required
-      exclude: '(\.ini|\.json|\.service|__init__\.py|\.md|\.gitkeep|\.conf|LICENSE|\.toml|\.template|\.style\..*|\.gitattributes|\.gitignore|\.editorconfig|\.bash-completion|\.install|\.links|changelog|debian/source/format|.codespellrc|copyright)$'
-- repo: https://github.com/pocc/pre-commit-hooks
-  rev: v1.3.5
+      exclude: '(\.ini|\.json|\.service|__init__\.py|\.md|\.gitkeep|\.conf|LICENSE|\.toml|\.template|\.style\..*|\.gitattributes|\.gitignore|\.editorconfig|\.bash-completion|\.install|\.links|changelog|debian/source/format|.codespellrc|copyright|ament_code_style\.cfg|test_pep257\.py|test_flake8\.py|test_copyright\.py)$'
+- repo: local
   hooks:
     - id: uncrustify
-      args: [-c, ament_code_style.cfg]
+      name: uncrustify
+      entry: uncrustify -c ament_code_style.cfg --replace --no-backup
+      language: system
+      types_or: [c, c++]
 - repo: https://github.com/codespell-project/codespell
   rev: v2.4.1
   hooks:
