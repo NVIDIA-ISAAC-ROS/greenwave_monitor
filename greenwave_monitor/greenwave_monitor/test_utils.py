@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2024-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -49,10 +49,7 @@ MONITOR_NODE_NAMESPACE = 'test_namespace'
 
 
 def create_minimal_publisher(
-        topic: str,
-        frequency_hz: float,
-        message_type: str,
-        id_suffix: str = ''):
+        topic: str, frequency_hz: float, message_type: str, id_suffix: str = ''):
     """Create a minimal publisher node with the given parameters."""
     return launch_ros.actions.Node(
         package='greenwave_monitor',
@@ -89,8 +86,7 @@ def wait_for_service_connection(node: Node,
                                 timeout_sec: float = 3.0,
                                 service_name: str = 'service') -> bool:
     """Wait for a service to become available."""
-    service_available = service_client.wait_for_service(
-        timeout_sec=timeout_sec)
+    service_available = service_client.wait_for_service(timeout_sec=timeout_sec)
     if not service_available:
         node.get_logger().error(
             f'Service "{service_name}" not available within {timeout_sec} seconds')
@@ -145,11 +141,10 @@ def call_set_frequency_service(node: Node,
     return future.result()
 
 
-def collect_diagnostics_for_topic(
-        node: Node,
-        topic_name: str,
-        expected_count: int = 5,
-        timeout_sec: float = 10.0) -> List[DiagnosticStatus]:
+def collect_diagnostics_for_topic(node: Node,
+                                  topic_name: str,
+                                  expected_count: int = 5,
+                                  timeout_sec: float = 10.0) -> List[DiagnosticStatus]:
     """Collect diagnostic messages for a specific topic."""
     received_diagnostics = []
 
@@ -181,7 +176,7 @@ def find_best_diagnostic(
         diagnostics: List[DiagnosticStatus],
         expected_frequency: float,
         message_type: str
-) -> Tuple[Optional[DiagnosticStatus], Optional[Tuple[float, float, float]]]:
+        ) -> Tuple[Optional[DiagnosticStatus], Optional[Tuple[float, float, float]]]:
     """Find the diagnostic message with frequency closest to expected."""
     best_status = None
     best_values = None
@@ -205,8 +200,7 @@ def find_best_diagnostic(
         try:
             node_val = float(node_str) if node_str is not None else None
             msg_val = float(msg_str) if msg_str is not None else None
-            latency_val = float(
-                latency_str) if latency_str is not None else None
+            latency_val = float(latency_str) if latency_str is not None else None
         except (ValueError, TypeError):
             continue
 
@@ -241,8 +235,7 @@ def verify_diagnostic_values(status: DiagnosticStatus,
     if reported_frequency_msg == -1.0:
         errors.append("Did not find 'frame_rate_msg' in diagnostic")
     if reported_latency_ms == -1.0:
-        errors.append(
-            "Did not find 'current_delay_from_realtime_ms' in diagnostic")
+        errors.append("Did not find 'current_delay_from_realtime_ms' in diagnostic")
 
     # Check frequency tolerances
     if abs(reported_frequency_node - expected_frequency) > tolerance_hz:
@@ -252,8 +245,7 @@ def verify_diagnostic_values(status: DiagnosticStatus,
 
     if message_type == 'string':
         if reported_frequency_msg != 0.0:
-            errors.append(
-                f'String message frequency should be 0.0, got {reported_frequency_msg}')
+            errors.append(f'String message frequency should be 0.0, got {reported_frequency_msg}')
         if not math.isnan(reported_latency_ms):
             errors.append(
                 f'String latency should be {math.nan}, '
@@ -280,7 +272,7 @@ def create_service_clients(node: Node, namespace: str = MONITOR_NODE_NAMESPACE,
     )
 
     set_frequency_client = node.create_client(
-        SetExpectedFrequency,
-        f'/{namespace}/{node_name}/set_expected_frequency')
+        SetExpectedFrequency, f'/{namespace}/{node_name}/set_expected_frequency'
+    )
 
     return manage_topic_client, set_frequency_client

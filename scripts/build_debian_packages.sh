@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -49,53 +49,55 @@ UBUNTU_DISTRO="${2:-$DEFAULT_UBUNTU_DISTRO}"
 
 # Validate ROS distro
 case "$ROS_DISTRO" in
-humble | iron | jazzy | kilted | rolling) ;;
-*)
-	echo "Error: Unsupported ROS distro: $ROS_DISTRO"
-	echo "Supported distros: humble, iron, jazzy, kilted, rolling"
-	exit 1
-	;;
+  humble|iron|jazzy|kilted|rolling)
+    ;;
+  *)
+    echo "Error: Unsupported ROS distro: $ROS_DISTRO"
+    echo "Supported distros: humble, iron, jazzy, kilted, rolling"
+    exit 1
+    ;;
 esac
 
 # Validate Ubuntu distro
 case "$UBUNTU_DISTRO" in
-jammy | noble) ;;
-*)
-	echo "Error: Unsupported Ubuntu distro: $UBUNTU_DISTRO"
-	echo "Supported distros: jammy, noble"
-	exit 1
-	;;
+  jammy|noble)
+    ;;
+  *)
+    echo "Error: Unsupported Ubuntu distro: $UBUNTU_DISTRO"
+    echo "Supported distros: jammy, noble"
+    exit 1
+    ;;
 esac
 
 echo "Building Debian packages for ROS $ROS_DISTRO on Ubuntu $UBUNTU_DISTRO"
 
 # Check if running in a container (recommended) or warn user
 if [ ! -f "/.dockerenv" ] && [ ! -f "/run/.containerenv" ]; then
-	echo "WARNING: Not running in a container. This script is designed to run in a clean Ubuntu container."
-	echo ""
-	echo "Recommended: Run in Docker with:"
-	echo "  docker run -it --rm -v \$(pwd):/workspace -w /workspace ubuntu:$UBUNTU_DISTRO ./scripts/build_debian_packages.sh $ROS_DISTRO $UBUNTU_DISTRO"
-	echo ""
-	echo "Press Ctrl+C to cancel, or Enter to continue anyway (not recommended)..."
-	read -r
+    echo "WARNING: Not running in a container. This script is designed to run in a clean Ubuntu container."
+    echo ""
+    echo "Recommended: Run in Docker with:"
+    echo "  docker run -it --rm -v \$(pwd):/workspace -w /workspace ubuntu:$UBUNTU_DISTRO ./scripts/build_debian_packages.sh $ROS_DISTRO $UBUNTU_DISTRO"
+    echo ""
+    echo "Press Ctrl+C to cancel, or Enter to continue anyway (not recommended)..."
+    read -r
 fi
 
 # Setup ROS repository if not already configured
 echo "Setting up ROS repository..."
 export DEBIAN_FRONTEND=noninteractive
 export TZ=Etc/UTC
-ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ >/etc/timezone
+ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
 
 apt-get update -qq
 apt-get install -y curl gnupg lsb-release
 
 if [ ! -f "/etc/apt/sources.list.d/ros2.list" ]; then
-	echo "Adding ROS 2 apt repository..."
-	curl -sSL https://raw.githubusercontent.com/ros/rosdistro/master/ros.key -o /usr/share/keyrings/ros-archive-keyring.gpg
-	echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/ros-archive-keyring.gpg] http://packages.ros.org/ros2/ubuntu $(lsb_release -cs) main" >/etc/apt/sources.list.d/ros2.list
-	apt-get update -qq
+    echo "Adding ROS 2 apt repository..."
+    curl -sSL https://raw.githubusercontent.com/ros/rosdistro/master/ros.key -o /usr/share/keyrings/ros-archive-keyring.gpg
+    echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/ros-archive-keyring.gpg] http://packages.ros.org/ros2/ubuntu $(lsb_release -cs) main" > /etc/apt/sources.list.d/ros2.list
+    apt-get update -qq
 else
-	echo "ROS 2 repository already configured"
+    echo "ROS 2 repository already configured"
 fi
 
 # Install dependencies
@@ -104,7 +106,7 @@ echo "Installing build dependencies..."
 # Check if we need --break-system-packages for pip
 USE_BREAK_SYSTEM_PACKAGES=""
 if [[ "$ROS_DISTRO" == "jazzy" || "$ROS_DISTRO" == "kilted" || "$ROS_DISTRO" == "rolling" ]]; then
-	USE_BREAK_SYSTEM_PACKAGES="--break-system-packages"
+    USE_BREAK_SYSTEM_PACKAGES="--break-system-packages"
 fi
 
 # Install system dependencies
@@ -112,13 +114,13 @@ apt-get install -y build-essential python3-pip python3-bloom python3-rosdep git 
 
 # Install Python dependencies
 if [ -f "requirements.txt" ]; then
-	if [ -n "$USE_BREAK_SYSTEM_PACKAGES" ]; then
-		pip3 install $USE_BREAK_SYSTEM_PACKAGES -I pygments -r requirements.txt
-		python3 -m pip install -U $USE_BREAK_SYSTEM_PACKAGES bloom
-	else
-		pip3 install -r requirements.txt
-		python3 -m pip install -U bloom
-	fi
+    if [ -n "$USE_BREAK_SYSTEM_PACKAGES" ]; then
+        pip3 install $USE_BREAK_SYSTEM_PACKAGES -I pygments -r requirements.txt
+        python3 -m pip install -U $USE_BREAK_SYSTEM_PACKAGES bloom
+    else
+        pip3 install -r requirements.txt
+        python3 -m pip install -U bloom
+    fi
 fi
 
 # Initialize rosdep and install all build dependencies
@@ -129,9 +131,9 @@ rosdep install --from-paths . --rosdistro "$ROS_DISTRO" --ignore-src -r -y
 
 # Source ROS environment (now installed via rosdep)
 if [ ! -f "/opt/ros/$ROS_DISTRO/setup.bash" ]; then
-	echo "Error: ROS $ROS_DISTRO not found after rosdep install"
-	echo "This should have been installed by rosdep. Check package.xml dependencies."
-	exit 1
+    echo "Error: ROS $ROS_DISTRO not found after rosdep install"
+    echo "This should have been installed by rosdep. Check package.xml dependencies."
+    exit 1
 fi
 source /opt/ros/$ROS_DISTRO/setup.bash
 
@@ -166,34 +168,34 @@ mkdir -p "$DEBIAN_DIR"
 
 # Function to build a Debian package
 build_debian_package() {
-	local package_name=$1
-	local package_dir=$2
+    local package_name=$1
+    local package_dir=$2
 
-	echo "=================================="
-	echo "Generating Debian package for $package_name..."
-	echo "=================================="
+    echo "=================================="
+    echo "Generating Debian package for $package_name..."
+    echo "=================================="
 
-	cd "$package_dir"
+    cd "$package_dir"
 
-	# Generate debian files and build package
-	bloom-generate rosdebian --ros-distro "$ROS_DISTRO"
-	apt-get build-dep . -y || sudo apt-get build-dep . -y
-	fakeroot debian/rules binary
+    # Generate debian files and build package
+    bloom-generate rosdebian --ros-distro "$ROS_DISTRO"
+    apt-get build-dep . -y || sudo apt-get build-dep . -y
+    fakeroot debian/rules binary
 
-	# Move package to output directory
-	cp ../ros-$ROS_DISTRO-${package_name//_/-}_*.deb "../$DEBIAN_DIR/"
+    # Move package to output directory
+    cp ../ros-$ROS_DISTRO-${package_name//_/-}_*.deb "../$DEBIAN_DIR/"
 
-	cd ..
+    cd ..
 
-	echo "Successfully built $package_name"
+    echo "Successfully built $package_name"
 }
 
 # Function to install a package locally
 install_package() {
-	local package_pattern=$1
-	echo "Installing $package_pattern..."
-	apt-get update || sudo apt-get update
-	apt-get install -y ./$DEBIAN_DIR/$package_pattern || sudo apt-get install -y ./$DEBIAN_DIR/$package_pattern
+    local package_pattern=$1
+    echo "Installing $package_pattern..."
+    apt-get update || sudo apt-get update
+    apt-get install -y ./$DEBIAN_DIR/$package_pattern || sudo apt-get install -y ./$DEBIAN_DIR/$package_pattern
 }
 
 # Build packages in dependency order
@@ -201,18 +203,18 @@ echo "Starting Debian package generation..."
 
 # 1. Build greenwave_monitor_interfaces
 if [ -d "greenwave_monitor_interfaces" ]; then
-	build_debian_package "greenwave_monitor_interfaces" "greenwave_monitor_interfaces"
-	install_package "ros-$ROS_DISTRO-greenwave-monitor-interfaces_*.deb"
+    build_debian_package "greenwave_monitor_interfaces" "greenwave_monitor_interfaces"
+    install_package "ros-$ROS_DISTRO-greenwave-monitor-interfaces_*.deb"
 else
-	echo "Warning: greenwave_monitor_interfaces directory not found, skipping"
+    echo "Warning: greenwave_monitor_interfaces directory not found, skipping"
 fi
 
 # 2. Build greenwave_monitor
 if [ -d "greenwave_monitor" ]; then
-	build_debian_package "greenwave_monitor" "greenwave_monitor"
-	install_package "ros-$ROS_DISTRO-greenwave-monitor_*.deb"
+    build_debian_package "greenwave_monitor" "greenwave_monitor"
+    install_package "ros-$ROS_DISTRO-greenwave-monitor_*.deb"
 else
-	echo "Warning: greenwave_monitor directory not found, skipping"
+    echo "Warning: greenwave_monitor directory not found, skipping"
 fi
 
 # Note: r2s_gw is now a separate repository and not included in debian packages

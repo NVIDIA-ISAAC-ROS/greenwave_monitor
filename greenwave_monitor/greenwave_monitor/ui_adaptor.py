@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -105,10 +105,7 @@ class GreenwaveUiAdaptor:
 
     """
 
-    def __init__(
-            self,
-            node: Node,
-            monitor_node_name: str = 'greenwave_monitor'):
+    def __init__(self, node: Node, monitor_node_name: str = 'greenwave_monitor'):
         """Initialize the UI adaptor for subscribing to diagnostics and managing topics."""
         self.node = node
         self.monitor_node_name = monitor_node_name
@@ -131,8 +128,7 @@ class GreenwaveUiAdaptor:
         manage_service_name = f'{self.monitor_node_name}/manage_topic'
         set_freq_service_name = f'{self.monitor_node_name}/set_expected_frequency'
 
-        self.node.get_logger().info(
-            f'Connecting to monitor service: {manage_service_name}')
+        self.node.get_logger().info(f'Connecting to monitor service: {manage_service_name}')
 
         self.manage_topic_client = self.node.create_client(
             ManageTopic,
@@ -154,14 +150,12 @@ class GreenwaveUiAdaptor:
 
         This is a temporary hack until NITROS migrates to greenwave_diagnostics.hpp.
         """
-        # If the name starts with '/', it's already just a topic name
-        # (Greenwave format)
+        # If the name starts with '/', it's already just a topic name (Greenwave format)
         if diagnostic_name.startswith('/'):
             return diagnostic_name
 
         # NITROS format: node_name + namespace + "/" + topic_name
-        # Node names cannot contain '/', so the first '/' marks where
-        # namespace+topic begins
+        # Node names cannot contain '/', so the first '/' marks where namespace+topic begins
         idx = diagnostic_name.find('/')
         if idx >= 0:
             return diagnostic_name[idx:]
@@ -176,8 +170,7 @@ class GreenwaveUiAdaptor:
             for status in msg.status:
                 ui_data = UiDiagnosticData.from_status(status)
                 ui_data.last_update = time.time()
-                # Normalize the topic name to handle both NITROS and Greenwave
-                # formats
+                # Normalize the topic name to handle both NITROS and Greenwave formats
                 topic_name = self._extract_topic_name(status.name)
                 self.ui_diagnostics[topic_name] = ui_data
                 try:
@@ -205,8 +198,7 @@ class GreenwaveUiAdaptor:
         try:
             # Use asynchronous service call to prevent deadlock
             future = self.manage_topic_client.call_async(request)
-            rclpy.spin_until_future_complete(
-                self.node, future, timeout_sec=3.0)
+            rclpy.spin_until_future_complete(self.node, future, timeout_sec=3.0)
 
             if future.result() is None:
                 action = 'start' if request.add_topic else 'stop'
@@ -239,8 +231,7 @@ class GreenwaveUiAdaptor:
                                clear: bool = False
                                ) -> tuple[bool, str]:
         """Set or clear the expected frequency for a topic."""
-        if not self.set_expected_frequency_client.wait_for_service(
-                timeout_sec=1.0):
+        if not self.set_expected_frequency_client.wait_for_service(timeout_sec=1.0):
             return False, 'Could not connect to set_expected_frequency service.'
 
         request = SetExpectedFrequency.Request()
@@ -253,8 +244,7 @@ class GreenwaveUiAdaptor:
         # Use asynchronous service call to prevent deadlock
         try:
             future = self.set_expected_frequency_client.call_async(request)
-            rclpy.spin_until_future_complete(
-                self.node, future, timeout_sec=3.0)
+            rclpy.spin_until_future_complete(self.node, future, timeout_sec=3.0)
 
             if future.result() is None:
                 action = 'clear' if clear else 'set'
@@ -267,16 +257,14 @@ class GreenwaveUiAdaptor:
             if not response.success:
                 action = 'clear' if clear else 'set'
                 self.node.get_logger().error(
-                    f'Failed to {action} expected frequency: {
-                        response.message}')
+                    f'Failed to {action} expected frequency: {response.message}')
                 return False, response.message
             else:
                 with self.data_lock:
                     if clear:
                         self.expected_frequencies.pop(topic_name, None)
                     else:
-                        self.expected_frequencies[topic_name] = (
-                            expected_hz, tolerance_percent)
+                        self.expected_frequencies[topic_name] = (expected_hz, tolerance_percent)
                 return True, response.message
         except Exception as e:
             action = 'clear' if clear else 'set'
