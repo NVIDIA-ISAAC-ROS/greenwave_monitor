@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2024 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2024-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -176,7 +176,7 @@ def find_best_diagnostic(
         diagnostics: List[DiagnosticStatus],
         expected_frequency: float,
         message_type: str
-        ) -> Tuple[Optional[DiagnosticStatus], Optional[Tuple[float, float, float]]]:
+) -> Tuple[Optional[DiagnosticStatus], Optional[Tuple[float, float, float]]]:
     """Find the diagnostic message with frequency closest to expected."""
     best_status = None
     best_values = None
