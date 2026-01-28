@@ -131,6 +131,7 @@ jobs:
       run: |
         source /opt/ros/${{ matrix.ros_distro }}/setup.bash
         source install/setup.bash
+        ros2 --help
         set -e
         export -p > /tmp/ros_env.sh
         timeout 10s script -qfec "/bin/bash -c 'source /tmp/ros_env.sh && ros2 run greenwave_monitor ncurses_dashboard'" /dev/null <<< $'q'
