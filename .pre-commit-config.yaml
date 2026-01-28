@@ -20,11 +20,6 @@ repos:
     - id: check-yaml
     - id: end-of-file-fixer
     - id: trailing-whitespace
-# - repo: https://github.com/KAUTH/pre-commit-git-checks
-#   rev: 6bceeb7fb9f24270acff72b46979e9298bd60823
-#   hooks:
-#     - id: git-signoff
-#       stages: [commit-msg]
 - repo: https://github.com/hhatto/autopep8
   rev: v2.3.1
   hooks:
@@ -52,7 +47,7 @@ repos:
       language: system
       types_or: [c, c++]
     - id: signed-off-by
-      name: Check commit is signed off
+      name: check commit is signed off
       entry: "bash -c 'grep -q \"^Signed-off-by: \" \"$1\"' --"
       language: system
       stages: [commit-msg]
