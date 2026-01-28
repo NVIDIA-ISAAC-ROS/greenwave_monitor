@@ -64,7 +64,8 @@ If you would like the linter and other checks to run on every commit use [pre-co
 ```
 sudo apt install uncrustify pipx
 pipx install pre-commit
-pre-commit run --all-files  # will also run on every commit now
+pre-commit install --hook-type pre-commit --hook-type commit-msg
+pre-commit run --all-files  # try it out, this will run every commit now
 ```
 
 Every commit now a series of checks will be run to ensure the changes are meeting this repositories requirements.
