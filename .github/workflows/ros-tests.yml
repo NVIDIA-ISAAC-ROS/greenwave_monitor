@@ -27,6 +27,24 @@ env:
   ROS_AUTOMATIC_DISCOVERY_RANGE: LOCALHOST
 
 jobs:
+  pre-commit:
+    name: Pre-commit checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: pre-commit/action@v3.0.1
+      - name: Check commits are signed off
+        uses: gsactions/commit-message-checker@v2
+        with:
+          pattern: 'Signed-off-by: .+'
+          error: 'All commits must include a Signed-off-by line. Use "git commit -s" to sign off.'
+          excludeDescription: true
+          excludeTitle: true
+          checkAllCommitMessages: true
+          accessToken: ${{ secrets.GITHUB_TOKEN }}
+
   test:
     name: Test ROS2 ${{ matrix.ros_distro }}
     runs-on: ubuntu-latest
@@ -52,22 +70,7 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
       with:
-        fetch-depth: 0  # fetch all history to run pre-commit copyright check hooks
         path: greenwave_monitor
-
-    - name: Run pre-commit hooks (linting, sign-off check, copyright check, etc.)
-      run: |
-        apt update && apt install -y pipx git
-        git config --global --add safe.directory "$GITHUB_WORKSPACE/greenwave_monitor"
-        pipx install pre-commit
-        pipx ensurepath
-        source ~/.bashrc
-        pwd
-        pre-commit run --all-files --show-diff-on-failure
-      shell: bash
-      working-directory: greenwave_monitor
-      env:
-        DEBIAN_FRONTEND: noninteractive
 
     - name: Clone r2s_gw repository
       run: |
