@@ -35,15 +35,6 @@ jobs:
         with:
           fetch-depth: 0
       - uses: pre-commit/action@v3.0.1
-      - name: Check commits are signed off
-        uses: gsactions/commit-message-checker@v2
-        with:
-          pattern: 'Signed-off-by: .+'
-          error: 'All commits must include a Signed-off-by line. Use "git commit -s" to sign off.'
-          excludeDescription: true
-          excludeTitle: true
-          checkAllCommitMessages: true
-          accessToken: ${{ secrets.GITHUB_TOKEN }}
 
   test:
     name: Test ROS2 ${{ matrix.ros_distro }}
