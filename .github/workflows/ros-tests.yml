@@ -123,6 +123,7 @@ jobs:
         set -e
         export TERM=xterm
         timeout 10s bash -lc "script -qfec 'ros2 run greenwave_monitor ncurses_dashboard' /dev/null <<< \$'q'"
+        timeout 10s bash -lc "script -qfec 'ros2 run greenwave_monitor ncurses_dashboard --demo' /dev/null <<< \$'q'"
         timeout 10s bash -lc "script -qfec 'ros2 run r2s_gw r2s_gw_dashboard' /dev/null <<< \$'q'"
         timeout 10s bash -lc "script -qfec 'ros2 run r2s_gw r2s_gw_dashboard -- --demo' /dev/null <<< \$'q'"
       shell: bash
