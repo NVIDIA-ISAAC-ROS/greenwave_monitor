@@ -63,6 +63,7 @@ jobs:
         source ~/.bashrc
         pre-commit run --all-files --show-diff-on-failure
       shell: bash
+      working-directory: greenwave_monitor
       env:
         DEBIAN_FRONTEND: noninteractive
 
