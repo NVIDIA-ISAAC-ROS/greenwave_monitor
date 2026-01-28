@@ -94,7 +94,7 @@ jobs:
         curl -sSL https://raw.githubusercontent.com/ros/rosdistro/master/ros.key -o /usr/share/keyrings/ros-archive-keyring.gpg
         echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/ros-archive-keyring.gpg] http://packages.ros.org/ros2/ubuntu $(lsb_release -cs) main" > /etc/apt/sources.list.d/ros2.list
         apt-get update -qq
-        apt-get install -y python3-rosdep python3-colcon-common-extensions build-essential cmake git python3-pip
+        apt-get install -y python3-rosdep python3-colcon-common-extensions build-essential cmake git python3-pip ros-${{ matrix.ros_distro }}-ros-base
       shell: bash
 
     - name: Initialize rosdep and install dependencies
@@ -131,11 +131,13 @@ jobs:
       run: |
         source /opt/ros/${{ matrix.ros_distro }}/setup.bash
         source install/setup.bash
-        ros2 --help
         set -e
-        export -p > /tmp/ros_env.sh
-        timeout 10s script -qfec "/bin/bash -c 'source /tmp/ros_env.sh && ros2 run greenwave_monitor ncurses_dashboard'" /dev/null <<< $'q'
-        timeout 10s script -qfec "/bin/bash -c 'source /tmp/ros_env.sh && ros2 run r2s_gw r2s_gw_dashboard'" /dev/null <<< $'q'
+        # Create wrapper scripts with absolute paths baked in
+        printf '#!/bin/bash\nsource /opt/ros/${{ matrix.ros_distro }}/setup.bash\nsource %s/install/setup.bash\nros2 run greenwave_monitor ncurses_dashboard\n' "$(pwd)" > /tmp/run_gw_dashboard.sh
+        printf '#!/bin/bash\nsource /opt/ros/${{ matrix.ros_distro }}/setup.bash\nsource %s/install/setup.bash\nros2 run r2s_gw r2s_gw_dashboard\n' "$(pwd)" > /tmp/run_r2s_dashboard.sh
+        chmod +x /tmp/run_gw_dashboard.sh /tmp/run_r2s_dashboard.sh
+        timeout 10s script -qfec /tmp/run_gw_dashboard.sh /dev/null <<< $'q'
+        timeout 10s script -qfec /tmp/run_r2s_dashboard.sh /dev/null <<< $'q'
         timeout 5s ros2 launch greenwave_monitor hz.launch.py gw_monitored_topics:='["/topic1", "/topic2"]'
       shell: bash
 
