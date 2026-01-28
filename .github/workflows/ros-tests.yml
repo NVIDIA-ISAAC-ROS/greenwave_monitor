@@ -28,7 +28,7 @@ env:
 
 jobs:
   pre-commit:
-    name: Pre-commit checks
+    name: Pre-commit checks (linting, copyright check, etc.)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
