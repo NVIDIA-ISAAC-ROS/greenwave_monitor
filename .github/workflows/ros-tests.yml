@@ -1,5 +1,5 @@
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -27,6 +27,17 @@ env:
   ROS_AUTOMATIC_DISCOVERY_RANGE: LOCALHOST
 
 jobs:
+  pre-commit:
+    name: Pre-commit checks (linting, copyright check, etc.)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Install dependencies
+        run: sudo apt-get update && sudo apt-get install -y uncrustify git
+      - uses: pre-commit/action@v3.0.1
+
   test:
     name: Test ROS2 ${{ matrix.ros_distro }}
     runs-on: ubuntu-latest

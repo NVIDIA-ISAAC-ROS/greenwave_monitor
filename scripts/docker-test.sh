@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-# Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -27,26 +27,26 @@ DISTRO=${1:-humble}
 
 # Image mapping based on ROS distro
 case $DISTRO in
-    humble)
-        IMAGE="ros:humble-ros-base-jammy"
-        ;;
-    iron)
-        IMAGE="ros:iron-ros-base-jammy"
-        ;;
-    jazzy)
-        IMAGE="ros:jazzy-ros-base-noble"
-        ;;
-    kilted)
-        IMAGE="ros:kilted-ros-base-noble"
-        ;;
-    rolling)
-        IMAGE="ros:rolling-ros-base-noble"
-        ;;
-    *)
-        echo "Unsupported ROS 2 distribution: $DISTRO"
-        echo "Supported: humble, iron, jazzy, kilted, rolling"
-        exit 1
-        ;;
+humble)
+	IMAGE="ros:humble-ros-base-jammy"
+	;;
+iron)
+	IMAGE="ros:iron-ros-base-jammy"
+	;;
+jazzy)
+	IMAGE="ros:jazzy-ros-base-noble"
+	;;
+kilted)
+	IMAGE="ros:kilted-ros-base-noble"
+	;;
+rolling)
+	IMAGE="ros:rolling-ros-base-noble"
+	;;
+*)
+	echo "Unsupported ROS 2 distribution: $DISTRO"
+	echo "Supported: humble, iron, jazzy, kilted, rolling"
+	exit 1
+	;;
 esac
 
 echo "Starting Docker container for ROS 2 $DISTRO..."
@@ -57,14 +57,14 @@ WORKSPACE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../"
 
 # Run container with interactive shell, mounting current directory
 docker run -it --rm \
-    --name greenwave-test-${DISTRO} \
-    -e ROS_LOCALHOST_ONLY=1 \
-    -e ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST \
-    -e ROS_DISTRO=${DISTRO} \
-    -v ${WORKSPACE_DIR}:/workspace/src/greenwave_monitor \
-    -w /workspace \
-    ${IMAGE} \
-    bash -c "
+	--name greenwave-test-${DISTRO} \
+	-e ROS_LOCALHOST_ONLY=1 \
+	-e ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST \
+	-e ROS_DISTRO=${DISTRO} \
+	-v ${WORKSPACE_DIR}:/workspace/src/greenwave_monitor \
+	-w /workspace \
+	${IMAGE} \
+	bash -c "
         # Source ROS setup
         source /opt/ros/${DISTRO}/setup.bash
 

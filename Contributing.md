@@ -1,4 +1,8 @@
-We welcome PRs for new features or bugfixes, CI will automatically run automated tests on new PRs. You can also use the scripts/docker-test.sh to debug tests for a particular distribution locally. 
+# Contributing
+
+We welcome PRs for new features or bugfixes, CI will automatically run automated tests on new PRs. You can also use the scripts/docker-test.sh to debug tests for a particular distribution locally.
+
+## Sign Off
 
 We require that all contributors "sign-off" on their commits. This certifies that the contribution is your original work, or you have rights to submit it under the same license, or a compatible license.
 
@@ -51,4 +55,23 @@ By making a contribution to this project, I certify that:
     personal information I submit with it, including my sign-off) is
     maintained indefinitely and may be redistributed consistent with
     this project or the open source license(s) involved.
+```
+
+## Pre-commit hooks (linting, sign-off check, copyright check, etc.)
+
+If you would like the linter and other checks to run on every commit use [pre-commit](https://pre-commit.com/):
+
+```
+sudo apt install uncrustify pipx
+pipx install pre-commit
+pre-commit install --hook-type pre-commit --hook-type commit-msg
+pre-commit run --all-files  # try it out, this will run every commit now
+```
+
+On every commit now a series of checks will be run to ensure the changes are meeting this repositories requirements.
+
+Uninstall pre-commit with:
+
+```
+pre-commit uninstall --hook-type pre-commit --hook-type commit-msg
 ```
