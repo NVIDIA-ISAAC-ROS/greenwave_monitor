@@ -52,7 +52,19 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
       with:
+        fetch-depth: 0  # fetch all history to run pre-commit copyright check hooks
         path: greenwave_monitor
+
+    - name: Run pre-commit hooks (linting)
+      run: |
+        apt update && apt install -y pipx
+        pipx install pre-commit
+        pipx ensurepath
+        source ~/.bashrc
+        pre-commit run --all-files --show-diff-on-failure
+      shell: bash
+      env:
+        DEBIAN_FRONTEND: noninteractive
 
     - name: Clone r2s_gw repository
       run: |
@@ -121,9 +133,9 @@ jobs:
         source /opt/ros/${{ matrix.ros_distro }}/setup.bash
         source install/setup.bash
         set -e
-        timeout 10s bash -lc "script -qfec 'ros2 run greenwave_monitor ncurses_dashboard' /dev/null <<< \$'q'" || true
-        timeout 10s bash -lc "script -qfec 'ros2 run r2s_gw r2s_gw_dashboard' /dev/null <<< \$'q'" || true
-        timeout 5s ros2 launch greenwave_monitor hz.launch.py topics:='["/topic1"]' || true
+        timeout 10s bash -lc "script -qfec 'ros2 run greenwave_monitor ncurses_dashboard' /dev/null <<< \$'q'"
+        timeout 10s bash -lc "script -qfec 'ros2 run r2s_gw r2s_gw_dashboard' /dev/null <<< \$'q'"
+        timeout 5s ros2 launch greenwave_monitor hz.launch.py gw_monitored_topics:='["/topic1", "/topic2"]'
       shell: bash
 
     - name: Run tests
