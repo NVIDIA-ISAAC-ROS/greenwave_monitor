@@ -1,4 +1,8 @@
+# Contributing
+
 We welcome PRs for new features or bugfixes, CI will automatically run automated tests on new PRs. You can also use the scripts/docker-test.sh to debug tests for a particular distribution locally.
+
+## Sign Off
 
 We require that all contributors "sign-off" on their commits. This certifies that the contribution is your original work, or you have rights to submit it under the same license, or a compatible license.
 
@@ -51,4 +55,14 @@ By making a contribution to this project, I certify that:
     personal information I submit with it, including my sign-off) is
     maintained indefinitely and may be redistributed consistent with
     this project or the open source license(s) involved.
+```
+
+## Linting
+
+If you would like to run the linter locally you can setup a pre-commit hook:
+
+```
+sudo apt install uncrustify pipx
+pipx install pre-commit
+pre-commit run --all-files  # will also run on every commit now
 ```
