@@ -68,4 +68,4 @@ pre-commit install --hook-type pre-commit --hook-type commit-msg
 pre-commit run --all-files  # try it out, this will run every commit now
 ```
 
-Every commit now a series of checks will be run to ensure the changes are meeting this repositories requirements.
+On every commit now a series of checks will be run to ensure the changes are meeting this repositories requirements.
