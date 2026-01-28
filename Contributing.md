@@ -69,3 +69,9 @@ pre-commit run --all-files  # try it out, this will run every commit now
 ```
 
 On every commit now a series of checks will be run to ensure the changes are meeting this repositories requirements.
+
+Uninstall pre-commit with:
+
+```
+pre-commit uninstall --hook-type pre-commit --hook-type commit-msg
+```
