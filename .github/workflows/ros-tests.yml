@@ -106,15 +106,14 @@ jobs:
       run: |
         source /opt/ros/${{ matrix.ros_distro }}/setup.bash
         source install/setup.bash
-        cd r2s_gw
         if [[ "${{ matrix.ros_distro }}" == "jazzy" || \
               "${{ matrix.ros_distro }}" == "kilted" || \
               "${{ matrix.ros_distro }}" == "rolling" ]]; then
-          pip3 install --break-system-packages --ignore-installed pygments -e . -r requirements.txt
+          pip3 install --break-system-packages --ignore-installed pygments -r r2s_gw/requirements.txt
         else
-          pip3 install --ignore-installed pygments -e . -r requirements.txt
+          pip3 install --ignore-installed pygments -r r2s_gw/requirements.txt
         fi
-        colcon build --packages-select r2s_gw
+        colcon build --packages-up-to r2s_gw
       shell: bash
 
     - name: Smoke test README commands
