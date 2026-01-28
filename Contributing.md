@@ -57,12 +57,14 @@ By making a contribution to this project, I certify that:
     this project or the open source license(s) involved.
 ```
 
-## Linting
+## Pre-commit hooks (linting, sign-off check, copyright check, etc.)
 
-If you would like to run the linter locally you can setup a pre-commit hook:
+If you would like the linter and other checks to run on every commit use [pre-commit](https://pre-commit.com/):
 
 ```
 sudo apt install uncrustify pipx
 pipx install pre-commit
 pre-commit run --all-files  # will also run on every commit now
 ```
+
+Every commit now a series of checks will be run to ensure the changes are meeting this repositories requirements.

@@ -55,7 +55,7 @@ jobs:
         fetch-depth: 0  # fetch all history to run pre-commit copyright check hooks
         path: greenwave_monitor
 
-    - name: Run pre-commit hooks (linting)
+    - name: Run pre-commit hooks (linting, sign-off check, copyright check, etc.)
       run: |
         apt update && apt install -y pipx git
         pipx install pre-commit
