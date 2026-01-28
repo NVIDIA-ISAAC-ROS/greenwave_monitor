@@ -58,6 +58,7 @@ jobs:
     - name: Run pre-commit hooks (linting, sign-off check, copyright check, etc.)
       run: |
         apt update && apt install -y pipx git
+        git config --global --add safe.directory "$GITHUB_WORKSPACE/greenwave_monitor"
         pipx install pre-commit
         pipx ensurepath
         source ~/.bashrc
