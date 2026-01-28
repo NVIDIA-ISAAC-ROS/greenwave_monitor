@@ -57,7 +57,7 @@ jobs:
 
     - name: Run pre-commit hooks (linting)
       run: |
-        apt update && apt install -y pipx
+        apt update && apt install -y pipx git
         pipx install pre-commit
         pipx ensurepath
         source ~/.bashrc
