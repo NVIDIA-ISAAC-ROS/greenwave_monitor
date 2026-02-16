@@ -15,6 +15,9 @@ This diagram shows an overview of the architecture:
 
 ![architecture](docs/images/greenwave_diagram.png)
 
+For implementation details and inline integration guidance, see
+[`docs/DESIGN_AND_IMPLEMENTATION.md`](docs/DESIGN_AND_IMPLEMENTATION.md).
+
 ## Diagnostic messages
 
 The diagnostics messages published by greenwave monitor are valid ROS 2 Diagnostics messages, however the dashboard does rely on specific keys to associate the data with the correct topic, and to find frequency and latency data.
