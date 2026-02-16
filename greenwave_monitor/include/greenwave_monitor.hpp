@@ -88,6 +88,9 @@ private:
 
   void add_topics_from_parameters();
 
+  greenwave_diagnostics::TimestampMonitorMode timestamp_monitor_mode_{
+    greenwave_diagnostics::TimestampMonitorMode::kHeaderWithNodetimeFallback};
+
   std::map<std::string,
     std::unique_ptr<greenwave_diagnostics::GreenwaveDiagnostics>> greenwave_diagnostics_;
   std::vector<std::shared_ptr<rclcpp::GenericSubscription>> subscriptions_;
