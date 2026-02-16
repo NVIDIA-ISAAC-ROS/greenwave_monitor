@@ -62,6 +62,43 @@ protected:
   std::shared_ptr<rclcpp::Node> node_;
 };
 
+diagnostic_msgs::msg::DiagnosticStatus run_low_fps_sequence(
+  const std::shared_ptr<rclcpp::Node> & node,
+  const greenwave_diagnostics::GreenwaveDiagnosticsConfig & config,
+  double expected_hz,
+  double tolerance_percent)
+{
+  greenwave_diagnostics::GreenwaveDiagnostics diagnostics(*node, "test_topic", config);
+  diagnostics.setExpectedDt(expected_hz, tolerance_percent);
+  std::vector<diagnostic_msgs::msg::DiagnosticArray::SharedPtr> received_diagnostics;
+  const auto diagnostic_subscription =
+    node->create_subscription<diagnostic_msgs::msg::DiagnosticArray>(
+    "/diagnostics", 10,
+    [&received_diagnostics](const diagnostic_msgs::msg::DiagnosticArray::SharedPtr msg) {
+      received_diagnostics.push_back(msg);
+    });
+  (void)diagnostic_subscription;
+
+  constexpr int samples = 15;
+  constexpr int64_t input_dt_ns = 10000000LL;  // 100 Hz message timestamp cadence
+  uint64_t msg_timestamp = test_constants::kStartTimestampNs;
+  for (int i = 0; i < samples; ++i) {
+    diagnostics.updateDiagnostics(msg_timestamp);
+    diagnostics.publishDiagnostics();
+    rclcpp::spin_some(node);
+    msg_timestamp += static_cast<uint64_t>(input_dt_ns);
+    std::this_thread::sleep_for(std::chrono::milliseconds(25));  // ~40 Hz node cadence
+  }
+
+  if (received_diagnostics.empty() || received_diagnostics.back()->status.empty()) {
+    diagnostic_msgs::msg::DiagnosticStatus empty_status;
+    empty_status.level = diagnostic_msgs::msg::DiagnosticStatus::STALE;
+    return empty_status;
+  }
+
+  return received_diagnostics.back()->status[0];
+}
+
 TEST_F(GreenwaveDiagnosticsTest, FrameRateMsgTest)
 {
   // Initialize GreenwaveDiagnostics
@@ -134,6 +171,7 @@ TEST_F(GreenwaveDiagnosticsTest, DiagnosticPublishSubscribeTest)
   config.enable_msg_time_diagnostics = true;
   config.enable_node_time_diagnostics = true;
   config.enable_increasing_msg_time_diagnostics = true;
+  config.topic_has_header = true;
   // in us
   config.expected_dt_us = interarrival_time_ns /
     ::greenwave_diagnostics::constants::kMicrosecondsToNanoseconds;
@@ -275,4 +313,72 @@ TEST_F(GreenwaveDiagnosticsTest, DiagnosticPublishSubscribeTest)
 
   EXPECT_GE(diagnostics_values["total_dropped_frames"], 1.0);
   EXPECT_GE(diagnostics_values["num_non_increasing_msg"], 1.0);
+}
+
+TEST_F(GreenwaveDiagnosticsTest, HeaderlessFallbackRaisesLowFpsError)
+{
+  greenwave_diagnostics::GreenwaveDiagnosticsConfig config;
+  config.enable_node_time_diagnostics = true;
+  config.enable_msg_time_diagnostics = true;
+  config.enable_increasing_msg_time_diagnostics = true;
+  config.topic_has_header = false;
+  config.timestamp_monitor_mode =
+    greenwave_diagnostics::TimestampMonitorMode::kHeaderWithNodetimeFallback;
+  config.expected_dt_us = 10000;      // 100 Hz expected
+  config.jitter_tolerance_us = 1000;  // 10%
+
+  const auto status = run_low_fps_sequence(node_, config, 100.0, 10.0);
+
+  EXPECT_EQ(status.level, diagnostic_msgs::msg::DiagnosticStatus::ERROR);
+  EXPECT_NE(status.message.find("LOW FPS DETECTED (NODE TIME)"), std::string::npos);
+}
+
+TEST_F(GreenwaveDiagnosticsTest, HeaderOnlyDoesNotUseFallbackForHeaderlessTopics)
+{
+  greenwave_diagnostics::GreenwaveDiagnosticsConfig config;
+  config.enable_node_time_diagnostics = true;
+  config.enable_msg_time_diagnostics = true;
+  config.enable_increasing_msg_time_diagnostics = true;
+  config.topic_has_header = false;
+  config.timestamp_monitor_mode = greenwave_diagnostics::TimestampMonitorMode::kHeaderOnly;
+  config.expected_dt_us = 10000;      // 100 Hz expected
+  config.jitter_tolerance_us = 1000;  // 10%
+
+  const auto status = run_low_fps_sequence(node_, config, 100.0, 10.0);
+
+  EXPECT_EQ(status.level, diagnostic_msgs::msg::DiagnosticStatus::OK);
+  EXPECT_EQ(status.message, "OK");
+}
+
+TEST_F(GreenwaveDiagnosticsTest, FallbackModeDoesNotUseNodeLowFpsForHeaderedTopics)
+{
+  greenwave_diagnostics::GreenwaveDiagnosticsConfig config;
+  config.enable_node_time_diagnostics = true;
+  config.enable_msg_time_diagnostics = true;
+  config.enable_increasing_msg_time_diagnostics = true;
+  config.topic_has_header = true;
+  config.timestamp_monitor_mode =
+    greenwave_diagnostics::TimestampMonitorMode::kHeaderWithNodetimeFallback;
+
+  // Message timestamp cadence in run_low_fps_sequence is 100 Hz, so message-time checks
+  // should remain healthy even though node-time cadence is slowed down to ~40 Hz.
+  const auto status = run_low_fps_sequence(node_, config, 100.0, 10.0);
+
+  EXPECT_EQ(status.level, diagnostic_msgs::msg::DiagnosticStatus::OK);
+  EXPECT_EQ(status.message, "OK");
+}
+
+TEST_F(GreenwaveDiagnosticsTest, NodetimeOnlyUsesNodeLowFpsForHeaderedTopics)
+{
+  greenwave_diagnostics::GreenwaveDiagnosticsConfig config;
+  config.enable_node_time_diagnostics = true;
+  config.enable_msg_time_diagnostics = true;
+  config.enable_increasing_msg_time_diagnostics = true;
+  config.topic_has_header = true;
+  config.timestamp_monitor_mode = greenwave_diagnostics::TimestampMonitorMode::kNodetimeOnly;
+
+  const auto status = run_low_fps_sequence(node_, config, 100.0, 10.0);
+
+  EXPECT_EQ(status.level, diagnostic_msgs::msg::DiagnosticStatus::ERROR);
+  EXPECT_NE(status.message.find("LOW FPS DETECTED (NODE TIME)"), std::string::npos);
 }

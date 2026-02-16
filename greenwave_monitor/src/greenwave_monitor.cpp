@@ -34,8 +34,45 @@ namespace constants
 inline constexpr const char * kTopicParamPrefix = "gw_frequency_monitored_topics.";
 inline constexpr const char * kExpectedFrequencySuffix = ".expected_frequency";
 inline constexpr const char * kToleranceSuffix = ".tolerance";
+inline constexpr const char * kTimestampMonitorModeParam = "gw_timestamp_monitor_mode";
+inline constexpr const char * kTimestampModeHeaderWithFallback = "header_with_nodetime_fallback";
+inline constexpr const char * kTimestampModeHeaderOnly = "header_only";
+inline constexpr const char * kTimestampModeNodetimeOnly = "nodetime_only";
 }  // namespace constants
 }  // namespace greenwave_monitor
+
+namespace
+{
+greenwave_diagnostics::TimestampMonitorMode parse_timestamp_monitor_mode(
+  const std::string & mode, rclcpp::Logger logger)
+{
+  using greenwave_diagnostics::TimestampMonitorMode;
+  using greenwave_monitor::constants::kTimestampModeHeaderOnly;
+  using greenwave_monitor::constants::kTimestampModeHeaderWithFallback;
+  using greenwave_monitor::constants::kTimestampModeNodetimeOnly;
+
+  if (mode == kTimestampModeHeaderWithFallback) {
+    return TimestampMonitorMode::kHeaderWithNodetimeFallback;
+  }
+  if (mode == kTimestampModeHeaderOnly) {
+    return TimestampMonitorMode::kHeaderOnly;
+  }
+  if (mode == kTimestampModeNodetimeOnly) {
+    return TimestampMonitorMode::kNodetimeOnly;
+  }
+
+  RCLCPP_WARN(
+    logger,
+    "Invalid value '%s' for gw_timestamp_monitor_mode. Falling back to '%s'."
+    " Allowed values are '%s', '%s', '%s'.",
+    mode.c_str(),
+    kTimestampModeHeaderWithFallback,
+    kTimestampModeHeaderWithFallback,
+    kTimestampModeHeaderOnly,
+    kTimestampModeNodetimeOnly);
+  return TimestampMonitorMode::kHeaderWithNodetimeFallback;
+}
+}  // namespace
 
 GreenwaveMonitor::GreenwaveMonitor(const rclcpp::NodeOptions & options)
 : Node("greenwave_monitor",
@@ -48,6 +85,15 @@ GreenwaveMonitor::GreenwaveMonitor(const rclcpp::NodeOptions & options)
   if (!this->has_parameter("gw_monitored_topics")) {
     this->declare_parameter<std::vector<std::string>>("gw_monitored_topics", {""});
   }
+  if (!this->has_parameter(greenwave_monitor::constants::kTimestampMonitorModeParam)) {
+    this->declare_parameter<std::string>(
+      greenwave_monitor::constants::kTimestampMonitorModeParam,
+      greenwave_monitor::constants::kTimestampModeHeaderWithFallback);
+  }
+
+  const auto monitor_mode = this->get_parameter(
+    greenwave_monitor::constants::kTimestampMonitorModeParam).as_string();
+  timestamp_monitor_mode_ = parse_timestamp_monitor_mode(monitor_mode, this->get_logger());
 
   timer_ = this->create_wall_timer(
     1s, std::bind(&GreenwaveMonitor::timer_callback, this));
@@ -299,6 +345,8 @@ bool GreenwaveMonitor::add_topic(
 
   greenwave_diagnostics::GreenwaveDiagnosticsConfig diagnostics_config;
   diagnostics_config.enable_all_topic_diagnostics = true;
+  diagnostics_config.timestamp_monitor_mode = timestamp_monitor_mode_;
+  diagnostics_config.topic_has_header = has_header_from_type(type);
 
   subscriptions_.push_back(sub);
   greenwave_diagnostics_.emplace(

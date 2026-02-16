@@ -34,6 +34,13 @@ In particular, the messages follow conventions from [Isaac ROS NITROS](https://g
   - The message type is not recognized by greenwave monitor
   - The header timestamp is in boottime format instead of epoch time
 
+ Low-FPS error checks can be configured with the global `gw_timestamp_monitor_mode` parameter:
+ - `header_with_nodetime_fallback` (default): use header/message timestamps when available; for
+   headerless topics, evaluate low FPS using node/pub-time cadence.
+ - `header_only`: only use message/header timestamps; headerless topics do not trigger low-FPS
+   errors from fallback checks.
+ - `nodetime_only`: use node/pub-time cadence checks for all topics.
+
  Currently, message types with headers must be manually registered in the `known_header_types` map in `greenwave_monitor.cpp`. Support for automatic detection of arbitrary message types may be added in the future. In the meantime, if you need support for a commonly used message type, please submit an issue or pull request to add it to the registry.
 
 ## Compatibility

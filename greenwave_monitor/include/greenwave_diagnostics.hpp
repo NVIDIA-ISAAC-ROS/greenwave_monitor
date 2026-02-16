@@ -35,6 +35,13 @@
 
 namespace greenwave_diagnostics
 {
+enum class TimestampMonitorMode
+{
+  kHeaderWithNodetimeFallback,
+  kHeaderOnly,
+  kNodetimeOnly
+};
+
 namespace constants
 {
 inline constexpr uint64_t kSecondsToNanoseconds = 1000000000ULL;
@@ -71,6 +78,13 @@ struct GreenwaveDiagnosticsConfig
 
   // Tolerance for jitter from expected frame rate in microseconds
   int64_t jitter_tolerance_us{0LL};
+
+  // Which timestamp source should drive error checks.
+  TimestampMonitorMode timestamp_monitor_mode{
+    TimestampMonitorMode::kHeaderWithNodetimeFallback};
+
+  // Whether the monitored topic has a std_msgs/Header timestamp.
+  bool topic_has_header{false};
 };
 
 class GreenwaveDiagnostics
@@ -97,6 +111,7 @@ public:
 
     prev_drop_ts_ = rclcpp::Time(0, 0, clock_->get_clock_type());
     prev_noninc_msg_ts_ = rclcpp::Time(0, 0, clock_->get_clock_type());
+    prev_low_fps_node_ts_ = rclcpp::Time(0, 0, clock_->get_clock_type());
     prev_timestamp_node_us_ = std::numeric_limits<uint64_t>::min();
     prev_timestamp_msg_us_ = std::numeric_limits<uint64_t>::min();
     num_non_increasing_msg_ = 0;
@@ -133,6 +148,9 @@ public:
       node_window_.addInterarrival(timestamp_diff_node_us);
       if (diagnostics_config_.enable_node_time_diagnostics) {
         error_found |= updateNodeTimeDiagnostics(timestamp_diff_node_us);
+        if (shouldUseNodeLowFpsChecks()) {
+          error_found |= updateNodeLowFpsDiagnostics();
+        }
       }
     }
 
@@ -148,10 +166,10 @@ public:
       const int64_t timestamp_diff_msg_us = current_timestamp_msg_us - prev_timestamp_msg_us_;
       msg_window_.addInterarrival(timestamp_diff_msg_us);
       // Do the same checks as above, but for message timestamp
-      if (diagnostics_config_.enable_msg_time_diagnostics) {
+      if (diagnostics_config_.enable_msg_time_diagnostics && shouldUseMsgTimeChecks()) {
         error_found |= updateMsgTimeDiagnostics(timestamp_diff_msg_us);
       }
-      if (diagnostics_config_.enable_increasing_msg_time_diagnostics) {
+      if (diagnostics_config_.enable_increasing_msg_time_diagnostics && shouldUseMsgTimeChecks()) {
         error_found |= updateIncreasingMsgTimeDiagnostics(current_timestamp_msg_us);
       }
     }
@@ -388,7 +406,7 @@ private:
   std::vector<diagnostic_msgs::msg::DiagnosticStatus> status_vec_;
   rclcpp::Clock::SharedPtr clock_;
   rclcpp::Time t_start_;
-  rclcpp::Time prev_drop_ts_, prev_noninc_msg_ts_;
+  rclcpp::Time prev_drop_ts_, prev_noninc_msg_ts_, prev_low_fps_node_ts_;
   uint64_t prev_timestamp_node_us_, prev_timestamp_msg_us_;
 
   RollingWindow node_window_;
@@ -434,6 +452,61 @@ private:
         static_cast<int64_t>(diagnostics_config_.jitter_tolerance_us),
         abs_jitter_node, topic_name_.c_str());
     }
+    return error_found;
+  }
+
+  bool shouldUseMsgTimeChecks() const
+  {
+    if (!diagnostics_config_.topic_has_header) {
+      return false;
+    }
+    return diagnostics_config_.timestamp_monitor_mode != TimestampMonitorMode::kNodetimeOnly;
+  }
+
+  bool shouldUseNodeLowFpsChecks() const
+  {
+    if (diagnostics_config_.timestamp_monitor_mode == TimestampMonitorMode::kNodetimeOnly) {
+      return true;
+    }
+    if (diagnostics_config_.timestamp_monitor_mode ==
+      TimestampMonitorMode::kHeaderWithNodetimeFallback)
+    {
+      return !diagnostics_config_.topic_has_header;
+    }
+    return false;
+  }
+
+  bool updateNodeLowFpsDiagnostics()
+  {
+    bool error_found = false;
+    if (expected_frequency_ <= 0.0 || node_window_.interarrival_us.empty()) {
+      return error_found;
+    }
+
+    const double clamped_tolerance_percent = std::max(0.0, tolerance_);
+    const double tolerance_ratio = clamped_tolerance_percent / 100.0;
+    const double min_allowed_fps = expected_frequency_ * std::max(0.0, 1.0 - tolerance_ratio);
+    const double current_node_fps = node_window_.frameRateHz();
+
+    if (current_node_fps < min_allowed_fps) {
+      prev_low_fps_node_ts_ = clock_->now();
+      RCLCPP_DEBUG(
+        node_.get_logger(),
+        "[GreenwaveDiagnostics Node Time FPS]"
+        " Current node FPS (%.3f) is below minimum allowed FPS (%.3f)"
+        " for topic %s.",
+        current_node_fps, min_allowed_fps, topic_name_.c_str());
+    }
+
+    if (prev_low_fps_node_ts_.nanoseconds() != 0) {
+      const auto time_since_low_fps = (clock_->now() - prev_low_fps_node_ts_).seconds();
+      if (time_since_low_fps < greenwave_diagnostics::constants::kDropWarnTimeoutSeconds) {
+        error_found = true;
+        status_vec_[0].level = diagnostic_msgs::msg::DiagnosticStatus::ERROR;
+        update_status_message(status_vec_[0], "LOW FPS DETECTED (NODE TIME)");
+      }
+    }
+
     return error_found;
   }
 
