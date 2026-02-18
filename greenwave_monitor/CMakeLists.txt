@@ -59,6 +59,18 @@ target_compile_features(minimal_publisher_node PUBLIC c_std_99 cxx_std_17)  # Re
 install(TARGETS minimal_publisher_node
   DESTINATION lib/${PROJECT_NAME})
 
+add_executable(example_greenwave_publisher_node
+  src/example_greenwave_publisher_node.cpp
+  src/example_greenwave_publisher_main.cpp)
+ament_target_dependencies(example_greenwave_publisher_node rclcpp sensor_msgs diagnostic_msgs)
+target_link_libraries(example_greenwave_publisher_node greenwave_diagnostics)
+target_include_directories(example_greenwave_publisher_node PUBLIC
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+  $<INSTALL_INTERFACE:include>)
+target_compile_features(example_greenwave_publisher_node PUBLIC c_std_99 cxx_std_17)
+install(TARGETS example_greenwave_publisher_node
+  DESTINATION lib/${PROJECT_NAME})
+
 install(
   DIRECTORY launch examples config
   DESTINATION share/${PROJECT_NAME}
@@ -150,6 +162,24 @@ if(BUILD_TESTING)
     $<INSTALL_INTERFACE:include>
   )
   target_compile_features(test_minimal_publisher PUBLIC c_std_99 cxx_std_17)
+
+  ament_add_gtest(test_example_greenwave_publisher
+    test/test_example_greenwave_publisher.cpp
+    src/example_greenwave_publisher_node.cpp
+    TIMEOUT 60
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+  )
+  ament_target_dependencies(test_example_greenwave_publisher
+    rclcpp
+    sensor_msgs
+    diagnostic_msgs
+  )
+  target_link_libraries(test_example_greenwave_publisher greenwave_diagnostics)
+  target_include_directories(test_example_greenwave_publisher PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+    $<INSTALL_INTERFACE:include>
+  )
+  target_compile_features(test_example_greenwave_publisher PUBLIC c_std_99 cxx_std_17)
 
 endif()
 

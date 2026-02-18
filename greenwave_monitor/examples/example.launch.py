@@ -69,7 +69,8 @@ def generate_launch_description():
             parameters=[config_file],
         ),
         LogInfo(
-            msg='Run `ros2 run r2s_gw r2s_gw` in another terminal to see the demo output '
-                'with the r2s dashboard.'
+            msg='Run `ros2 run greenwave_monitor ncurses_dashboard` in another terminal '
+                'to see the demo output '
+                'with the ncurses dashboard.'
         ),
     ])
