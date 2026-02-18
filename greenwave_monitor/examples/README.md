@@ -31,7 +31,7 @@ Node(
 ),
 ```
 
-To see the output with the r2s_gw dashboard, run `ros2 run greenwave_monitor ncurses_dashboard` in a separate terminal.
+To see the output with the dashboard, run `ros2 run greenwave_monitor ncurses_dashboard` in a separate terminal.
 
 For a standalone inline integration reference node (single topic, explicit diagnostics publishing), run:
 

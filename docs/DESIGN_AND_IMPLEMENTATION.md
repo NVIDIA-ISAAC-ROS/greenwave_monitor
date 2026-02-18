@@ -57,7 +57,7 @@ Provides runtime services:
 
 ## Inline Integration In Your Own Node
 
-The Greenwave Monitor Node is very convenient, and for most use cases it is sufficient. Howver sometimes the overhead from an extra subscriber is not desirable, or one wants to measure diagnostics directly from the publisher/subscriber. This section details how to integrate greenwave diagnostics inline. Reference pattern: `greenwave_monitor/src/example_greenwave_publisher_node.cpp`
+The Greenwave Monitor Node is very convenient, and for most use cases it is sufficient. However sometimes the overhead from an extra subscriber is not desirable, or one wants to measure diagnostics directly from the publisher/subscriber. This section details how to integrate greenwave diagnostics inline. Reference pattern: `greenwave_monitor/src/example_greenwave_publisher_node.cpp`
 
 ### Step 1: Add the include and member
 
@@ -119,7 +119,7 @@ Dashboards expect specific keys inside `DiagnosticStatus.values`, including:
 - `expected_frequency`
 - `tolerance`
 
-These are already emitted by `GreenwaveDiagnostics::publishDiagnostics()`. If you write your own publisher for `/diagnostics`, keep this schema compatible. We have not yet formalized this schema, only the reference implemenation for now.
+These are already emitted by `GreenwaveDiagnostics::publishDiagnostics()`. You can write your own publisher for greenwave compatible `/diagnostics`, but we don't guarantee schema stability for now.
 
 ## Implementation Notes And Pitfalls
 
