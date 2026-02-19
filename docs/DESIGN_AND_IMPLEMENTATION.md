@@ -18,7 +18,7 @@ This page explains how greenwave monitor is built, and how to inline
 
 ### 1) Greenwave Diagnostic messages
 
-The diagnostics messages published by greenwave monitor are standard ROS 2 Diagnostics messages(`diagnostic_msgs/DiagnosticArray`), however the dashboard relies on specific keys to associate the data with the correct topic, and to find frequency and latency data. We provide a header only library that creates these greenwave compatible diagnostics messages: `greenwave_monitor/include/greenwave_diagnostics.hpp`
+The diagnostics messages published by greenwave monitor are standard ROS 2 Diagnostics messages (`diagnostic_msgs/DiagnosticArray`), however the dashboard relies on specific keys to associate the data with the correct topic, and to find frequency and latency data. We provide a header only library that creates these greenwave compatible diagnostics messages: `greenwave_monitor/include/greenwave_diagnostics.hpp`
 
 `GreenwaveDiagnostics` tracks:
 
@@ -206,15 +206,15 @@ Note: topic names should include the leading slash (`/topic2`).
 
 ## Latency Measurements
 
-  Latency is calculated as the difference between the current system time and the timestamp in the message header. For this calculation to work correctly:
+Latency is calculated as the difference between the current system time and the timestamp in the message header. For this calculation to work correctly:
 
-  - The message type must have a `std_msgs/Header` field
-  - The message type must be in the recognized types list (see `has_header_from_type()` in `greenwave_monitor.cpp`)
-  - The header timestamp must be in epoch time (not boottime)
+- The message type must have a `std_msgs/Header` field
+- The message type must be in the recognized types list (see `has_header_from_type()` in `greenwave_monitor.cpp`)
+- The header timestamp must be in epoch time (not boottime)
 
-  If any of these conditions are not met, the latency will be reported as **"N/A"** in the dashboard. This typically occurs when:
-  - The message type doesn't have a header (e.g., `std_msgs/String`, `geometry_msgs/Twist`)
-  - The message type is not recognized by greenwave monitor
-  - The header timestamp is in boottime format instead of epoch time
+If any of these conditions are not met, the latency will be reported as **"N/A"** in the dashboard. This typically occurs when:
+- The message type doesn't have a header (e.g., `std_msgs/String`, `geometry_msgs/Twist`)
+- The message type is not recognized by greenwave monitor
+- The header timestamp is in boottime format instead of epoch time
 
- Currently, message types with headers must be manually registered in the `known_header_types` map in `greenwave_monitor.cpp`. Support for automatic detection of arbitrary message types may be added in the future. In the meantime, if you need support for a commonly used message type, please submit an issue or pull request to add it to the registry.
+Currently, message types with headers must be manually registered in the `known_header_types` map in `greenwave_monitor.cpp`. Support for automatic detection of arbitrary message types may be added in the future. In the meantime, if you need support for a commonly used message type, please submit an issue or pull request to add it to the registry.
