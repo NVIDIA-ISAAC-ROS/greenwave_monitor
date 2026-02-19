@@ -22,7 +22,7 @@ The diagnostics messages published by greenwave monitor are standard ROS 2 Diagn
 
 `GreenwaveDiagnostics` tracks:
 
-- node-time interarrival rate (`frame_rate_node`) 
+- node-time interarrival rate (`frame_rate_node`)
 - message-time interarrival rate (`frame_rate_msg`) # Using the message's header timestamp
 - current delay from realtime (`current_delay_from_realtime_ms`)
 - jitter/outlier counters and summary stats
