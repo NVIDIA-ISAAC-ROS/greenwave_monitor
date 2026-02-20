@@ -28,7 +28,7 @@ The diagnostics messages published by greenwave monitor are standard ROS 2 Diagn
 - jitter/outlier counters and summary stats
 - status transitions (`OK`, `ERROR`, `STALE`) for missed timing expectations
 
-In particular, the messages follow conventions from [Isaac ROS NITROS](https://github.com/NVIDIA-ISAAC-ROS/isaac_ros_nitros), which means configured NITROS nodes can be monitored by greenwave monitor frontends without any additional subscriber overhead. For example the drivers from [Isaac ROS NOVA](https://github.com/NVIDIA-ISAAC-ROS/isaac_ros_nova) can be monitored out of the box. Furthermore, you can set `ENABLE_GLOBAL_NITROS_DIAGNOSTICS=1` to configure all NITROS nodes to publish diagnostics (more info [here](https://nvidia-isaac-ros.github.io/repositories_and_packages/isaac_ros_nitros/isaac_ros_nitros/index.html)).
+In particular, the messages follow conventions from [Isaac ROS NITROS](https://github.com/NVIDIA-ISAAC-ROS/isaac_ros_nitros), which means configured NITROS nodes can be monitored by greenwave monitor frontends without any additional subscriber overhead. For example the drivers from [Isaac ROS Nova](https://github.com/NVIDIA-ISAAC-ROS/isaac_ros_nova) can be monitored out of the box. Furthermore, you can set `ENABLE_GLOBAL_NITROS_DIAGNOSTICS=1` to configure all NITROS nodes to publish diagnostics (more info [here](https://nvidia-isaac-ros.github.io/repositories_and_packages/isaac_ros_nitros/isaac_ros_nitros/index.html)).
 
 
 ### 2) Central monitor node (`greenwave_monitor`)
@@ -49,11 +49,11 @@ Provides runtime services:
 - `/greenwave_monitor/manage_topic` (`ManageTopic.srv`)
 - `/greenwave_monitor/set_expected_frequency` (`SetExpectedFrequency.srv`)
 
-### 3) UI adapters
+### 3) UI adaptors
 
 - `greenwave_monitor/greenwave_monitor/ui_adaptor.py` subscribes to `/diagnostics`.
 - Maintains a table of topic->`DiagnosticStatus`
-- Frontends render from a single dictionary maintained by the UIadaptor, rather than a stream of diagnostics messages.
+- Frontends render from a single dictionary maintained by the `GreenwaveUiAdaptor`, rather than a stream of diagnostics messages.
 
 ## Inline Integration In Your Own Node
 
@@ -128,16 +128,17 @@ These are already emitted by `GreenwaveDiagnostics::publishDiagnostics()`. You c
   `GreenwaveMonitor::has_header_from_type()`; unknown types fall back to no-header behavior.
 - `publishDiagnostics()` marks status as `STALE` if no fresh `updateDiagnostics()` happened since the previous publish.
 - `setExpectedDt()` requires `expected_hz > 0`; zero disables useful timing checks.
+- Do not add externally monitored topics (those already using inline `GreenwaveDiagnostics`) via `manage_topic` or the terminal UI, as this will create a duplicate diagnostic subscription for the same topic.
 
 ## Where To Look In Code
 
-- Core monitor node: `greenwave_monitor/src/greenwave_monitor.cpp`
-- Diagnostics API: `greenwave_monitor/include/greenwave_diagnostics.hpp`
-- Inline integration example node: `greenwave_monitor/src/example_greenwave_publisher_node.cpp`
-- Demo traffic generator node: `greenwave_monitor/src/minimal_publisher_node.cpp`
+- Core monitor node: [`greenwave_monitor/src/greenwave_monitor.cpp`](../greenwave_monitor/src/greenwave_monitor.cpp)
+- Diagnostics API: [`greenwave_monitor/include/greenwave_diagnostics.hpp`](../greenwave_monitor/include/greenwave_diagnostics.hpp)
+- Inline integration example node: [`greenwave_monitor/src/example_greenwave_publisher_node.cpp`](../greenwave_monitor/src/example_greenwave_publisher_node.cpp)
+- Demo traffic generator node: [`greenwave_monitor/src/minimal_publisher_node.cpp`](../greenwave_monitor/src/minimal_publisher_node.cpp)
 - Service definitions:
-  - `greenwave_monitor_interfaces/srv/ManageTopic.srv`
-  - `greenwave_monitor_interfaces/srv/SetExpectedFrequency.srv`
+  - [`greenwave_monitor_interfaces/srv/ManageTopic.srv`](../greenwave_monitor_interfaces/srv/ManageTopic.srv)
+  - [`greenwave_monitor_interfaces/srv/SetExpectedFrequency.srv`](../greenwave_monitor_interfaces/srv/SetExpectedFrequency.srv)
 
 ## Service API and CLI Usage
 
