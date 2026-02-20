@@ -23,6 +23,7 @@
 #include <optional>
 #include <string>
 #include <thread>
+#include <unordered_map>
 #include <vector>
 
 #include "rclcpp/rclcpp.hpp"
@@ -90,6 +91,7 @@ private:
 
   greenwave_diagnostics::TimestampMonitorMode timestamp_monitor_mode_{
     greenwave_diagnostics::TimestampMonitorMode::kHeaderWithNodetimeFallback};
+  std::unordered_map<std::string, bool> topic_has_header_;
 
   std::map<std::string,
     std::unique_ptr<greenwave_diagnostics::GreenwaveDiagnostics>> greenwave_diagnostics_;
