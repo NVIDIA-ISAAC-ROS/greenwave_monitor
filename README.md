@@ -15,7 +15,6 @@ This diagram shows an overview of the architecture:
 
 ![architecture](docs/images/greenwave_diagram.png)
 
-
 For implementation details and inline integration guidance, see
 [`docs/DESIGN_AND_IMPLEMENTATION.md`](docs/DESIGN_AND_IMPLEMENTATION.md).
 

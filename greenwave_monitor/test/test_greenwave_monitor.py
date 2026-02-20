@@ -23,6 +23,7 @@ import tempfile
 import time
 import unittest
 
+from diagnostic_msgs.msg import DiagnosticStatus
 from greenwave_monitor.test_utils import (
     call_manage_topic_service,
     collect_diagnostics_for_topic,
@@ -69,6 +70,25 @@ NONEXISTENT_TOPIC = '/test_topic_nonexistent'
 NONEXISTENT_EXPECTED_FREQUENCY = 10.0
 NONEXISTENT_TOLERANCE = 1.0
 
+TIMESTAMP_MODE_EXPECTED_FREQUENCY = 100.0
+TIMESTAMP_MODE_TOLERANCE = 10.0
+TIMESTAMP_MODE_PUBLISH_FREQUENCY = 20.0
+
+TIMESTAMP_MODE_HEADER_FALLBACK_NAMESPACE = 'timestamp_mode_header_fallback_ns'
+TIMESTAMP_MODE_HEADER_ONLY_NAMESPACE = 'timestamp_mode_header_only_ns'
+TIMESTAMP_MODE_NODETIME_ONLY_NAMESPACE = 'timestamp_mode_nodetime_only_ns'
+TIMESTAMP_MODE_INVALID_NAMESPACE = 'timestamp_mode_invalid_ns'
+
+TIMESTAMP_MODE_HEADER_FALLBACK_NODE = 'timestamp_mode_header_fallback_monitor'
+TIMESTAMP_MODE_HEADER_ONLY_NODE = 'timestamp_mode_header_only_monitor'
+TIMESTAMP_MODE_NODETIME_ONLY_NODE = 'timestamp_mode_nodetime_only_monitor'
+TIMESTAMP_MODE_INVALID_NODE = 'timestamp_mode_invalid_monitor'
+
+TIMESTAMP_MODE_HEADER_FALLBACK_TOPIC = '/timestamp_mode_header_fallback_topic'
+TIMESTAMP_MODE_HEADER_ONLY_HEADERLESS_TOPIC = '/timestamp_mode_header_only_headerless_topic'
+TIMESTAMP_MODE_NODETIME_ONLY_TOPIC = '/timestamp_mode_nodetime_only_topic'
+TIMESTAMP_MODE_INVALID_TOPIC = '/timestamp_mode_invalid_topic'
+
 
 def create_test_yaml_config():
     """Create a temporary YAML config file for testing parameter loading."""
@@ -91,6 +111,26 @@ def create_test_yaml_config():
         tolerance: {NONEXISTENT_TOLERANCE}
 """
     filepath = os.path.join(_temp_dir.name, 'test_config.yaml')
+    with open(filepath, 'w') as f:
+        f.write(yaml_content)
+    return filepath
+
+
+def create_timestamp_mode_yaml_config(mode, topic, expected_frequency, tolerance):
+    """Create a temporary YAML config file for timestamp mode integration tests."""
+    yaml_content = f"""\
+/**:
+  ros__parameters:
+    gw_monitored_topics: ['{topic}']
+    gw_timestamp_monitor_mode: '{mode}'
+    gw_frequency_monitored_topics:
+      {topic}:
+        expected_frequency: {expected_frequency}
+        tolerance: {tolerance}
+"""
+    safe_mode = mode.replace('/', '_')
+    safe_topic = topic.replace('/', '_')
+    filepath = os.path.join(_temp_dir.name, f'timestamp_mode_{safe_mode}_{safe_topic}.yaml')
     with open(filepath, 'w') as f:
         f.write(yaml_content)
     return filepath
@@ -129,6 +169,80 @@ def generate_test_description(message_type, expected_frequency, tolerance_hz):
             expected_frequency, message_type, '_invalid_expected_frequency')
     ]
 
+    timestamp_mode_entities = []
+    if (message_type, expected_frequency, tolerance_hz) == MANAGE_TOPIC_TEST_CONFIG:
+        header_fallback_yaml = create_timestamp_mode_yaml_config(
+            'header_with_nodetime_fallback',
+            TIMESTAMP_MODE_HEADER_FALLBACK_TOPIC,
+            TIMESTAMP_MODE_EXPECTED_FREQUENCY,
+            TIMESTAMP_MODE_TOLERANCE,
+        )
+        header_only_yaml = create_timestamp_mode_yaml_config(
+            'header_only',
+            TIMESTAMP_MODE_HEADER_ONLY_HEADERLESS_TOPIC,
+            TIMESTAMP_MODE_EXPECTED_FREQUENCY,
+            TIMESTAMP_MODE_TOLERANCE,
+        )
+        nodetime_only_yaml = create_timestamp_mode_yaml_config(
+            'nodetime_only',
+            TIMESTAMP_MODE_NODETIME_ONLY_TOPIC,
+            TIMESTAMP_MODE_EXPECTED_FREQUENCY,
+            TIMESTAMP_MODE_TOLERANCE,
+        )
+        invalid_mode_yaml = create_timestamp_mode_yaml_config(
+            'not_a_real_mode',
+            TIMESTAMP_MODE_INVALID_TOPIC,
+            TIMESTAMP_MODE_EXPECTED_FREQUENCY,
+            TIMESTAMP_MODE_TOLERANCE,
+        )
+
+        timestamp_mode_entities = [
+            create_monitor_node(
+                namespace=TIMESTAMP_MODE_HEADER_FALLBACK_NAMESPACE,
+                node_name=TIMESTAMP_MODE_HEADER_FALLBACK_NODE,
+                parameters=[header_fallback_yaml],
+            ),
+            create_monitor_node(
+                namespace=TIMESTAMP_MODE_HEADER_ONLY_NAMESPACE,
+                node_name=TIMESTAMP_MODE_HEADER_ONLY_NODE,
+                parameters=[header_only_yaml],
+            ),
+            create_monitor_node(
+                namespace=TIMESTAMP_MODE_NODETIME_ONLY_NAMESPACE,
+                node_name=TIMESTAMP_MODE_NODETIME_ONLY_NODE,
+                parameters=[nodetime_only_yaml],
+            ),
+            create_monitor_node(
+                namespace=TIMESTAMP_MODE_INVALID_NAMESPACE,
+                node_name=TIMESTAMP_MODE_INVALID_NODE,
+                parameters=[invalid_mode_yaml],
+            ),
+            create_minimal_publisher(
+                TIMESTAMP_MODE_HEADER_FALLBACK_TOPIC,
+                TIMESTAMP_MODE_PUBLISH_FREQUENCY,
+                'imu',
+                '_timestamp_mode_header_fallback',
+            ),
+            create_minimal_publisher(
+                TIMESTAMP_MODE_HEADER_ONLY_HEADERLESS_TOPIC,
+                TIMESTAMP_MODE_PUBLISH_FREQUENCY,
+                'string',
+                '_timestamp_mode_header_only_headerless',
+            ),
+            create_minimal_publisher(
+                TIMESTAMP_MODE_NODETIME_ONLY_TOPIC,
+                TIMESTAMP_MODE_PUBLISH_FREQUENCY,
+                'imu',
+                '_timestamp_mode_nodetime_only',
+            ),
+            create_minimal_publisher(
+                TIMESTAMP_MODE_INVALID_TOPIC,
+                TIMESTAMP_MODE_PUBLISH_FREQUENCY,
+                'imu',
+                '_timestamp_mode_invalid',
+            ),
+        ]
+
     context = {
         'expected_frequency': expected_frequency,
         'message_type': message_type,
@@ -139,6 +253,7 @@ def generate_test_description(message_type, expected_frequency, tolerance_hz):
         launch.LaunchDescription([
             ros2_monitor_node,
             *publishers,  # Unpack all publishers into the launch description
+            *timestamp_mode_entities,
             launch_testing.actions.ReadyToTest()
         ]), context
     )
@@ -238,6 +353,17 @@ class TestGreenwaveMonitor(unittest.TestCase):
         )
         self.assertIsNotNone(response, 'Service call failed or timed out')
         return response
+
+    def check_monitor_services(self, namespace, node_name):
+        """Check that monitor services are available for a specific node."""
+        manage_client, _ = create_service_clients(self.test_node, namespace, node_name)
+        service_available = wait_for_service_connection(
+            self.test_node, manage_client, timeout_sec=10.0,
+            service_name=f'/{namespace}/{node_name}/manage_topic'
+        )
+        self.assertTrue(
+            service_available,
+            f'Service "/{namespace}/{node_name}/manage_topic" not available within timeout')
 
     def test_manage_one_topic(self, expected_frequency, message_type, tolerance_hz):
         """Test that add_topic() and remove_topic() work correctly for one topic."""
@@ -414,6 +540,82 @@ class TestGreenwaveMonitor(unittest.TestCase):
             len(nonexistent_diagnostics), 0,
             f'Topic {NONEXISTENT_TOPIC} should not be monitored'
         )
+
+    def test_timestamp_mode_parameter_parsing(
+            self, expected_frequency, message_type, tolerance_hz):
+        """Test that all timestamp monitor modes parse and start successfully."""
+        if (message_type, expected_frequency, tolerance_hz) != MANAGE_TOPIC_TEST_CONFIG:
+            self.skipTest('Only running timestamp mode parsing tests once')
+
+        self.check_monitor_services(
+            TIMESTAMP_MODE_HEADER_FALLBACK_NAMESPACE, TIMESTAMP_MODE_HEADER_FALLBACK_NODE)
+        self.check_monitor_services(
+            TIMESTAMP_MODE_HEADER_ONLY_NAMESPACE, TIMESTAMP_MODE_HEADER_ONLY_NODE)
+        self.check_monitor_services(
+            TIMESTAMP_MODE_NODETIME_ONLY_NAMESPACE, TIMESTAMP_MODE_NODETIME_ONLY_NODE)
+
+    def test_nodetime_only_detects_low_fps(self, expected_frequency, message_type, tolerance_hz):
+        """Test nodetime_only mode reports low-FPS errors on headered topics."""
+        if (message_type, expected_frequency, tolerance_hz) != MANAGE_TOPIC_TEST_CONFIG:
+            self.skipTest('Only running nodetime_only timestamp mode test once')
+
+        received_diagnostics = collect_diagnostics_for_topic(
+            self.test_node,
+            TIMESTAMP_MODE_NODETIME_ONLY_TOPIC,
+            expected_count=5,
+            timeout_sec=15.0
+        )
+        self.assertGreaterEqual(len(received_diagnostics), 1)
+
+        error_statuses = [s for s in received_diagnostics if s.level == DiagnosticStatus.ERROR]
+        self.assertTrue(
+            any('FRAME DROP DETECTED (NODE TIME)' in s.message for s in error_statuses),
+            'Expected nodetime_only mode to report node-time frame drop errors')
+
+    def test_header_only_no_error_for_headerless(
+            self, expected_frequency, message_type, tolerance_hz):
+        """Test header_only mode produces no error for headerless topics."""
+        if (message_type, expected_frequency, tolerance_hz) != MANAGE_TOPIC_TEST_CONFIG:
+            self.skipTest('Only running header_only timestamp mode test once')
+
+        received_diagnostics = collect_diagnostics_for_topic(
+            self.test_node,
+            TIMESTAMP_MODE_HEADER_ONLY_HEADERLESS_TOPIC,
+            expected_count=5,
+            timeout_sec=15.0
+        )
+        self.assertGreaterEqual(len(received_diagnostics), 1)
+
+        self.assertFalse(
+            any(status.level == DiagnosticStatus.ERROR for status in received_diagnostics),
+            'Header-only mode should not report errors for headerless topics')
+        self.assertTrue(
+            any(status.level == DiagnosticStatus.OK for status in received_diagnostics),
+            'Header-only mode should still publish OK diagnostics for headerless topics')
+
+    def test_invalid_mode_falls_back_to_default(
+            self, expected_frequency, message_type, tolerance_hz):
+        """Test invalid mode strings fall back to default behavior."""
+        if (message_type, expected_frequency, tolerance_hz) != MANAGE_TOPIC_TEST_CONFIG:
+            self.skipTest('Only running invalid timestamp mode test once')
+
+        self.check_monitor_services(TIMESTAMP_MODE_INVALID_NAMESPACE, TIMESTAMP_MODE_INVALID_NODE)
+
+        received_diagnostics = collect_diagnostics_for_topic(
+            self.test_node,
+            TIMESTAMP_MODE_INVALID_TOPIC,
+            expected_count=5,
+            timeout_sec=15.0
+        )
+        self.assertGreaterEqual(len(received_diagnostics), 1)
+
+        error_statuses = [s for s in received_diagnostics if s.level == DiagnosticStatus.ERROR]
+        self.assertTrue(
+            any('FRAME DROP DETECTED' in s.message for s in error_statuses),
+            'Invalid mode should fall back to default mode and report frame-drop errors')
+        self.assertTrue(
+            all('FRAME DROP DETECTED (NODE TIME)' not in s.message for s in error_statuses),
+            'Invalid mode fallback should use header checks for headered topics')
 
 
 if __name__ == '__main__':

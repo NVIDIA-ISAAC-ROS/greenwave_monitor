@@ -19,6 +19,13 @@
 
 greenwave_monitor:
   ros__parameters:
+    # Controls which timestamp source is used for low-FPS error checks.
+    # Valid values:
+    # - header_with_nodetime_fallback (default): header timestamps when available, otherwise node
+    #   time fallback for headerless topics.
+    # - header_only: use only header/message timestamps (no fallback for headerless topics).
+    # - nodetime_only: always use node/pub-time checks.
+    gw_timestamp_monitor_mode: header_with_nodetime_fallback
     # gw_monitored_topics parameter specifies topics to monitor that do not require expected
     # frequencies or tolerances.
     gw_monitored_topics: ['/string_topic']

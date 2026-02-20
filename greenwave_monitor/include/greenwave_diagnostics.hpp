@@ -35,6 +35,13 @@
 
 namespace greenwave_diagnostics
 {
+enum class TimestampMonitorMode
+{
+  kHeaderWithNodetimeFallback,
+  kHeaderOnly,
+  kNodetimeOnly
+};
+
 namespace constants
 {
 inline constexpr uint64_t kSecondsToNanoseconds = 1000000000ULL;
@@ -51,17 +58,9 @@ inline constexpr int64_t kNonsenseLatencyMs = 365LL * 24LL * 60LL * 60LL * 1000L
 // Configurations for a greenwave diagnostics
 struct GreenwaveDiagnosticsConfig
 {
-  // diagnostics toggle
-  bool enable_diagnostics{false};
-
-  // corresponds to launch arguments
-  bool enable_all_diagnostics{false};
   bool enable_node_time_diagnostics{false};
   bool enable_msg_time_diagnostics{false};
   bool enable_increasing_msg_time_diagnostics{false};
-
-  // enable basic diagnostics for all topics, triggered by an environment variable
-  bool enable_all_topic_diagnostics{false};
 
   // Window size of the mean filter in terms of number of messages received
   int filter_window_size{300};
@@ -97,6 +96,7 @@ public:
 
     prev_drop_ts_ = rclcpp::Time(0, 0, clock_->get_clock_type());
     prev_noninc_msg_ts_ = rclcpp::Time(0, 0, clock_->get_clock_type());
+    prev_drop_node_ts_ = rclcpp::Time(0, 0, clock_->get_clock_type());
     prev_timestamp_node_us_ = std::numeric_limits<uint64_t>::min();
     prev_timestamp_msg_us_ = std::numeric_limits<uint64_t>::min();
     num_non_increasing_msg_ = 0;
@@ -278,11 +278,14 @@ public:
     return message_latency_msg_ms_;
   }
 
-  void setExpectedDt(double expected_hz, double tolerance_percent)
+  void setExpectedDt(
+    double expected_hz, double tolerance_percent,
+    bool enable_node_checks = true, bool enable_msg_checks = true)
   {
     const std::lock_guard<std::mutex> lock(greenwave_diagnostics_mutex_);
-    diagnostics_config_.enable_node_time_diagnostics = true;
-    diagnostics_config_.enable_msg_time_diagnostics = true;
+    diagnostics_config_.enable_node_time_diagnostics = enable_node_checks;
+    diagnostics_config_.enable_msg_time_diagnostics = enable_msg_checks;
+    diagnostics_config_.enable_increasing_msg_time_diagnostics = enable_msg_checks;
 
     // This prevents accidental 0 division in the calculations in case of
     // a direct function call (not from service in greenwave_monitor.cpp)
@@ -314,6 +317,7 @@ public:
     const std::lock_guard<std::mutex> lock(greenwave_diagnostics_mutex_);
     diagnostics_config_.enable_node_time_diagnostics = false;
     diagnostics_config_.enable_msg_time_diagnostics = false;
+    diagnostics_config_.enable_increasing_msg_time_diagnostics = false;
 
     diagnostics_config_.expected_dt_us = 0;
     diagnostics_config_.jitter_tolerance_us = 0;
@@ -388,7 +392,7 @@ private:
   std::vector<diagnostic_msgs::msg::DiagnosticStatus> status_vec_;
   rclcpp::Clock::SharedPtr clock_;
   rclcpp::Time t_start_;
-  rclcpp::Time prev_drop_ts_, prev_noninc_msg_ts_;
+  rclcpp::Time prev_drop_ts_, prev_noninc_msg_ts_, prev_drop_node_ts_;
   uint64_t prev_timestamp_node_us_, prev_timestamp_msg_us_;
 
   RollingWindow node_window_;
@@ -423,6 +427,7 @@ private:
     const bool missed_deadline_node =
       node_window_.addJitter(abs_jitter_node, diagnostics_config_.jitter_tolerance_us);
     if (missed_deadline_node) {
+      prev_drop_node_ts_ = clock_->now();
       RCLCPP_DEBUG(
         node_.get_logger(),
         "[GreenwaveDiagnostics Node Time]"
@@ -434,6 +439,15 @@ private:
         static_cast<int64_t>(diagnostics_config_.jitter_tolerance_us),
         abs_jitter_node, topic_name_.c_str());
     }
+    if (prev_drop_node_ts_.nanoseconds() != 0) {
+      auto time_since_drop = (clock_->now() - prev_drop_node_ts_).seconds();
+      if (time_since_drop < greenwave_diagnostics::constants::kDropWarnTimeoutSeconds) {
+        error_found = true;
+        status_vec_[0].level = diagnostic_msgs::msg::DiagnosticStatus::ERROR;
+        update_status_message(status_vec_[0], "FRAME DROP DETECTED (NODE TIME)");
+      }
+    }
+
     return error_found;
   }
 

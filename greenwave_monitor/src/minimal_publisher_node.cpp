@@ -83,7 +83,6 @@ MinimalPublisher::MinimalPublisher(const rclcpp::NodeOptions & options)
     std::chrono::nanoseconds(period_ns), std::bind(&MinimalPublisher::timer_callback, this));
 
   greenwave_diagnostics::GreenwaveDiagnosticsConfig diagnostics_config;
-  diagnostics_config.enable_all_topic_diagnostics = true;
   greenwave_diagnostics_ = std::make_unique<greenwave_diagnostics::GreenwaveDiagnostics>(
     *this, topic, diagnostics_config);
 }
