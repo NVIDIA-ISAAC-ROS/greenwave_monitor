@@ -64,19 +64,19 @@ struct GreenwaveDiagnosticsConfig
 
   // flags for enabling/disabling specific diagnostics
   bool enable_node_time_diagnostics{false};
-  bool enable_msg_time_diagnostics{false};
-  bool enable_fps_jitter_msg_time_diagnostics{false};
+  bool enable_hdr_time_diagnostics{false};
+  bool enable_fps_jitter_hdr_time_diagnostics{false};
   bool enable_fps_jitter_node_time_diagnostics{false};
-  bool enable_fps_window_msg_time_diagnostics{false};
+  bool enable_fps_window_hdr_time_diagnostics{false};
   bool enable_fps_window_node_time_diagnostics{false};
-  bool enable_increasing_msg_time_diagnostics{false};
+  bool enable_increasing_hdr_time_diagnostics{false};
   bool enable_increasing_node_time_diagnostics{false};
 
-  // fallback to node time when message time is not available
+  // fallback to node time when header time is not available
   bool fallback_to_nodetime{false};
 
-  // flag indicating if it's expected for the message to have a timestamp
-  bool has_msg_timestamp{false};
+  // flag indicating if it's expected for the message to have a header timestamp
+  bool has_hdr_timestamp{false};
 
   // enable basic diagnostics for all topics, triggered by an environment variable
   bool enable_all_topic_diagnostics{false};
@@ -100,34 +100,34 @@ struct GreenwaveDiagnosticsConfig
         enable_fps_jitter_node_time_diagnostics = false;
         enable_fps_window_node_time_diagnostics = false;
         enable_increasing_node_time_diagnostics = false;
-        enable_msg_time_diagnostics = true;
-        enable_fps_jitter_msg_time_diagnostics = true;
-        enable_fps_window_msg_time_diagnostics = false;
-        enable_increasing_msg_time_diagnostics = true;
+        enable_hdr_time_diagnostics = true;
+        enable_fps_jitter_hdr_time_diagnostics = true;
+        enable_fps_window_hdr_time_diagnostics = false;
+        enable_increasing_hdr_time_diagnostics = true;
         break;
       case TimeCheckPreset::NodetimeOnly:
         enable_node_time_diagnostics = true;
         enable_fps_jitter_node_time_diagnostics = false;
         enable_fps_window_node_time_diagnostics = true;
         enable_increasing_node_time_diagnostics = true;
-        enable_msg_time_diagnostics = false;
-        enable_fps_jitter_msg_time_diagnostics = false;
-        enable_fps_window_msg_time_diagnostics = false;
-        enable_increasing_msg_time_diagnostics = false;
+        enable_hdr_time_diagnostics = false;
+        enable_fps_jitter_hdr_time_diagnostics = false;
+        enable_fps_window_hdr_time_diagnostics = false;
+        enable_increasing_hdr_time_diagnostics = false;
         break;
       case TimeCheckPreset::HeaderWithFallback:
-        // Enable msg time diagnostics only when it is known there is a msg timestamp, otherwise
+        // Enable hdr time diagnostics only when it is known there is a hdr timestamp, otherwise
         // disable them and use node time only. fps jitter checks for node time are too restrictive,
         // disable them.
         fallback_to_nodetime = true;
         enable_node_time_diagnostics = true;
         enable_fps_jitter_node_time_diagnostics = false;
-        enable_fps_window_node_time_diagnostics = !has_msg_timestamp;
+        enable_fps_window_node_time_diagnostics = !has_hdr_timestamp;
         enable_increasing_node_time_diagnostics = true;
-        enable_msg_time_diagnostics = has_msg_timestamp;
-        enable_fps_jitter_msg_time_diagnostics = has_msg_timestamp;
-        enable_fps_window_msg_time_diagnostics = false;
-        enable_increasing_msg_time_diagnostics = has_msg_timestamp;
+        enable_hdr_time_diagnostics = has_hdr_timestamp;
+        enable_fps_jitter_hdr_time_diagnostics = has_hdr_timestamp;
+        enable_fps_window_hdr_time_diagnostics = false;
+        enable_increasing_hdr_time_diagnostics = has_hdr_timestamp;
         break;
     }
   }
@@ -158,18 +158,18 @@ public:
     node_ts_series_.increasing_error_message = "NONINCREASING TIMESTAMP (NODE TIME)";
     node_ts_series_.fps_window_error_message = "FPS OUT OF RANGE (NODE TIME)";
 
-    msg_ts_series_.label = "Message Time";
-    msg_ts_series_.enabled = diagnostics_config_.enable_msg_time_diagnostics;
-    msg_ts_series_.check_fps_jitter = diagnostics_config_.enable_fps_jitter_msg_time_diagnostics;
-    msg_ts_series_.check_fps_window = diagnostics_config_.enable_fps_window_msg_time_diagnostics;
-    msg_ts_series_.check_increasing = diagnostics_config_.enable_increasing_msg_time_diagnostics;
-    msg_ts_series_.window.window_size = diagnostics_config_.filter_window_size;
-    msg_ts_series_.prev_drop_ts = rclcpp::Time(0, 0, clock_->get_clock_type());
-    msg_ts_series_.prev_noninc_ts = rclcpp::Time(0, 0, clock_->get_clock_type());
-    msg_ts_series_.prev_fps_out_of_range_ts = rclcpp::Time(0, 0, clock_->get_clock_type());
-    msg_ts_series_.drop_error_message = "FRAME DROP DETECTED";
-    msg_ts_series_.increasing_error_message = "NONINCREASING TIMESTAMP";
-    msg_ts_series_.fps_window_error_message = "FPS OUT OF RANGE";
+    hdr_ts_series_.label = "Header Time";
+    hdr_ts_series_.enabled = diagnostics_config_.enable_hdr_time_diagnostics;
+    hdr_ts_series_.check_fps_jitter = diagnostics_config_.enable_fps_jitter_hdr_time_diagnostics;
+    hdr_ts_series_.check_fps_window = diagnostics_config_.enable_fps_window_hdr_time_diagnostics;
+    hdr_ts_series_.check_increasing = diagnostics_config_.enable_increasing_hdr_time_diagnostics;
+    hdr_ts_series_.window.window_size = diagnostics_config_.filter_window_size;
+    hdr_ts_series_.prev_drop_ts = rclcpp::Time(0, 0, clock_->get_clock_type());
+    hdr_ts_series_.prev_noninc_ts = rclcpp::Time(0, 0, clock_->get_clock_type());
+    hdr_ts_series_.prev_fps_out_of_range_ts = rclcpp::Time(0, 0, clock_->get_clock_type());
+    hdr_ts_series_.drop_error_message = "FRAME DROP DETECTED";
+    hdr_ts_series_.increasing_error_message = "NONINCREASING TIMESTAMP";
+    hdr_ts_series_.fps_window_error_message = "FPS OUT OF RANGE";
 
     diagnostic_msgs::msg::DiagnosticStatus topic_status;
     topic_status.name = topic_name;
@@ -186,34 +186,34 @@ public:
   }
 
   // Update diagnostics numbers. To be called in Subscriber and Publisher
-  void updateDiagnostics(uint64_t msg_timestamp_ns)
+  void updateDiagnostics(uint64_t hdr_timestamp_ns)
   {
     const std::lock_guard<std::mutex> lock(greenwave_diagnostics_mutex_);
     status_vec_[0].message = "";
     bool error_found = false;
 
-    const uint64_t current_timestamp_msg_us = diagnostics_config_.has_msg_timestamp ?
-      msg_timestamp_ns / constants::kMicrosecondsToNanoseconds : 0;
+    const uint64_t current_timestamp_hdr_us = diagnostics_config_.has_hdr_timestamp ?
+      hdr_timestamp_ns / constants::kMicrosecondsToNanoseconds : 0;
     const uint64_t current_timestamp_node_us = static_cast<uint64_t>(
       clock_->now().nanoseconds() / constants::kMicrosecondsToNanoseconds);
 
     // Node time source
     error_found |= updateTimeSource(node_ts_series_, current_timestamp_node_us);
 
-    // Message time source (header-bearing messages only)
-    if (diagnostics_config_.has_msg_timestamp) {
-      error_found |= updateTimeSource(msg_ts_series_, current_timestamp_msg_us);
+    // Header time source (header-bearing messages only)
+    if (diagnostics_config_.has_hdr_timestamp) {
+      error_found |= updateTimeSource(hdr_ts_series_, current_timestamp_hdr_us);
     }
 
-    // Latency (only valid if message time source is available)
-    if (diagnostics_config_.has_msg_timestamp) {
+    // Latency (only valid if header time source is available)
+    if (diagnostics_config_.has_hdr_timestamp) {
       const uint64_t ros_node_system_time_us = static_cast<uint64_t>(
         clock_->now().nanoseconds() / constants::kMicrosecondsToNanoseconds);
-      message_latency_msg_ms_ =
-        static_cast<double>(ros_node_system_time_us - current_timestamp_msg_us) /
+      message_latency_hdr_ms_ =
+        static_cast<double>(ros_node_system_time_us - current_timestamp_hdr_us) /
         constants::kMillisecondsToMicroseconds;
-      if (message_latency_msg_ms_ > constants::kNonsenseLatencyMs) {
-        message_latency_msg_ms_ = std::numeric_limits<double>::quiet_NaN();
+      if (message_latency_hdr_ms_ > constants::kNonsenseLatencyMs) {
+        message_latency_hdr_ms_ = std::numeric_limits<double>::quiet_NaN();
       }
     }
 
@@ -239,42 +239,42 @@ public:
     } else {
       values.push_back(
         diagnostic_msgs::build<diagnostic_msgs::msg::KeyValue>()
-        .key("num_non_increasing_msg")
-        .value(std::to_string(msg_ts_series_.num_non_increasing)));
+        .key("num_non_increasing_hdr")
+        .value(std::to_string(hdr_ts_series_.num_non_increasing)));
       values.push_back(
         diagnostic_msgs::build<diagnostic_msgs::msg::KeyValue>()
-        .key("num_jitter_outliers_msg")
-        .value(std::to_string(msg_ts_series_.window.outlier_count)));
+        .key("num_jitter_outliers_hdr")
+        .value(std::to_string(hdr_ts_series_.window.outlier_count)));
       values.push_back(
         diagnostic_msgs::build<diagnostic_msgs::msg::KeyValue>()
         .key("num_jitter_outliers_node")
         .value(std::to_string(node_ts_series_.window.outlier_count)));
       values.push_back(
         diagnostic_msgs::build<diagnostic_msgs::msg::KeyValue>()
-        .key("max_abs_jitter_msg")
-        .value(std::to_string(msg_ts_series_.window.max_abs_jitter_us)));
+        .key("max_abs_jitter_hdr")
+        .value(std::to_string(hdr_ts_series_.window.max_abs_jitter_us)));
       values.push_back(
         diagnostic_msgs::build<diagnostic_msgs::msg::KeyValue>()
         .key("max_abs_jitter_node")
         .value(std::to_string(node_ts_series_.window.max_abs_jitter_us)));
       values.push_back(
         diagnostic_msgs::build<diagnostic_msgs::msg::KeyValue>()
-        .key("mean_abs_jitter_msg")
-        .value(std::to_string(msg_ts_series_.window.meanAbsJitterUs())));
+        .key("mean_abs_jitter_hdr")
+        .value(std::to_string(hdr_ts_series_.window.meanAbsJitterUs())));
       values.push_back(
         diagnostic_msgs::build<diagnostic_msgs::msg::KeyValue>()
         .key("mean_abs_jitter_node")
         .value(std::to_string(node_ts_series_.window.meanAbsJitterUs())));
       values.push_back(
         diagnostic_msgs::build<diagnostic_msgs::msg::KeyValue>()
-        .key("frame_rate_msg")
-        .value(std::to_string(msg_ts_series_.window.frameRateHz())));
+        .key("frame_rate_hdr")
+        .value(std::to_string(hdr_ts_series_.window.frameRateHz())));
       values.push_back(
         diagnostic_msgs::build<diagnostic_msgs::msg::KeyValue>()
         .key("current_delay_from_realtime_ms")
         .value(
-          std::isnan(message_latency_msg_ms_) ?
-          "N/A" : std::to_string(message_latency_msg_ms_)));
+          std::isnan(message_latency_hdr_ms_) ?
+          "N/A" : std::to_string(message_latency_hdr_ms_)));
       values.push_back(
         diagnostic_msgs::build<diagnostic_msgs::msg::KeyValue>()
         .key("frame_rate_node")
@@ -282,7 +282,7 @@ public:
       values.push_back(
         diagnostic_msgs::build<diagnostic_msgs::msg::KeyValue>()
         .key("total_dropped_frames")
-        .value(std::to_string(msg_ts_series_.window.outlier_count)));
+        .value(std::to_string(hdr_ts_series_.window.outlier_count)));
       values.push_back(
         diagnostic_msgs::build<diagnostic_msgs::msg::KeyValue>()
         .key("expected_frequency")
@@ -319,21 +319,21 @@ public:
     return node_ts_series_.window.frameRateHz();
   }
 
-  double getFrameRateMsg() const
+  double getFrameRateHdr() const
   {
-    return msg_ts_series_.window.frameRateHz();
+    return hdr_ts_series_.window.frameRateHz();
   }
 
   double getLatency() const
   {
-    return message_latency_msg_ms_;
+    return message_latency_hdr_ms_;
   }
 
   void setExpectedDt(double expected_hz, double tolerance_percent)
   {
     const std::lock_guard<std::mutex> lock(greenwave_diagnostics_mutex_);
     node_ts_series_.enabled = true;
-    msg_ts_series_.enabled = true;
+    hdr_ts_series_.enabled = true;
     // This prevents accidental 0 division in the calculations in case of
     // a direct function call (not from service in greenwave_monitor.cpp)
     if (expected_hz == 0.0) {
@@ -363,7 +363,7 @@ public:
   {
     const std::lock_guard<std::mutex> lock(greenwave_diagnostics_mutex_);
     node_ts_series_.enabled = false;
-    msg_ts_series_.enabled = false;
+    hdr_ts_series_.enabled = false;
 
     diagnostics_config_.expected_dt_us = 0;
     diagnostics_config_.jitter_tolerance_us = 0;
@@ -464,9 +464,9 @@ private:
   rclcpp::Time t_start_;
 
   TimeSeriesState node_ts_series_;
-  TimeSeriesState msg_ts_series_;
+  TimeSeriesState hdr_ts_series_;
 
-  double message_latency_msg_ms_{std::numeric_limits<double>::quiet_NaN()};
+  double message_latency_hdr_ms_{std::numeric_limits<double>::quiet_NaN()};
   bool outdated_msg_{true};
   rclcpp::Publisher<diagnostic_msgs::msg::DiagnosticArray>::SharedPtr diagnostic_publisher_;
 

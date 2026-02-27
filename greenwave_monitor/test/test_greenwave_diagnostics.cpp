@@ -62,10 +62,10 @@ protected:
   std::shared_ptr<rclcpp::Node> node_;
 };
 
-TEST_F(GreenwaveDiagnosticsTest, FrameRateMsgTest)
+TEST_F(GreenwaveDiagnosticsTest, FrameRateHdrTest)
 {
   greenwave_diagnostics::GreenwaveDiagnosticsConfig config;
-  config.has_msg_timestamp = true;
+  config.has_hdr_timestamp = true;
   greenwave_diagnostics::GreenwaveDiagnostics greenwave_diagnostics(
     *node_, "test_topic", config);
 
@@ -74,7 +74,7 @@ TEST_F(GreenwaveDiagnosticsTest, FrameRateMsgTest)
     greenwave_diagnostics.updateDiagnostics(timestamp);
     timestamp += 10000000;  // 10 ms in nanoseconds
   }
-  EXPECT_EQ(greenwave_diagnostics.getFrameRateMsg(), 100);  // 100 Hz
+  EXPECT_EQ(greenwave_diagnostics.getFrameRateHdr(), 100);  // 100 Hz
 }
 
 TEST_F(GreenwaveDiagnosticsTest, FrameRateNodeTest)
@@ -108,18 +108,18 @@ TEST_F(GreenwaveDiagnosticsTest, MessageLatencyTest)
 {
   greenwave_diagnostics::GreenwaveDiagnosticsConfig config;
   config.time_check_preset = greenwave_diagnostics::TimeCheckPreset::HeaderOnly;
-  config.has_msg_timestamp = true;
+  config.has_hdr_timestamp = true;
   greenwave_diagnostics::GreenwaveDiagnostics greenwave_diagnostics(
     *node_, "test_topic", config);
 
   const rclcpp::Time current_time = node_->get_clock()->now();
-  // Make message timestamp a certain amount of time earlier than current time
+  // Make header timestamp a certain amount of time earlier than current time
   constexpr double expected_latency_ms = 10.0;
-  const rclcpp::Time msg_timestamp =
+  const rclcpp::Time hdr_timestamp =
     current_time - rclcpp::Duration::from_seconds(
     expected_latency_ms / static_cast<double>(test_constants::kMillisecondsToSeconds));
 
-  greenwave_diagnostics.updateDiagnostics(msg_timestamp.nanoseconds());
+  greenwave_diagnostics.updateDiagnostics(hdr_timestamp.nanoseconds());
 
   // allow 1 ms tolerance
   EXPECT_NEAR(greenwave_diagnostics.getLatency(), expected_latency_ms, 1.0);
@@ -133,11 +133,11 @@ TEST_F(GreenwaveDiagnosticsTest, DiagnosticPublishSubscribeTest)
     ::greenwave_diagnostics::constants::kSecondsToNanoseconds / input_frequency);
 
   greenwave_diagnostics::GreenwaveDiagnosticsConfig config;
-  config.enable_msg_time_diagnostics = true;
+  config.enable_hdr_time_diagnostics = true;
   config.enable_node_time_diagnostics = true;
-  config.enable_fps_jitter_msg_time_diagnostics = true;
-  config.enable_increasing_msg_time_diagnostics = true;
-  config.has_msg_timestamp = true;
+  config.enable_fps_jitter_hdr_time_diagnostics = true;
+  config.enable_increasing_hdr_time_diagnostics = true;
+  config.has_hdr_timestamp = true;
   config.expected_dt_us = interarrival_time_ns /
     ::greenwave_diagnostics::constants::kMicrosecondsToNanoseconds;
 
@@ -156,8 +156,8 @@ TEST_F(GreenwaveDiagnosticsTest, DiagnosticPublishSubscribeTest)
   constexpr int64_t delay_time_ns = 50 *
     static_cast<int64_t>(::greenwave_diagnostics::constants::kMillisecondsToMicroseconds) *
     static_cast<int64_t>(::greenwave_diagnostics::constants::kMicrosecondsToNanoseconds);
-  // Starting message timestamp in nanoseconds
-  auto msg_timestamp = test_constants::kStartTimestampNs;
+  // Starting header timestamp in nanoseconds
+  auto hdr_timestamp = test_constants::kStartTimestampNs;
 
   int sent_count = 0;
   const auto start_time = std::chrono::high_resolution_clock::now();
@@ -166,22 +166,22 @@ TEST_F(GreenwaveDiagnosticsTest, DiagnosticPublishSubscribeTest)
   constexpr int num_messages = 100;
   while (sent_count < num_messages) {
     if (sent_count != 0) {
-      msg_timestamp += interarrival_time_ns;
+      hdr_timestamp += interarrival_time_ns;
     }
 
     sent_count++;
 
-    greenwave_diagnostics.updateDiagnostics(msg_timestamp);
+    greenwave_diagnostics.updateDiagnostics(hdr_timestamp);
     greenwave_diagnostics.publishDiagnostics();
 
     // Add a non-increasing timestamp at count 5
     if (sent_count == 5) {
-      msg_timestamp -= interarrival_time_ns;
+      hdr_timestamp -= interarrival_time_ns;
     }
     // Add a jitter by delaying at count 10
     if (sent_count == 10) {
       std::this_thread::sleep_for(std::chrono::nanoseconds(delay_time_ns));  // 50 ms delay
-      msg_timestamp += delay_time_ns;
+      hdr_timestamp += delay_time_ns;
     }
 
     rclcpp::spin_some(node_);
@@ -198,11 +198,11 @@ TEST_F(GreenwaveDiagnosticsTest, DiagnosticPublishSubscribeTest)
   const double expected_frame_rate_node = static_cast<double>(interarrival_time_count) /
     total_duration.count();
 
-  const auto sum_interarrival_time_msg_sec = static_cast<double>(
-    msg_timestamp - test_constants::kStartTimestampNs) /
+  const auto sum_interarrival_time_hdr_sec = static_cast<double>(
+    hdr_timestamp - test_constants::kStartTimestampNs) /
     static_cast<double>(::greenwave_diagnostics::constants::kSecondsToNanoseconds);
-  const double expected_frame_rate_msg =
-    static_cast<double>(interarrival_time_count) / sum_interarrival_time_msg_sec;
+  const double expected_frame_rate_hdr =
+    static_cast<double>(interarrival_time_count) / sum_interarrival_time_hdr_sec;
 
   // Verify that we received diagnostic messages
   ASSERT_FALSE(received_diagnostics.empty());
@@ -220,14 +220,14 @@ TEST_F(GreenwaveDiagnosticsTest, DiagnosticPublishSubscribeTest)
   // Parse diagnostic values
   std::map<std::string, double> diagnostics_values = {
     {"frame_rate_node", 0.0},
-    {"num_non_increasing_msg", 0.0},
-    {"num_jitter_outliers_msg", 0.0},
+    {"num_non_increasing_hdr", 0.0},
+    {"num_jitter_outliers_hdr", 0.0},
     {"num_jitter_outliers_node", 0.0},
-    {"max_abs_jitter_msg", 0.0},
+    {"max_abs_jitter_hdr", 0.0},
     {"max_abs_jitter_node", 0.0},
-    {"mean_abs_jitter_msg", 0.0},
+    {"mean_abs_jitter_hdr", 0.0},
     {"mean_abs_jitter_node", 0.0},
-    {"frame_rate_msg", 0.0},
+    {"frame_rate_hdr", 0.0},
     {"total_dropped_frames", 0.0}
   };
   for (const auto & value : diagnostic_status.values) {
@@ -239,32 +239,32 @@ TEST_F(GreenwaveDiagnosticsTest, DiagnosticPublishSubscribeTest)
   // Sometimes diagnostics may arrive out of order, so we use getter methods instead of values from
   //  the last diagnostic message to prevent flakiness
   EXPECT_NEAR(greenwave_diagnostics.getFrameRateNode(), expected_frame_rate_node, 1.0);
-  // Allow small floating point differences for frame rate msg
-  constexpr double frame_rate_msg_tolerance = 0.001;
+  // Allow small floating point differences for frame rate hdr
+  constexpr double frame_rate_hdr_tolerance = 0.001;
   EXPECT_NEAR(
-    greenwave_diagnostics.getFrameRateMsg(), expected_frame_rate_msg, frame_rate_msg_tolerance);
+    greenwave_diagnostics.getFrameRateHdr(), expected_frame_rate_hdr, frame_rate_hdr_tolerance);
 
   // Sometimes diagnostics may arrive out of order, so we need to check all received diagnostics
-  //  to see if the expected msg frame rate is somewhere in there
-  double smallest_msg_frame_rate_diff = std::numeric_limits<double>::infinity();
+  //  to see if the expected hdr frame rate is somewhere in there
+  double smallest_hdr_frame_rate_diff = std::numeric_limits<double>::infinity();
   for (const auto & diag_msg : received_diagnostics) {
     if (diag_msg->status.empty()) {
       continue;
     }
     const auto & status = diag_msg->status[0];
-    double frame_rate_msg = 0.0;
+    double frame_rate_hdr = 0.0;
     for (const auto & value : status.values) {
-      if (value.key == "frame_rate_msg") {
-        frame_rate_msg = std::stod(value.value);
+      if (value.key == "frame_rate_hdr") {
+        frame_rate_hdr = std::stod(value.value);
         break;
       }
     }
-    if (std::abs(frame_rate_msg - expected_frame_rate_msg) < smallest_msg_frame_rate_diff) {
-      smallest_msg_frame_rate_diff = std::abs(frame_rate_msg - expected_frame_rate_msg);
+    if (std::abs(frame_rate_hdr - expected_frame_rate_hdr) < smallest_hdr_frame_rate_diff) {
+      smallest_hdr_frame_rate_diff = std::abs(frame_rate_hdr - expected_frame_rate_hdr);
     }
   }
 
-  EXPECT_LT(smallest_msg_frame_rate_diff, frame_rate_msg_tolerance);
+  EXPECT_LT(smallest_hdr_frame_rate_diff, frame_rate_hdr_tolerance);
 
   // Diagnostics should have at least one jitter due to the intentional delay
   //  possibly more if the system was very busy
@@ -272,12 +272,12 @@ TEST_F(GreenwaveDiagnosticsTest, DiagnosticPublishSubscribeTest)
   EXPECT_GE(diagnostics_values["max_abs_jitter_node"], 0.0);
   EXPECT_GE(diagnostics_values["mean_abs_jitter_node"], 0.0);
 
-  EXPECT_GE(diagnostics_values["num_jitter_outliers_msg"], 1.0);
-  EXPECT_GE(diagnostics_values["max_abs_jitter_msg"], 0.0);
-  EXPECT_GE(diagnostics_values["mean_abs_jitter_msg"], 0.0);
+  EXPECT_GE(diagnostics_values["num_jitter_outliers_hdr"], 1.0);
+  EXPECT_GE(diagnostics_values["max_abs_jitter_hdr"], 0.0);
+  EXPECT_GE(diagnostics_values["mean_abs_jitter_hdr"], 0.0);
 
   EXPECT_GE(diagnostics_values["total_dropped_frames"], 1.0);
-  EXPECT_GE(diagnostics_values["num_non_increasing_msg"], 1.0);
+  EXPECT_GE(diagnostics_values["num_non_increasing_hdr"], 1.0);
 }
 
 static diagnostic_msgs::msg::DiagnosticStatus run_fps_sequence(
@@ -302,12 +302,12 @@ static diagnostic_msgs::msg::DiagnosticStatus run_fps_sequence(
   const int64_t input_dt_ns = static_cast<int64_t>(
     1e9 / expected_hz);
   const auto sleep_duration = std::chrono::duration<double>(1.0 / actual_hz);
-  uint64_t msg_timestamp = test_constants::kStartTimestampNs;
+  uint64_t hdr_timestamp = test_constants::kStartTimestampNs;
   for (int i = 0; i < samples; ++i) {
-    diagnostics.updateDiagnostics(msg_timestamp);
+    diagnostics.updateDiagnostics(hdr_timestamp);
     diagnostics.publishDiagnostics();
     rclcpp::spin_some(node);
-    msg_timestamp += static_cast<uint64_t>(input_dt_ns);
+    hdr_timestamp += static_cast<uint64_t>(input_dt_ns);
     std::this_thread::sleep_for(sleep_duration);
   }
 
@@ -324,7 +324,7 @@ TEST_F(GreenwaveDiagnosticsTest, HeaderlessFallbackRaisesOutOfRangeFpsError)
 {
   greenwave_diagnostics::GreenwaveDiagnosticsConfig config;
   config.time_check_preset = greenwave_diagnostics::TimeCheckPreset::HeaderWithFallback;
-  config.has_msg_timestamp = false;
+  config.has_hdr_timestamp = false;
 
   const auto status = run_fps_sequence(node_, config, 100.0, 10.0, 40.0);
 
@@ -336,7 +336,7 @@ TEST_F(GreenwaveDiagnosticsTest, HeaderOnlyDoesNotUseFallbackForHeaderlessTopics
 {
   greenwave_diagnostics::GreenwaveDiagnosticsConfig config;
   config.time_check_preset = greenwave_diagnostics::TimeCheckPreset::HeaderOnly;
-  config.has_msg_timestamp = false;
+  config.has_hdr_timestamp = false;
 
   const auto status = run_fps_sequence(node_, config, 100.0, 10.0, 40.0);
 
@@ -348,7 +348,7 @@ TEST_F(GreenwaveDiagnosticsTest, FallbackModeDoesNotUseFpsWindowForHeaderedTopic
 {
   greenwave_diagnostics::GreenwaveDiagnosticsConfig config;
   config.time_check_preset = greenwave_diagnostics::TimeCheckPreset::HeaderWithFallback;
-  config.has_msg_timestamp = true;
+  config.has_hdr_timestamp = true;
 
   const auto status = run_fps_sequence(node_, config, 100.0, 10.0, 100.0);
 
@@ -360,7 +360,7 @@ TEST_F(GreenwaveDiagnosticsTest, NodetimeOnlyUsesFpsWindowForHeaderedTopics)
 {
   greenwave_diagnostics::GreenwaveDiagnosticsConfig config;
   config.time_check_preset = greenwave_diagnostics::TimeCheckPreset::NodetimeOnly;
-  config.has_msg_timestamp = true;
+  config.has_hdr_timestamp = true;
 
   const auto status = run_fps_sequence(node_, config, 100.0, 10.0, 40.0);
 
@@ -374,12 +374,12 @@ TEST_F(GreenwaveDiagnosticsTest, TimeCheckPresetNone)
   config.time_check_preset = greenwave_diagnostics::TimeCheckPreset::None;
   config.applyTimeCheckPreset();
   EXPECT_FALSE(config.enable_node_time_diagnostics);
-  EXPECT_FALSE(config.enable_msg_time_diagnostics);
-  EXPECT_FALSE(config.enable_fps_jitter_msg_time_diagnostics);
+  EXPECT_FALSE(config.enable_hdr_time_diagnostics);
+  EXPECT_FALSE(config.enable_fps_jitter_hdr_time_diagnostics);
   EXPECT_FALSE(config.enable_fps_jitter_node_time_diagnostics);
-  EXPECT_FALSE(config.enable_fps_window_msg_time_diagnostics);
+  EXPECT_FALSE(config.enable_fps_window_hdr_time_diagnostics);
   EXPECT_FALSE(config.enable_fps_window_node_time_diagnostics);
-  EXPECT_FALSE(config.enable_increasing_msg_time_diagnostics);
+  EXPECT_FALSE(config.enable_increasing_hdr_time_diagnostics);
   EXPECT_FALSE(config.enable_increasing_node_time_diagnostics);
   EXPECT_FALSE(config.fallback_to_nodetime);
 }
@@ -390,12 +390,12 @@ TEST_F(GreenwaveDiagnosticsTest, TimeCheckPresetHeaderOnly)
   config.time_check_preset = greenwave_diagnostics::TimeCheckPreset::HeaderOnly;
   config.applyTimeCheckPreset();
   EXPECT_FALSE(config.enable_node_time_diagnostics);
-  EXPECT_TRUE(config.enable_msg_time_diagnostics);
-  EXPECT_TRUE(config.enable_fps_jitter_msg_time_diagnostics);
+  EXPECT_TRUE(config.enable_hdr_time_diagnostics);
+  EXPECT_TRUE(config.enable_fps_jitter_hdr_time_diagnostics);
   EXPECT_FALSE(config.enable_fps_jitter_node_time_diagnostics);
-  EXPECT_FALSE(config.enable_fps_window_msg_time_diagnostics);
+  EXPECT_FALSE(config.enable_fps_window_hdr_time_diagnostics);
   EXPECT_FALSE(config.enable_fps_window_node_time_diagnostics);
-  EXPECT_TRUE(config.enable_increasing_msg_time_diagnostics);
+  EXPECT_TRUE(config.enable_increasing_hdr_time_diagnostics);
   EXPECT_FALSE(config.enable_increasing_node_time_diagnostics);
   EXPECT_FALSE(config.fallback_to_nodetime);
 }
@@ -406,46 +406,46 @@ TEST_F(GreenwaveDiagnosticsTest, TimeCheckPresetNodetimeOnly)
   config.time_check_preset = greenwave_diagnostics::TimeCheckPreset::NodetimeOnly;
   config.applyTimeCheckPreset();
   EXPECT_TRUE(config.enable_node_time_diagnostics);
-  EXPECT_FALSE(config.enable_msg_time_diagnostics);
-  EXPECT_FALSE(config.enable_fps_jitter_msg_time_diagnostics);
+  EXPECT_FALSE(config.enable_hdr_time_diagnostics);
+  EXPECT_FALSE(config.enable_fps_jitter_hdr_time_diagnostics);
   EXPECT_FALSE(config.enable_fps_jitter_node_time_diagnostics);
-  EXPECT_FALSE(config.enable_fps_window_msg_time_diagnostics);
+  EXPECT_FALSE(config.enable_fps_window_hdr_time_diagnostics);
   EXPECT_TRUE(config.enable_fps_window_node_time_diagnostics);
-  EXPECT_FALSE(config.enable_increasing_msg_time_diagnostics);
+  EXPECT_FALSE(config.enable_increasing_hdr_time_diagnostics);
   EXPECT_TRUE(config.enable_increasing_node_time_diagnostics);
   EXPECT_FALSE(config.fallback_to_nodetime);
 }
 
-TEST_F(GreenwaveDiagnosticsTest, TimeCheckPresetHeaderWithFallbackNoMsgTimestamp)
+TEST_F(GreenwaveDiagnosticsTest, TimeCheckPresetHeaderWithFallbackNoHdrTimestamp)
 {
   greenwave_diagnostics::GreenwaveDiagnosticsConfig config;
   config.time_check_preset = greenwave_diagnostics::TimeCheckPreset::HeaderWithFallback;
-  config.has_msg_timestamp = false;
+  config.has_hdr_timestamp = false;
   config.applyTimeCheckPreset();
   EXPECT_TRUE(config.fallback_to_nodetime);
   EXPECT_TRUE(config.enable_node_time_diagnostics);
   EXPECT_FALSE(config.enable_fps_jitter_node_time_diagnostics);
   EXPECT_TRUE(config.enable_fps_window_node_time_diagnostics);
   EXPECT_TRUE(config.enable_increasing_node_time_diagnostics);
-  EXPECT_FALSE(config.enable_msg_time_diagnostics);
-  EXPECT_FALSE(config.enable_fps_jitter_msg_time_diagnostics);
-  EXPECT_FALSE(config.enable_fps_window_msg_time_diagnostics);
-  EXPECT_FALSE(config.enable_increasing_msg_time_diagnostics);
+  EXPECT_FALSE(config.enable_hdr_time_diagnostics);
+  EXPECT_FALSE(config.enable_fps_jitter_hdr_time_diagnostics);
+  EXPECT_FALSE(config.enable_fps_window_hdr_time_diagnostics);
+  EXPECT_FALSE(config.enable_increasing_hdr_time_diagnostics);
 }
 
-TEST_F(GreenwaveDiagnosticsTest, TimeCheckPresetHeaderWithFallbackWithMsgTimestamp)
+TEST_F(GreenwaveDiagnosticsTest, TimeCheckPresetHeaderWithFallbackWithHdrTimestamp)
 {
   greenwave_diagnostics::GreenwaveDiagnosticsConfig config;
   config.time_check_preset = greenwave_diagnostics::TimeCheckPreset::HeaderWithFallback;
-  config.has_msg_timestamp = true;
+  config.has_hdr_timestamp = true;
   config.applyTimeCheckPreset();
   EXPECT_TRUE(config.fallback_to_nodetime);
   EXPECT_TRUE(config.enable_node_time_diagnostics);
   EXPECT_FALSE(config.enable_fps_jitter_node_time_diagnostics);
   EXPECT_FALSE(config.enable_fps_window_node_time_diagnostics);
   EXPECT_TRUE(config.enable_increasing_node_time_diagnostics);
-  EXPECT_TRUE(config.enable_msg_time_diagnostics);
-  EXPECT_TRUE(config.enable_fps_jitter_msg_time_diagnostics);
-  EXPECT_FALSE(config.enable_fps_window_msg_time_diagnostics);
-  EXPECT_TRUE(config.enable_increasing_msg_time_diagnostics);
+  EXPECT_TRUE(config.enable_hdr_time_diagnostics);
+  EXPECT_TRUE(config.enable_fps_jitter_hdr_time_diagnostics);
+  EXPECT_FALSE(config.enable_fps_window_hdr_time_diagnostics);
+  EXPECT_TRUE(config.enable_increasing_hdr_time_diagnostics);
 }

@@ -148,8 +148,8 @@ void GreenwaveMonitor::topic_callback(
   const std::shared_ptr<rclcpp::SerializedMessage> msg,
   const std::string & topic, const std::string & type)
 {
-  auto msg_timestamp = GetTimestampFromSerializedMessage(msg, type);
-  greenwave_diagnostics_[topic]->updateDiagnostics(msg_timestamp.time_since_epoch().count());
+  auto hdr_timestamp = GetTimestampFromSerializedMessage(msg, type);
+  greenwave_diagnostics_[topic]->updateDiagnostics(hdr_timestamp.time_since_epoch().count());
 }
 
 void GreenwaveMonitor::timer_callback()
@@ -347,7 +347,7 @@ bool GreenwaveMonitor::add_topic(
   greenwave_diagnostics::GreenwaveDiagnosticsConfig diagnostics_config;
   diagnostics_config.enable_all_topic_diagnostics = true;
   diagnostics_config.time_check_preset = time_check_preset_;
-  diagnostics_config.has_msg_timestamp = has_header_from_type(type);
+  diagnostics_config.has_hdr_timestamp = has_header_from_type(type);
 
   subscriptions_.push_back(sub);
   greenwave_diagnostics_.emplace(
