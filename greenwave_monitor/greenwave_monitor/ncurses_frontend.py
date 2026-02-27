@@ -113,13 +113,11 @@ class GreenwaveNcursesFrontend(Node):
 
         self.visible_topics.sort()
 
-    def toggle_topic_monitoring(self, topic_name: str):
+    def toggle_topic_monitoring(self, topic_name: str) -> tuple[bool, str]:
         """Toggle monitoring for a topic."""
         if self.ui_adaptor:
-            self.ui_adaptor.toggle_topic_monitoring(topic_name)
-            self.show_status(f'Toggling monitoring for {topic_name}')
-        else:
-            self.show_status('UI adaptor not available')
+            return self.ui_adaptor.toggle_topic_monitoring(topic_name)
+        return False, 'UI adaptor not available'
 
     def show_status(self, message: str):
         """Show a status message for 3 seconds."""
@@ -141,6 +139,7 @@ def curses_main(stdscr, node):
     last_redraw = 0
     status_message = ''
     status_timeout = 0
+    status_is_error = False
     input_mode = None
     input_buffer = ''
 
@@ -231,12 +230,15 @@ def curses_main(stdscr, node):
                             success, msg = node.ui_adaptor.set_expected_frequency(
                                 topic_name, hz, tolerance)
                             status_message = f'Set frequency for {topic_name}: {hz}Hz'
+                            status_is_error = not success
                             if not success:
                                 status_message = f'Error: {msg}'
                         else:
                             status_message = 'Invalid input format'
+                            status_is_error = True
                     except ValueError:
                         status_message = 'Invalid frequency values'
+                        status_is_error = True
                     status_timeout = current_time + 3.0
                 input_mode = None
                 input_buffer = ''
@@ -273,19 +275,23 @@ def curses_main(stdscr, node):
             elif key == ord('\n') or key == ord(' '):
                 if 0 <= selected_row < len(node.visible_topics):
                     topic_name = node.visible_topics[selected_row]
-                    node.toggle_topic_monitoring(topic_name)
-                    status_message = f'Toggled monitoring for {topic_name}'
+                    success, msg = node.toggle_topic_monitoring(topic_name)
+                    status_message = msg if not success else f'Toggled monitoring for {topic_name}'
+                    status_is_error = not success
                     status_timeout = current_time + 3.0
             elif key == ord('f') or key == ord('F'):
                 if 0 <= selected_row < len(node.visible_topics):
                     input_mode = 'frequency'
                     input_buffer = ''
+                    status_timeout = 0
+                    status_is_error = False
             elif key == ord('c') or key == ord('C'):
                 if 0 <= selected_row < len(node.visible_topics):
                     topic_name = node.visible_topics[selected_row]
                     success, msg = node.ui_adaptor.set_expected_frequency(
                         topic_name, clear=True)
                     status_message = f'Cleared frequency for {topic_name}'
+                    status_is_error = not success
                     if not success:
                         status_message = f'Error: {msg}'
                     status_timeout = current_time + 3.0
@@ -295,6 +301,7 @@ def curses_main(stdscr, node):
                     node.update_visible_topics()
                 mode_text = 'monitored only' if node.hide_unmonitored else 'all topics'
                 status_message = f'Showing {mode_text}'
+                status_is_error = False
                 status_timeout = current_time + 3.0
 
         # Get data safely
@@ -400,8 +407,9 @@ def curses_main(stdscr, node):
         # Status message
         if current_time < status_timeout:
             try:
-                stdscr.addstr(height - 3, 0, status_message[:width-1],
-                              curses.color_pair(COLOR_STATUS_MSG))
+                color = curses.color_pair(COLOR_ERROR) if status_is_error \
+                    else curses.color_pair(COLOR_STATUS_MSG)
+                stdscr.addstr(height - 3, 0, status_message[:width-1], color)
             except curses.error:
                 pass
 
@@ -470,6 +478,7 @@ def parse_args(args=None):
 def main(args=None):
     """Entry point for the ncurses frontend application."""
     parsed_args, ros_args = parse_args(args)
+    ros_args.extend(['--ros-args', '--disable-stdout-logs'])
     rclpy.init(args=ros_args)
     node = GreenwaveNcursesFrontend(hide_unmonitored=parsed_args.hide_unmonitored)
     thread = None

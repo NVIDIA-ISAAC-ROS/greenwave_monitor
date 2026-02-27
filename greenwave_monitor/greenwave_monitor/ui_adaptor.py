@@ -184,10 +184,10 @@ class GreenwaveUiAdaptor:
                     # Skip updating expected_frequencies if values aren't numeric
                     self.expected_frequencies.pop(topic_name, None)
 
-    def toggle_topic_monitoring(self, topic_name: str):
+    def toggle_topic_monitoring(self, topic_name: str) -> tuple[bool, str]:
         """Toggle monitoring for a topic."""
         if not self.manage_topic_client.wait_for_service(timeout_sec=1.0):
-            return
+            return False, 'Could not connect to manage_topic service.'
 
         request = ManageTopic.Request()
         request.topic_name = topic_name
@@ -195,34 +195,36 @@ class GreenwaveUiAdaptor:
         with self.data_lock:
             request.add_topic = topic_name not in self.ui_diagnostics
 
+        action = 'start' if request.add_topic else 'stop'
+
         try:
-            # Use asynchronous service call to prevent deadlock
             future = self.manage_topic_client.call_async(request)
             rclpy.spin_until_future_complete(self.node, future, timeout_sec=3.0)
 
             if future.result() is None:
-                action = 'start' if request.add_topic else 'stop'
-                self.node.get_logger().error(
-                    f'Failed to {action} monitoring: Service call timed out')
-                return
+                error_msg = f'Failed to {action} monitoring: Service call timed out'
+                self.node.get_logger().error(error_msg)
+                return False, error_msg
 
             response = future.result()
 
-            with self.data_lock:
-                if not response.success:
-                    action = 'start' if request.add_topic else 'stop'
-                    self.node.get_logger().error(
-                        f'Failed to {action} monitoring: {response.message}')
-                    return
+            if not response.success:
+                error_msg = f'Failed to {action} monitoring: {response.message}'
+                self.node.get_logger().error(error_msg)
+                return False, error_msg
 
+            with self.data_lock:
                 if not request.add_topic and topic_name in self.ui_diagnostics:
                     del self.ui_diagnostics[topic_name]
                     if topic_name in self.expected_frequencies:
                         del self.expected_frequencies[topic_name]
 
+            return True, f'Successfully {"started" if request.add_topic else "stopped"} monitoring'
+
         except Exception as e:
-            action = 'start' if request.add_topic else 'stop'
-            self.node.get_logger().error(f'Failed to {action} monitoring: {e}')
+            error_msg = f'Failed to {action} monitoring: {e}'
+            self.node.get_logger().error(error_msg)
+            return False, error_msg
 
     def set_expected_frequency(self,
                                topic_name: str,
