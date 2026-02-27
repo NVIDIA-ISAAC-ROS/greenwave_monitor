@@ -1,5 +1,5 @@
 // SPDX-FileCopyrightText: NVIDIA CORPORATION & AFFILIATES
-// Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2025-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -22,7 +22,13 @@ int main(int argc, char * argv[])
   rclcpp::init(argc, argv);
   rclcpp::NodeOptions options;
   auto node = std::make_shared<MinimalPublisher>(options);
-  rclcpp::spin(node);
+  try {
+    rclcpp::spin(node);
+  } catch (const rclcpp::exceptions::RCLError & e) {
+    RCLCPP_DEBUG(
+      node->get_logger(),
+      "Context became invalid during spin (expected during shutdown): %s", e.what());
+  }
   rclcpp::shutdown();
   return 0;
 }
