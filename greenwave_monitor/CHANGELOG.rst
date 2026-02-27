@@ -2,8 +2,8 @@
 Changelog for package greenwave_monitor
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Forthcoming
------------
+1.0.0 (2026-02-27)
+------------------
 * Fix flakey minimal publisher shutdown (`#36 <https://github.com/NVIDIA-ISAAC-ROS/greenwave_monitor/issues/36>`_)
 * Fix errors overlaying on topics in ncurses frontend (`#35 <https://github.com/NVIDIA-ISAAC-ROS/greenwave_monitor/issues/35>`_)
   Logs are now directed to a logfile instead of the screen by default.
