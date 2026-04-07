@@ -457,7 +457,7 @@ GreenwaveMonitor::GetTimestampFromSerializedMessage(
 
   std::chrono::time_point<std::chrono::system_clock> timestamp(
     std::chrono::duration_cast<std::chrono::system_clock::duration>(
-        std::chrono::seconds(timestamp_sec) + std::chrono::nanoseconds(timestamp_nanosec)
+      std::chrono::seconds(timestamp_sec) + std::chrono::nanoseconds(timestamp_nanosec)
     )
   );
   return timestamp;
