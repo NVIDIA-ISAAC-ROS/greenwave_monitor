@@ -23,7 +23,7 @@ The diagnostics messages published by greenwave monitor are standard ROS 2 Diagn
 `GreenwaveDiagnostics` tracks:
 
 - node-time interarrival rate (`frame_rate_node`)
-- message-time interarrival rate (`frame_rate_msg`) # Using the message's header timestamp
+- header-time interarrival rate (`frame_rate_hdr`) # Using the message's header timestamp
 - current delay from realtime (`current_delay_from_realtime_ms`)
 - jitter/outlier counters and summary stats
 - status transitions (`OK`, `ERROR`, `STALE`) for missed timing expectations
@@ -87,7 +87,7 @@ gw_diag_->setExpectedDt(/*expected_hz=*/30.0, /*tolerance_percent=*/10.0);
 
 ### Step 3: Update diagnostics per message event
 
-Call `updateDiagnostics(msg_timestamp_ns)` whenever you publish or consume.
+Call `updateDiagnostics(hdr_timestamp_ns)` whenever you publish or consume.
 
 ```cpp
 const auto stamp_ns = msg.header.stamp.sec * 1000000000ULL + msg.header.stamp.nanosec;
@@ -116,7 +116,7 @@ diag_timer_ = this->create_wall_timer(
 Dashboards expect specific keys inside `DiagnosticStatus.values`, including:
 
 - `frame_rate_node`
-- `frame_rate_msg`
+- `frame_rate_hdr`
 - `current_delay_from_realtime_ms`
 - `expected_frequency`
 - `tolerance`
@@ -138,8 +138,8 @@ The `gw_time_check_preset` node parameter controls which time-based checks run o
 
 | Preset value | Description |
 |--------------|-------------|
-| `header_with_nodetime_fallback` (default) | For header-bearing types: check message timestamp (rate, jitter, increasing). For headerless types: fall back to node time and run FPS window and increasing-timestamp checks. |
-| `header_only` | Check message timestamp only. Headerless topics get no timing checks (diagnostics stay OK). Use when you only care about headered sources. |
+| `header_with_nodetime_fallback` (default) | For header-bearing types: check header timestamp (rate, jitter, increasing). For headerless types: fall back to node time and run FPS window and increasing-timestamp checks. |
+| `header_only` | Check header timestamp only. Headerless topics get no timing checks (diagnostics stay OK). Use when you only care about headered sources. |
 | `nodetime_only` | Use node receive time for all topics (header and headerless). Runs FPS window and increasing-timestamp checks. |
 | `none` | No time-based checks; only raw rate/latency values are computed and published. |
 
@@ -156,7 +156,7 @@ Invalid values are ignored and the default `header_with_nodetime_fallback` is us
 
 ## Implementation Notes And Pitfalls
 
-- Message timestamp should be epoch time for latency to be meaningful.
+- Header timestamp should be epoch time for latency to be meaningful.
 - The central monitor only parses headers for types listed in
   `GreenwaveMonitor::has_header_from_type()`; unknown types fall back to no-header behavior.
 - `publishDiagnostics()` marks status as `STALE` if no fresh `updateDiagnostics()` happened since the previous publish.
