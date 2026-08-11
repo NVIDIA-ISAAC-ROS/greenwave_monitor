@@ -57,7 +57,7 @@ jobs:
           - ros_distro: kilted
             ubuntu_distro: noble
           - ros_distro: rolling
-            ubuntu_distro: noble
+            ubuntu_distro: resolute
 
     steps:
     - name: Checkout code

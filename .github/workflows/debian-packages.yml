@@ -75,7 +75,7 @@ jobs:
           - ros_distro: kilted
             ubuntu_distro: noble
           - ros_distro: rolling
-            ubuntu_distro: noble
+            ubuntu_distro: resolute
 
     steps:
     - name: Checkout code
@@ -117,7 +117,7 @@ jobs:
           - ros_distro: kilted
             ubuntu_distro: noble
           - ros_distro: rolling
-            ubuntu_distro: noble
+            ubuntu_distro: resolute
 
     steps:
     - name: Setup ROS repository and install base ROS

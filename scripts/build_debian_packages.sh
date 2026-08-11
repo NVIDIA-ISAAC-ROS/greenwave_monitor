@@ -26,13 +26,14 @@
 #   ./scripts/build_debian_packages.sh                    # Uses defaults (humble/jammy)
 #   ./scripts/build_debian_packages.sh humble jammy      # ROS Humble on Ubuntu 22.04
 #   ./scripts/build_debian_packages.sh jazzy noble       # ROS Jazzy on Ubuntu 24.04
+#   ./scripts/build_debian_packages.sh rolling resolute  # ROS Rolling on Ubuntu 26.04
 #
 # Docker Usage (Recommended):
 #   docker run -it --rm -v $(pwd):/workspace -w /workspace \
 #     ubuntu:jammy ./scripts/build_debian_packages.sh humble jammy
 #
 # Supported combinations:
-#   humble/jammy, iron/jammy, jazzy/noble, kilted/noble, rolling/noble
+#   humble/jammy, iron/jammy, jazzy/noble, kilted/noble, rolling/resolute
 #
 # Output: Debian packages will be created in debian_packages/[ROS_DISTRO]/
 # Install: sudo apt install ./debian_packages/[ROS_DISTRO]/*.deb
@@ -59,10 +60,10 @@ esac
 
 # Validate Ubuntu distro
 case "$UBUNTU_DISTRO" in
-jammy | noble) ;;
+jammy | noble | resolute) ;;
 *)
 	echo "Error: Unsupported Ubuntu distro: $UBUNTU_DISTRO"
-	echo "Supported distros: jammy, noble"
+	echo "Supported distros: jammy, noble, resolute"
 	exit 1
 	;;
 esac
@@ -148,10 +149,12 @@ greenwave_monitor_interfaces:
   ubuntu:
     jammy: [ros-$ROS_DISTRO-greenwave-monitor-interfaces]
     noble: [ros-$ROS_DISTRO-greenwave-monitor-interfaces]
+    resolute: [ros-$ROS_DISTRO-greenwave-monitor-interfaces]
 greenwave_monitor:
   ubuntu:
     jammy: [ros-$ROS_DISTRO-greenwave-monitor]
     noble: [ros-$ROS_DISTRO-greenwave-monitor]
+    resolute: [ros-$ROS_DISTRO-greenwave-monitor]
 EOF
 
 # Setup rosdep

@@ -40,7 +40,7 @@ kilted)
 	IMAGE="ros:kilted-ros-base-noble"
 	;;
 rolling)
-	IMAGE="ros:rolling-ros-base-noble"
+	IMAGE="ros:rolling-ros-base-resolute"
 	;;
 *)
 	echo "Unsupported ROS 2 distribution: $DISTRO"
