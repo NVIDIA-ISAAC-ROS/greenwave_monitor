@@ -25,7 +25,14 @@ Greenwave monitor is a standalone package tested on Humble, Iron, Jazzy, Kilted,
 
 ## Installation
 
-From source:
+Recommended:
+
+```bash
+sudo apt install ros-${ROS_DISTRO}-greenwave-monitor
+```
+
+From source, for development:
+
 ```bash
 cd ros_ws/src
 git clone https://github.com/NVIDIA-ISAAC-ROS/greenwave_monitor.git
