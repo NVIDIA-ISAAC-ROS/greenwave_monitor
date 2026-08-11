@@ -27,8 +27,11 @@ Greenwave monitor is a standalone package tested on Humble, Iron, Jazzy, Kilted,
 
 Recommended:
 
+> **Note:** Make sure `ROS_DISTRO` is set to your ROS 2 distribution, for example by
+> running `source /opt/ros/<distro>/setup.bash`.
+
 ```bash
-sudo apt install ros-${ROS_DISTRO:-jazzy}-greenwave-monitor
+sudo apt install ros-${ROS_DISTRO}-greenwave-monitor
 ```
 
 From source, for development:
