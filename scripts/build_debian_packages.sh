@@ -90,10 +90,16 @@ ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ >/etc/timezone
 apt-get update -qq
 apt-get install -y curl gnupg lsb-release
 
-if [ ! -f "/etc/apt/sources.list.d/ros2.list" ]; then
-	echo "Adding ROS 2 apt repository..."
+ROS_APT_REPOSITORY="ros2"
+if [[ "$ROS_DISTRO" == "rolling" ]]; then
+	ROS_APT_REPOSITORY="ros2-testing"
+fi
+ROS_APT_URL="http://packages.ros.org/$ROS_APT_REPOSITORY/ubuntu"
+
+if [ ! -f "/etc/apt/sources.list.d/ros2.list" ] || ! grep -q "$ROS_APT_URL" /etc/apt/sources.list.d/ros2.list; then
+	echo "Adding ROS 2 apt repository ($ROS_APT_REPOSITORY)..."
 	curl -sSL https://raw.githubusercontent.com/ros/rosdistro/master/ros.key -o /usr/share/keyrings/ros-archive-keyring.gpg
-	echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/ros-archive-keyring.gpg] http://packages.ros.org/ros2/ubuntu $(lsb_release -cs) main" >/etc/apt/sources.list.d/ros2.list
+	echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/ros-archive-keyring.gpg] $ROS_APT_URL $(lsb_release -cs) main" >/etc/apt/sources.list.d/ros2.list
 	apt-get update -qq
 else
 	echo "ROS 2 repository already configured"
