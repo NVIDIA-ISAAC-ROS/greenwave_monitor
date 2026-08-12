@@ -26,13 +26,14 @@
 #   ./scripts/build_debian_packages.sh                    # Uses defaults (humble/jammy)
 #   ./scripts/build_debian_packages.sh humble jammy      # ROS Humble on Ubuntu 22.04
 #   ./scripts/build_debian_packages.sh jazzy noble       # ROS Jazzy on Ubuntu 24.04
+#   ./scripts/build_debian_packages.sh rolling resolute  # ROS Rolling on Ubuntu 26.04
 #
 # Docker Usage (Recommended):
 #   docker run -it --rm -v $(pwd):/workspace -w /workspace \
 #     ubuntu:jammy ./scripts/build_debian_packages.sh humble jammy
 #
 # Supported combinations:
-#   humble/jammy, iron/jammy, jazzy/noble, kilted/noble, rolling/noble
+#   humble/jammy, iron/jammy, jazzy/noble, kilted/noble, rolling/resolute
 #
 # Output: Debian packages will be created in debian_packages/[ROS_DISTRO]/
 # Install: sudo apt install ./debian_packages/[ROS_DISTRO]/*.deb
@@ -59,10 +60,10 @@ esac
 
 # Validate Ubuntu distro
 case "$UBUNTU_DISTRO" in
-jammy | noble) ;;
+jammy | noble | resolute) ;;
 *)
 	echo "Error: Unsupported Ubuntu distro: $UBUNTU_DISTRO"
-	echo "Supported distros: jammy, noble"
+	echo "Supported distros: jammy, noble, resolute"
 	exit 1
 	;;
 esac
@@ -89,10 +90,16 @@ ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ >/etc/timezone
 apt-get update -qq
 apt-get install -y curl gnupg lsb-release
 
-if [ ! -f "/etc/apt/sources.list.d/ros2.list" ]; then
-	echo "Adding ROS 2 apt repository..."
+ROS_APT_REPOSITORY="ros2"
+if [[ "$ROS_DISTRO" == "rolling" ]]; then
+	ROS_APT_REPOSITORY="ros2-testing"
+fi
+ROS_APT_URL="http://packages.ros.org/$ROS_APT_REPOSITORY/ubuntu"
+
+if [ ! -f "/etc/apt/sources.list.d/ros2.list" ] || ! grep -q "$ROS_APT_URL" /etc/apt/sources.list.d/ros2.list; then
+	echo "Adding ROS 2 apt repository ($ROS_APT_REPOSITORY)..."
 	curl -sSL https://raw.githubusercontent.com/ros/rosdistro/master/ros.key -o /usr/share/keyrings/ros-archive-keyring.gpg
-	echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/ros-archive-keyring.gpg] http://packages.ros.org/ros2/ubuntu $(lsb_release -cs) main" >/etc/apt/sources.list.d/ros2.list
+	echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/ros-archive-keyring.gpg] $ROS_APT_URL $(lsb_release -cs) main" >/etc/apt/sources.list.d/ros2.list
 	apt-get update -qq
 else
 	echo "ROS 2 repository already configured"
@@ -148,10 +155,12 @@ greenwave_monitor_interfaces:
   ubuntu:
     jammy: [ros-$ROS_DISTRO-greenwave-monitor-interfaces]
     noble: [ros-$ROS_DISTRO-greenwave-monitor-interfaces]
+    resolute: [ros-$ROS_DISTRO-greenwave-monitor-interfaces]
 greenwave_monitor:
   ubuntu:
     jammy: [ros-$ROS_DISTRO-greenwave-monitor]
     noble: [ros-$ROS_DISTRO-greenwave-monitor]
+    resolute: [ros-$ROS_DISTRO-greenwave-monitor]
 EOF
 
 # Setup rosdep
