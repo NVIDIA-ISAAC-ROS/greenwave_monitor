@@ -190,7 +190,7 @@ def find_best_diagnostic(
         for kv in status.values:
             if kv.key == 'frame_rate_node':
                 node_str = kv.value
-            elif kv.key == 'frame_rate_msg':
+            elif kv.key == 'frame_rate_hdr':
                 msg_str = kv.value
             elif kv.key == 'current_delay_from_realtime_ms':
                 latency_str = kv.value
@@ -233,7 +233,7 @@ def verify_diagnostic_values(status: DiagnosticStatus,
     if reported_frequency_node == -1.0:
         errors.append("Did not find 'frame_rate_node' in diagnostic")
     if reported_frequency_msg == -1.0:
-        errors.append("Did not find 'frame_rate_msg' in diagnostic")
+        errors.append("Did not find 'frame_rate_hdr' in diagnostic")
     if reported_latency_ms == -1.0:
         errors.append("Did not find 'current_delay_from_realtime_ms' in diagnostic")
 

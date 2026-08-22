@@ -83,7 +83,7 @@ class UiDiagnosticData:
         for kv in status.values:
             if kv.key == 'frame_rate_node':
                 data.pub_rate = kv.value
-            elif kv.key == 'frame_rate_msg':
+            elif kv.key == 'frame_rate_hdr':
                 data.msg_rate = kv.value
             elif kv.key == 'current_delay_from_realtime_ms':
                 data.latency = kv.value

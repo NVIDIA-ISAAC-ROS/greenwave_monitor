@@ -137,7 +137,7 @@ void MinimalPublisher::timer_callback()
       message);
   }
 
-  const auto msg_timestamp = this->now();
-  greenwave_diagnostics_->updateDiagnostics(msg_timestamp.nanoseconds());
+  const auto hdr_timestamp = this->now();
+  greenwave_diagnostics_->updateDiagnostics(hdr_timestamp.nanoseconds());
   // greenwave_diagnostics_->publishDiagnostics();
 }

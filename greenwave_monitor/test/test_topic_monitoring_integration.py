@@ -226,7 +226,7 @@ class TestTopicMonitoringIntegration(unittest.TestCase):
         from diagnostic_msgs.msg import KeyValue
         status.values = [
             KeyValue(key='frame_rate_node', value='100.5'),
-            KeyValue(key='frame_rate_msg', value='99.8'),
+            KeyValue(key='frame_rate_hdr', value='99.8'),
             KeyValue(key='current_delay_from_realtime_ms', value='5.2')
         ]
 
