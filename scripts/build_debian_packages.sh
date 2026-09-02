@@ -31,7 +31,7 @@
 #
 # Docker Usage (Recommended):
 #   docker run -it --rm -v $(pwd):/workspace -w /workspace \
-#     ubuntu:jammy ./scripts/build_debian_packages.sh humble jammy
+#     ubuntu:resolute ./scripts/build_debian_packages.sh lyrical resolute
 #
 # Supported combinations:
 #   humble/jammy, iron/jammy, jazzy/noble, lyrical/resolute, kilted/noble, rolling/resolute
