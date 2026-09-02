@@ -37,7 +37,7 @@ jazzy)
 	IMAGE="ros:jazzy-ros-base-noble"
 	;;
 lyrical)
-	IMAGE="ros:lyrical-ros-base-noble"
+	IMAGE="ros:lyrical-ros-base-resolute"
 	;;
 kilted)
 	IMAGE="ros:kilted-ros-base-noble"

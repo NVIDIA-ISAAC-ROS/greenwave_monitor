@@ -73,7 +73,7 @@ jobs:
           - ros_distro: jazzy
             ubuntu_distro: noble
           - ros_distro: lyrical
-            ubuntu_distro: noble
+            ubuntu_distro: resolute
           - ros_distro: kilted
             ubuntu_distro: noble
           - ros_distro: rolling
@@ -117,7 +117,7 @@ jobs:
           - ros_distro: jazzy
             ubuntu_distro: noble
           - ros_distro: lyrical
-            ubuntu_distro: noble
+            ubuntu_distro: resolute
           - ros_distro: kilted
             ubuntu_distro: noble
           - ros_distro: rolling

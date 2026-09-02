@@ -23,10 +23,10 @@
 #
 # Usage: ./scripts/build_debian_packages.sh [ROS_DISTRO] [UBUNTU_DISTRO]
 # Examples:
-#   ./scripts/build_debian_packages.sh                    # Uses defaults (lyrical/noble)
+#   ./scripts/build_debian_packages.sh                    # Uses defaults (lyrical/resolute)
 #   ./scripts/build_debian_packages.sh humble jammy      # ROS Humble on Ubuntu 22.04
 #   ./scripts/build_debian_packages.sh jazzy noble       # ROS Jazzy on Ubuntu 24.04
-#   ./scripts/build_debian_packages.sh lyrical noble     # ROS Lyrical on Ubuntu 24.04
+#   ./scripts/build_debian_packages.sh lyrical resolute  # ROS Lyrical on Ubuntu 26.04
 #   ./scripts/build_debian_packages.sh rolling resolute  # ROS Rolling on Ubuntu 26.04
 #
 # Docker Usage (Recommended):
@@ -34,7 +34,7 @@
 #     ubuntu:jammy ./scripts/build_debian_packages.sh humble jammy
 #
 # Supported combinations:
-#   humble/jammy, iron/jammy, jazzy/noble, lyrical/noble, kilted/noble, rolling/resolute
+#   humble/jammy, iron/jammy, jazzy/noble, lyrical/resolute, kilted/noble, rolling/resolute
 #
 # Output: Debian packages will be created in debian_packages/[ROS_DISTRO]/
 # Install: sudo apt install ./debian_packages/[ROS_DISTRO]/*.deb
@@ -43,7 +43,7 @@ set -eo pipefail
 
 # Default values
 DEFAULT_ROS_DISTRO="lyrical"
-DEFAULT_UBUNTU_DISTRO="noble"
+DEFAULT_UBUNTU_DISTRO="resolute"
 
 # Parse arguments
 ROS_DISTRO="${1:-$DEFAULT_ROS_DISTRO}"
