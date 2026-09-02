@@ -22,8 +22,8 @@
 
 set -e
 
-# Default to Humble if no distro specified
-DISTRO=${1:-humble}
+# Default to Lyrical if no distro specified
+DISTRO=${1:-lyrical}
 
 # Image mapping based on ROS distro
 case $DISTRO in

@@ -23,7 +23,7 @@
 #
 # Usage: ./scripts/build_debian_packages.sh [ROS_DISTRO] [UBUNTU_DISTRO]
 # Examples:
-#   ./scripts/build_debian_packages.sh                    # Uses defaults (humble/jammy)
+#   ./scripts/build_debian_packages.sh                    # Uses defaults (lyrical/noble)
 #   ./scripts/build_debian_packages.sh humble jammy      # ROS Humble on Ubuntu 22.04
 #   ./scripts/build_debian_packages.sh jazzy noble       # ROS Jazzy on Ubuntu 24.04
 #   ./scripts/build_debian_packages.sh lyrical noble     # ROS Lyrical on Ubuntu 24.04
@@ -42,8 +42,8 @@
 set -eo pipefail
 
 # Default values
-DEFAULT_ROS_DISTRO="humble"
-DEFAULT_UBUNTU_DISTRO="jammy"
+DEFAULT_ROS_DISTRO="lyrical"
+DEFAULT_UBUNTU_DISTRO="noble"
 
 # Parse arguments
 ROS_DISTRO="${1:-$DEFAULT_ROS_DISTRO}"
