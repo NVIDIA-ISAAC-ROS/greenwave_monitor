@@ -26,6 +26,7 @@
 #   ./scripts/build_debian_packages.sh                    # Uses defaults (humble/jammy)
 #   ./scripts/build_debian_packages.sh humble jammy      # ROS Humble on Ubuntu 22.04
 #   ./scripts/build_debian_packages.sh jazzy noble       # ROS Jazzy on Ubuntu 24.04
+#   ./scripts/build_debian_packages.sh lyrical noble     # ROS Lyrical on Ubuntu 24.04
 #   ./scripts/build_debian_packages.sh rolling resolute  # ROS Rolling on Ubuntu 26.04
 #
 # Docker Usage (Recommended):
@@ -33,7 +34,7 @@
 #     ubuntu:jammy ./scripts/build_debian_packages.sh humble jammy
 #
 # Supported combinations:
-#   humble/jammy, iron/jammy, jazzy/noble, kilted/noble, rolling/resolute
+#   humble/jammy, iron/jammy, jazzy/noble, lyrical/noble, kilted/noble, rolling/resolute
 #
 # Output: Debian packages will be created in debian_packages/[ROS_DISTRO]/
 # Install: sudo apt install ./debian_packages/[ROS_DISTRO]/*.deb
@@ -50,10 +51,10 @@ UBUNTU_DISTRO="${2:-$DEFAULT_UBUNTU_DISTRO}"
 
 # Validate ROS distro
 case "$ROS_DISTRO" in
-humble | iron | jazzy | kilted | rolling) ;;
+humble | iron | jazzy | lyrical | kilted | rolling) ;;
 *)
 	echo "Error: Unsupported ROS distro: $ROS_DISTRO"
-	echo "Supported distros: humble, iron, jazzy, kilted, rolling"
+	echo "Supported distros: humble, iron, jazzy, lyrical, kilted, rolling"
 	exit 1
 	;;
 esac
@@ -110,7 +111,7 @@ echo "Installing build dependencies..."
 
 # Check if we need --break-system-packages for pip
 USE_BREAK_SYSTEM_PACKAGES=""
-if [[ "$ROS_DISTRO" == "jazzy" || "$ROS_DISTRO" == "kilted" || "$ROS_DISTRO" == "rolling" ]]; then
+if [[ "$ROS_DISTRO" == "jazzy" || "$ROS_DISTRO" == "lyrical" || "$ROS_DISTRO" == "kilted" || "$ROS_DISTRO" == "rolling" ]]; then
 	USE_BREAK_SYSTEM_PACKAGES="--break-system-packages"
 fi
 

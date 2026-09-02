@@ -36,6 +36,9 @@ iron)
 jazzy)
 	IMAGE="ros:jazzy-ros-base-noble"
 	;;
+lyrical)
+	IMAGE="ros:lyrical-ros-base-noble"
+	;;
 kilted)
 	IMAGE="ros:kilted-ros-base-noble"
 	;;
@@ -44,7 +47,7 @@ rolling)
 	;;
 *)
 	echo "Unsupported ROS 2 distribution: $DISTRO"
-	echo "Supported: humble, iron, jazzy, kilted, rolling"
+	echo "Supported: humble, iron, jazzy, lyrical, kilted, rolling"
 	exit 1
 	;;
 esac
@@ -72,7 +75,7 @@ docker run -it --rm \
         apt-get update -qq && apt-get install -y build-essential python3-pip
 
         # Install Python requirements based on ROS distro
-        if [[ '${DISTRO}' == 'jazzy' || '${DISTRO}' == 'kilted' || '${DISTRO}' == 'rolling' ]]; then
+        if [[ '${DISTRO}' == 'jazzy' || '${DISTRO}' == 'lyrical' || '${DISTRO}' == 'kilted' || '${DISTRO}' == 'rolling' ]]; then
             pip3 install --break-system-packages -I pygments -r /workspace/src/greenwave_monitor/r2s_gw/requirements.txt
         else
             pip3 install -r /workspace/src/greenwave_monitor/r2s_gw/requirements.txt
