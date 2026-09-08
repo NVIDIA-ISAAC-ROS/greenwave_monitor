@@ -24,7 +24,7 @@ on:
   workflow_dispatch:  # Manual trigger
     inputs:
       ros_distros:
-        description: 'ROS distributions to build (comma-separated: humble,iron,jazzy,kilted,rolling)'
+        description: 'ROS distributions to build (comma-separated: humble,iron,jazzy,lyrical,kilted,rolling)'
         required: false
   schedule:
     - cron: '0 2 * * *'  # Nightly at 2 AM UTC
@@ -44,10 +44,10 @@ jobs:
       run: |
         if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
           # Manual trigger - use input or default
-          DISTROS="${{ github.event.inputs.ros_distros || 'humble,iron,jazzy,kilted,rolling' }}"
+          DISTROS="${{ github.event.inputs.ros_distros || 'humble,iron,jazzy,lyrical,kilted,rolling' }}"
         else
           # Always build all distributions
-          DISTROS="humble,iron,jazzy,kilted,rolling"
+          DISTROS="humble,iron,jazzy,lyrical,kilted,rolling"
         fi
         echo "Building for distributions: $DISTROS"
         # Convert to JSON array for matrix
@@ -72,6 +72,8 @@ jobs:
             ubuntu_distro: jammy
           - ros_distro: jazzy
             ubuntu_distro: noble
+          - ros_distro: lyrical
+            ubuntu_distro: resolute
           - ros_distro: kilted
             ubuntu_distro: noble
           - ros_distro: rolling
@@ -114,6 +116,8 @@ jobs:
             ubuntu_distro: jammy
           - ros_distro: jazzy
             ubuntu_distro: noble
+          - ros_distro: lyrical
+            ubuntu_distro: resolute
           - ros_distro: kilted
             ubuntu_distro: noble
           - ros_distro: rolling
@@ -232,6 +236,7 @@ jobs:
 
         # Install Python dependencies
         if [[ "${{ matrix.ros_distro }}" == "jazzy" || \
+              "${{ matrix.ros_distro }}" == "lyrical" || \
               "${{ matrix.ros_distro }}" == "kilted" || \
               "${{ matrix.ros_distro }}" == "rolling" ]]; then
           pip3 install --break-system-packages --ignore-installed pygments textual

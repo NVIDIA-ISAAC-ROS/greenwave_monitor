@@ -54,6 +54,8 @@ jobs:
             ubuntu_distro: jammy
           - ros_distro: jazzy
             ubuntu_distro: noble
+          - ros_distro: lyrical
+            ubuntu_distro: resolute
           - ros_distro: kilted
             ubuntu_distro: noble
           - ros_distro: rolling
@@ -122,6 +124,7 @@ jobs:
         source /opt/ros/${{ matrix.ros_distro }}/setup.bash
         source install/setup.bash
         if [[ "${{ matrix.ros_distro }}" == "jazzy" || \
+              "${{ matrix.ros_distro }}" == "lyrical" || \
               "${{ matrix.ros_distro }}" == "kilted" || \
               "${{ matrix.ros_distro }}" == "rolling" ]]; then
           pip3 install --break-system-packages --ignore-installed pygments -r r2s_gw/requirements.txt

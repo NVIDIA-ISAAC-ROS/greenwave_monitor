@@ -21,7 +21,7 @@ For implementation details and inline integration guidance, see
 
 ## Compatibility
 
-Greenwave monitor is a standalone package tested on Humble, Iron, Jazzy, Kilted, and Rolling ROS 2 releases, under Ubuntu 22.04 and Ubuntu 24.04. It does not depend on Isaac ROS. It does however play nicely with Isaac ROS NITROS diagnostics, see [`docs/DESIGN_AND_IMPLEMENTATION.md`](docs/DESIGN_AND_IMPLEMENTATION.md) for more.
+Greenwave monitor is a standalone package tested on Humble, Iron, Jazzy, Lyrical, Kilted, and Rolling ROS 2 releases, under Ubuntu 22.04, Ubuntu 24.04, and Ubuntu 26.04. It does not depend on Isaac ROS. It does however play nicely with Isaac ROS NITROS diagnostics, see [`docs/DESIGN_AND_IMPLEMENTATION.md`](docs/DESIGN_AND_IMPLEMENTATION.md) for more.
 
 ## Installation
 
